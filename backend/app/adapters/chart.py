@@ -14,6 +14,8 @@ class MockChartAdapter:
                 task.status = "completed"
                 task.notes = "Completed by the mock chart adapter."
 
+        if session.report and session.report.asset_cards:
+            return StructuredChartAdapter()._build_rwa_artifacts(session)
         if session.report and session.report.budget_items:
             return StructuredChartAdapter()._build_budget_artifacts(session)
         if session.report and session.report.option_profiles:
@@ -50,6 +52,8 @@ class DisabledChartAdapter:
 class StructuredChartAdapter:
     def build_preview(self, session: AnalysisSession) -> list[ChartArtifact]:
         if session.report:
+            if session.report.asset_cards:
+                return self._build_rwa_artifacts(session)
             if session.report.budget_items:
                 return self._build_budget_artifacts(session)
             if session.report.option_profiles:
@@ -70,6 +74,124 @@ class StructuredChartAdapter:
 
             task.status = "completed"
             artifacts.append(artifact)
+
+        return artifacts
+
+    def _build_rwa_artifacts(self, session: AnalysisSession) -> list[ChartArtifact]:
+        report = session.report
+        if report is None or not report.asset_cards:
+            return []
+
+        simulations = {simulation.asset_id: simulation for simulation in report.simulations}
+        asset_cards = report.asset_cards
+        artifacts = [
+            ChartArtifact(
+                chart_type="bar",
+                title="Holding Period Return Distribution",
+                spec={
+                    "categories": [card.name for card in asset_cards],
+                    "series": [
+                        {
+                            "name": "P10 return %",
+                            "data": [
+                                simulations[card.asset_id].return_pct_low
+                                for card in asset_cards
+                                if card.asset_id in simulations
+                            ],
+                        },
+                        {
+                            "name": "P50 return %",
+                            "data": [
+                                simulations[card.asset_id].return_pct_base
+                                for card in asset_cards
+                                if card.asset_id in simulations
+                            ],
+                        },
+                        {
+                            "name": "P90 return %",
+                            "data": [
+                                simulations[card.asset_id].return_pct_high
+                                for card in asset_cards
+                                if card.asset_id in simulations
+                            ],
+                        },
+                    ],
+                    "unit": "percent",
+                },
+                notes="统一持有期下的收益分布对比，P10/P50/P90 分别代表偏保守、基准和乐观情景。",
+            ),
+            ChartArtifact(
+                chart_type="radar",
+                title="Risk Vector Radar",
+                spec={
+                    "radar_indicators": [
+                        "Market",
+                        "Liquidity",
+                        "Peg/Redemption",
+                        "Issuer/Custody",
+                        "Smart Contract",
+                        "Oracle",
+                        "Compliance",
+                    ],
+                    "series": [
+                        {
+                            "name": card.name,
+                            "data": [
+                                card.risk_vector.market / 10,
+                                card.risk_vector.liquidity / 10,
+                                card.risk_vector.peg_redemption / 10,
+                                card.risk_vector.issuer_custody / 10,
+                                card.risk_vector.smart_contract / 10,
+                                card.risk_vector.oracle_dependency / 10,
+                                card.risk_vector.compliance_access / 10,
+                            ],
+                        }
+                        for card in asset_cards[:3]
+                    ],
+                    "unit": "0-10",
+                },
+                notes="RiskVector 已归一到 0-10 雷达轴，分数越高说明该维度越危险。",
+            ),
+        ]
+
+        if report.recommended_allocations:
+            artifacts.append(
+                ChartArtifact(
+                    chart_type="bar",
+                    title="Recommended Allocation",
+                    spec={
+                        "categories": [item.asset_name for item in report.recommended_allocations],
+                        "series": [
+                            {
+                                "name": "Target weight %",
+                                "data": [item.target_weight_pct for item in report.recommended_allocations],
+                            }
+                        ],
+                        "unit": "percent",
+                    },
+                    notes="建议权重先满足流动性和 KYC 约束，再做收益与风险权衡。",
+                )
+            )
+
+        top_simulation = report.simulations[0] if report.simulations else None
+        if top_simulation and top_simulation.path:
+            artifacts.append(
+                ChartArtifact(
+                    chart_type="line",
+                    title=f"{top_simulation.asset_name} Scenario Path",
+                    spec={
+                        "categories": [f"Day {point.day}" for point in top_simulation.path],
+                        "series": [
+                            {
+                                "name": "P50 path",
+                                "data": [point.p50_value for point in top_simulation.path],
+                            }
+                        ],
+                        "unit": session.intake_context.base_currency,
+                    },
+                    notes="展示基准情景路径，用于辅助理解持有期中的净值波动和回撤。",
+                )
+            )
 
         return artifacts
 

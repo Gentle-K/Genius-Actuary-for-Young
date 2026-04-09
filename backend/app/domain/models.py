@@ -7,6 +7,16 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from app.domain.rwa import (
+    AssetAnalysisCard,
+    AttestationDraft,
+    HashKeyChainConfig,
+    HoldingPeriodSimulation,
+    PortfolioAllocation,
+    RwaIntakeContext,
+    TxDraft,
+)
+
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -196,6 +206,12 @@ class AnalysisReport(BaseModel):
     budget_items: list[BudgetLineItem] = Field(default_factory=list)
     option_profiles: list[OptionProfile] = Field(default_factory=list)
     tables: list[ReportTable] = Field(default_factory=list)
+    chain_config: HashKeyChainConfig | None = None
+    asset_cards: list[AssetAnalysisCard] = Field(default_factory=list)
+    simulations: list[HoldingPeriodSimulation] = Field(default_factory=list)
+    recommended_allocations: list[PortfolioAllocation] = Field(default_factory=list)
+    tx_draft: TxDraft | None = None
+    attestation_draft: AttestationDraft | None = None
 
 
 class SessionEvent(BaseModel):
@@ -221,6 +237,7 @@ class AnalysisSession(BaseModel):
     owner_client_id: str
     mode: AnalysisMode
     problem_statement: str
+    intake_context: RwaIntakeContext = Field(default_factory=RwaIntakeContext)
     status: SessionStatus = SessionStatus.INIT
     clarification_questions: list[ClarificationQuestion] = Field(default_factory=list)
     answers: list[UserAnswer] = Field(default_factory=list)

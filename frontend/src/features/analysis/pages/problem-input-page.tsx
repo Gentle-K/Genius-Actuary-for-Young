@@ -115,6 +115,18 @@ export function ProblemInputPage() {
               await createMutation.mutateAsync({
                 mode,
                 problemStatement: values.problemStatement,
+                intakeContext: {
+                  investmentAmount: 10000,
+                  baseCurrency: 'USDT',
+                  preferredAssetIds: ['hsk-usdc', 'cpic-estable-mmf', 'hk-regulated-silver'],
+                  holdingPeriodDays: 30,
+                  riskTolerance: 'balanced',
+                  liquidityNeed: 't_plus_3',
+                  minimumKycLevel: 0,
+                  walletAddress: '',
+                  wantsOnchainAttestation: true,
+                  additionalConstraints: '',
+                },
               })
             }}
           >

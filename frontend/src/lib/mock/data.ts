@@ -20,6 +20,19 @@ import type {
   User,
 } from '@/types'
 
+const mockIntakeContext = {
+  investmentAmount: 10000,
+  baseCurrency: 'USDT',
+  preferredAssetIds: ['hsk-usdc', 'cpic-estable-mmf', 'hk-regulated-silver'],
+  holdingPeriodDays: 30,
+  riskTolerance: 'balanced' as const,
+  liquidityNeed: 't_plus_3' as const,
+  minimumKycLevel: 0,
+  walletAddress: '',
+  wantsOnchainAttestation: true,
+  additionalConstraints: '',
+}
+
 const iso = (value: string) => new Date(value).toISOString()
 
 export const permissions: Permission[] = [
@@ -1062,6 +1075,9 @@ export function buildScenarioBundle(
       'This product supports decisions and does not replace legal, medical, tax, or visa professionals.',
       'High-impact unknowns remain visible and should be resolved before irreversible action.',
     ],
+    assetCards: [],
+    simulations: [],
+    recommendedAllocations: [],
   }
 
   return {
@@ -1095,6 +1111,7 @@ function buildSession(
       createdAt,
       updatedAt,
       lastInsight,
+      intakeContext: mockIntakeContext,
       questions: bundle.questions,
       answers: [],
       searchTasks: bundle.searchTasks,

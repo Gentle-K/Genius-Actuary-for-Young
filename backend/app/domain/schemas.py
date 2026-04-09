@@ -16,11 +16,13 @@ from app.domain.models import (
     SessionStatus,
     UserAnswer,
 )
+from app.domain.rwa import AssetTemplate, HashKeyChainConfig, RwaIntakeContext
 
 
 class SessionCreateRequest(BaseModel):
     mode: AnalysisMode
     problem_statement: str = Field(min_length=5)
+    intake_context: RwaIntakeContext = Field(default_factory=RwaIntakeContext)
 
 
 class ContinueSessionRequest(BaseModel):
@@ -113,3 +115,7 @@ class FrontendBootstrapResponse(BaseModel):
     session_statuses: list[str]
     next_actions: list[str]
     notes: list[str]
+    chain_config: HashKeyChainConfig
+    asset_library: list[AssetTemplate]
+    supported_asset_types: list[str]
+    holding_period_presets: list[int]

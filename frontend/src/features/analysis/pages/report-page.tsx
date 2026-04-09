@@ -1,11 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
 import {
-  Banknote,
-  BarChart3,
+  Blocks,
   CheckCircle2,
-  CircleDollarSign,
-  GitCompare,
+  Coins,
+  FileCode2,
+  Link2,
+  Radar,
+  ScrollText,
+  ShieldCheck,
   TriangleAlert,
+  WalletCards,
 } from 'lucide-react'
 import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -19,12 +23,22 @@ import { Card } from '@/components/ui/card'
 import { ReportTableCard } from '@/features/analysis/components/report-table-card'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
 
-function formatMoney(value?: number, currency = 'CNY') {
+function formatMoney(value?: number, currency = 'USDT') {
   if (typeof value !== 'number') {
     return '—'
   }
 
-  return `${Math.round(value).toLocaleString('zh-CN')} ${currency}`
+  return `${value.toLocaleString('zh-CN', {
+    maximumFractionDigits: 2,
+  })} ${currency}`
+}
+
+function formatPercent(value?: number) {
+  if (typeof value !== 'number') {
+    return '—'
+  }
+
+  return `${value.toFixed(2)}%`
 }
 
 export function ReportPage() {
@@ -66,9 +80,9 @@ export function ReportPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="第 3 页 / 结果界面"
+        eyebrow="第 3 页 / RWA Report"
         title={report.summaryTitle}
-        description="最终结果会同时展示结构化指标、图表、表格和长文分析。"
+        description="结果页会同时展示资产卡片、持有期模拟、RiskVector、证据面板、交易草案和链上存证草案。"
         actions={
           <Button variant="secondary" onClick={() => void navigate(`/analysis/session/${sessionId}`)}>
             返回分析界面
@@ -95,93 +109,163 @@ export function ReportPage() {
         ))}
       </div>
 
-      {report.budgetSummary ? (
+      {report.chainConfig ? (
+        <Card className="p-5">
+          <div className="mb-4 flex items-center gap-3">
+            <Blocks className="size-5 text-gold-primary" />
+            <h2 className="text-lg font-semibold text-text-primary">HashKey Chain 配置</h2>
+          </div>
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
+              <p className="text-xs text-text-muted">Mainnet</p>
+              <p className="mt-2 font-medium text-text-primary">{report.chainConfig.mainnetChainId}</p>
+              <a
+                href={report.chainConfig.mainnetExplorerUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex text-xs text-gold-ink underline-offset-4 hover:underline"
+              >
+                Explorer
+              </a>
+            </div>
+            <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
+              <p className="text-xs text-text-muted">Testnet</p>
+              <p className="mt-2 font-medium text-text-primary">{report.chainConfig.testnetChainId}</p>
+              <a
+                href={report.chainConfig.testnetExplorerUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex text-xs text-gold-ink underline-offset-4 hover:underline"
+              >
+                Explorer
+              </a>
+            </div>
+            <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
+              <p className="text-xs text-text-muted">KYC SBT</p>
+              <p className="mt-2 break-all text-sm text-text-primary">
+                {report.chainConfig.kycSbtAddress || '未配置'}
+              </p>
+            </div>
+            <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
+              <p className="text-xs text-text-muted">Plan Registry</p>
+              <p className="mt-2 break-all text-sm text-text-primary">
+                {report.chainConfig.planRegistryAddress || '未配置'}
+              </p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
+      {report.assetCards.length ? (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <Banknote className="size-5 text-gold-primary" />
-            <h2 className="text-xl font-semibold text-text-primary">预算总览</h2>
+            <ShieldCheck className="size-5 text-gold-primary" />
+            <h2 className="text-xl font-semibold text-text-primary">资产卡片</h2>
           </div>
 
           <div className="grid gap-4 xl:grid-cols-3">
-            <Card className="space-y-3 p-5">
-              <div className="flex items-center gap-2 text-text-primary">
-                <CircleDollarSign className="size-4 text-gold-primary" />
-                <span className="font-medium">净预算范围</span>
-              </div>
-              <p className="text-2xl font-semibold text-text-primary">
-                {formatMoney(report.budgetSummary.netLow, report.budgetSummary.currency)} -{' '}
-                {formatMoney(report.budgetSummary.netHigh, report.budgetSummary.currency)}
-              </p>
-              <p className="text-sm leading-7 text-text-secondary">
-                基准净预算：{formatMoney(report.budgetSummary.netBase, report.budgetSummary.currency)}
-              </p>
-            </Card>
+            {report.assetCards.map((asset) => (
+              <Card key={asset.assetId} className="space-y-4 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-semibold text-text-primary">{asset.name}</h3>
+                      <Badge tone="neutral">{asset.symbol}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm leading-7 text-text-secondary">{asset.fitSummary}</p>
+                  </div>
+                  <Badge tone="gold">{asset.assetType}</Badge>
+                </div>
 
-            <Card className="space-y-3 p-5">
-              <div className="flex items-center gap-2 text-text-primary">
-                <BarChart3 className="size-4 text-gold-primary" />
-                <span className="font-medium">总成本区间</span>
-              </div>
-              <p className="text-2xl font-semibold text-text-primary">
-                {formatMoney(report.budgetSummary.totalCostLow, report.budgetSummary.currency)} -{' '}
-                {formatMoney(report.budgetSummary.totalCostHigh, report.budgetSummary.currency)}
-              </p>
-              <p className="text-sm leading-7 text-text-secondary">
-                基准总成本：{formatMoney(report.budgetSummary.totalCostBase, report.budgetSummary.currency)}
-              </p>
-            </Card>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
+                    <p className="text-xs text-text-muted">基准年化</p>
+                    <p className="mt-2 font-medium text-text-primary">
+                      {formatPercent(asset.expectedReturnBase * 100)}
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
+                    <p className="text-xs text-text-muted">综合风险</p>
+                    <p className="mt-2 font-medium text-text-primary">
+                      {asset.riskVector.overall.toFixed(1)} / 100
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
+                    <p className="text-xs text-text-muted">最短退出</p>
+                    <p className="mt-2 font-medium text-text-primary">
+                      {asset.exitDays === 0 ? 'T+0' : `T+${asset.exitDays}`}
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
+                    <p className="text-xs text-text-muted">总成本</p>
+                    <p className="mt-2 font-medium text-text-primary">
+                      {asset.totalCostBps} bps
+                    </p>
+                  </div>
+                </div>
 
-            <Card className="space-y-3 p-5">
-              <div className="flex items-center gap-2 text-text-primary">
-                <TriangleAlert className="size-4 text-gold-primary" />
-                <span className="font-medium">预算提醒</span>
-              </div>
-              <p className="text-sm leading-7 text-text-secondary">
-                {report.budgetSummary.reserveNote || '建议为不确定项单独预留缓冲。'}
-              </p>
-            </Card>
+                <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4 text-sm leading-7 text-text-secondary">
+                  <p className="font-medium text-text-primary">投资逻辑</p>
+                  <p className="mt-2">{asset.thesis}</p>
+                  <p className="mt-2 text-xs text-text-muted">
+                    KYC 门槛: L{asset.kycRequiredLevel ?? 0}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {asset.tags.map((tag) => (
+                    <span
+                      key={`${asset.assetId}-${tag}`}
+                      className="rounded-full border border-border-subtle px-3 py-1 text-xs text-text-muted"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </Card>
+            ))}
           </div>
         </div>
       ) : null}
 
-      {report.optionProfiles?.length ? (
+      {report.simulations.length ? (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <GitCompare className="size-5 text-gold-primary" />
-            <h2 className="text-xl font-semibold text-text-primary">方案平行比较</h2>
+            <Radar className="size-5 text-gold-primary" />
+            <h2 className="text-xl font-semibold text-text-primary">持有期模拟</h2>
           </div>
-
           <div className="grid gap-4 xl:grid-cols-3">
-            {report.optionProfiles.map((option) => (
-              <Card key={option.id} className="space-y-4 p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-semibold text-text-primary">{option.name}</h3>
-                    <p className="mt-2 text-sm leading-7 text-text-secondary">{option.summary}</p>
+            {report.simulations.map((simulation) => (
+              <Card key={simulation.assetId} className="space-y-4 p-5">
+                <div>
+                  <h3 className="text-lg font-semibold text-text-primary">{simulation.assetName}</h3>
+                  <p className="mt-2 text-sm leading-7 text-text-secondary">{simulation.scenarioNote}</p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
+                    <p className="text-xs text-text-muted">P10 / P50 / P90</p>
+                    <p className="mt-2 text-sm font-medium text-text-primary">
+                      {formatPercent(simulation.returnPctLow)} / {formatPercent(simulation.returnPctBase)} / {formatPercent(simulation.returnPctHigh)}
+                    </p>
                   </div>
-                  {typeof option.score === 'number' ? <Badge tone="gold">{option.score.toFixed(1)}</Badge> : null}
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-xs uppercase tracking-[0.14em] text-text-muted">优点</p>
-                  {option.pros.map((item) => (
-                    <div key={`${option.id}-pro-${item}`} className="rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3 text-sm text-text-secondary">
-                      {item}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-xs uppercase tracking-[0.14em] text-text-muted">缺点</p>
-                  {option.cons.map((item) => (
-                    <div key={`${option.id}-con-${item}`} className="rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3 text-sm text-text-secondary">
-                      {item}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3 text-sm text-text-secondary">
-                  基准成本：{formatMoney(option.estimatedCostBase, option.currency)}
+                  <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
+                    <p className="text-xs text-text-muted">VaR / CVaR</p>
+                    <p className="mt-2 text-sm font-medium text-text-primary">
+                      {formatPercent(simulation.var95Pct)} / {formatPercent(simulation.cvar95Pct)}
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
+                    <p className="text-xs text-text-muted">Ending Value P50</p>
+                    <p className="mt-2 text-sm font-medium text-text-primary">
+                      {formatMoney(simulation.endingValueBase, session.intakeContext.baseCurrency)}
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
+                    <p className="text-xs text-text-muted">MDD 基准</p>
+                    <p className="mt-2 text-sm font-medium text-text-primary">
+                      {formatPercent(simulation.maxDrawdownBasePct)}
+                    </p>
+                  </div>
                 </div>
               </Card>
             ))}
@@ -191,7 +275,7 @@ export function ReportPage() {
 
       {report.tables?.length ? (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-text-primary">结构化表格</h2>
+          <h2 className="text-xl font-semibold text-text-primary">结构化矩阵</h2>
           {report.tables.map((table) => (
             <ReportTableCard key={table.id} table={table} />
           ))}
@@ -207,13 +291,16 @@ export function ReportPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <Card className="space-y-4 p-6">
-          <h2 className="text-xl font-semibold text-text-primary">完整分析</h2>
-          <ReportMarkdown markdown={report.markdown} />
-        </Card>
-
+      <div className="grid gap-4 xl:grid-cols-[1.12fr_0.88fr]">
         <div className="space-y-4">
+          <Card className="space-y-4 p-6">
+            <div className="flex items-center gap-3">
+              <ScrollText className="size-5 text-gold-primary" />
+              <h2 className="text-xl font-semibold text-text-primary">完整分析</h2>
+            </div>
+            <ReportMarkdown markdown={report.markdown} />
+          </Card>
+
           <Card className="space-y-4 p-6">
             <h2 className="text-lg font-semibold text-text-primary">假设与限制</h2>
             <div className="space-y-3">
@@ -227,9 +314,47 @@ export function ReportPage() {
               ))}
             </div>
           </Card>
+        </div>
+
+        <div className="space-y-4">
+          {report.recommendedAllocations.length ? (
+            <Card className="space-y-4 p-6">
+              <div className="flex items-center gap-3">
+                <Coins className="size-5 text-gold-primary" />
+                <h2 className="text-lg font-semibold text-text-primary">建议权重</h2>
+              </div>
+              <div className="space-y-3">
+                {report.recommendedAllocations.map((allocation) => (
+                  <div
+                    key={allocation.assetId}
+                    className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium text-text-primary">{allocation.assetName}</p>
+                      <Badge tone={allocation.blockedReason ? 'warning' : 'gold'}>
+                        {allocation.targetWeightPct.toFixed(1)}%
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm leading-7 text-text-secondary">{allocation.rationale}</p>
+                    <p className="mt-2 text-xs text-text-muted">
+                      建议金额: {formatMoney(allocation.suggestedAmount, session.intakeContext.baseCurrency)}
+                    </p>
+                    {allocation.blockedReason ? (
+                      <p className="mt-2 text-xs text-[#f2cf9c]">
+                        受限原因: {allocation.blockedReason}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
 
           <Card className="space-y-4 p-6">
-            <h2 className="text-lg font-semibold text-text-primary">证据与提醒</h2>
+            <div className="flex items-center gap-3">
+              <Link2 className="size-5 text-gold-primary" />
+              <h2 className="text-lg font-semibold text-text-primary">证据面板</h2>
+            </div>
             <div className="space-y-3">
               {report.evidence.length ? (
                 report.evidence.map((evidence) => (
@@ -254,37 +379,140 @@ export function ReportPage() {
                 ))
               ) : (
                 <div className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4 text-sm leading-7 text-text-secondary">
-                  当前结果主要基于你的输入、系统估算和结构化分析流程生成。
+                  当前结果主要基于资产模板、规则引擎和结构化输入生成。
                 </div>
               )}
+            </div>
+          </Card>
 
+          {report.txDraft ? (
+            <Card className="space-y-4 p-6">
+              <div className="flex items-center gap-3">
+                <WalletCards className="size-5 text-gold-primary" />
+                <h2 className="text-lg font-semibold text-text-primary">交易草案</h2>
+              </div>
+              <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4 text-sm text-text-secondary">
+                总预估手续费: {formatMoney(report.txDraft.totalEstimatedFeeUsd, 'USD')}
+              </div>
+              <div className="space-y-3">
+                {report.txDraft.steps.map((step) => (
+                  <div
+                    key={`${step.step}-${step.title}`}
+                    className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium text-text-primary">
+                        Step {step.step}. {step.title}
+                      </p>
+                      <Badge tone="neutral">{step.actionType}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm leading-7 text-text-secondary">{step.description}</p>
+                    <p className="mt-2 text-xs text-text-muted">
+                      预估手续费: {formatMoney(step.estimatedFeeUsd, 'USD')}
+                    </p>
+                    {step.caution ? (
+                      <p className="mt-2 text-xs text-[#f2cf9c]">注意: {step.caution}</p>
+                    ) : null}
+                    {step.explorerUrl ? (
+                      <a
+                        href={step.explorerUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-flex text-xs text-gold-ink underline-offset-4 hover:underline"
+                      >
+                        查看地址或 Explorer
+                      </a>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-2">
+                {report.txDraft.riskWarnings.map((warning) => (
+                  <div
+                    key={warning}
+                    className="rounded-[18px] border border-[rgba(249,228,159,0.16)] bg-[rgba(212,175,55,0.08)] p-4 text-sm leading-7 text-text-secondary"
+                  >
+                    {warning}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+
+          {report.attestationDraft ? (
+            <Card className="space-y-4 p-6">
+              <div className="flex items-center gap-3">
+                <FileCode2 className="size-5 text-gold-primary" />
+                <h2 className="text-lg font-semibold text-text-primary">链上存证草案</h2>
+              </div>
+              <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4 text-sm leading-7 text-text-secondary">
+                <p>Report Hash: {report.attestationDraft.reportHash.slice(0, 16)}...</p>
+                <p className="mt-2">Portfolio Hash: {report.attestationDraft.portfolioHash.slice(0, 16)}...</p>
+                <p className="mt-2">Attestation Hash: {report.attestationDraft.attestationHash.slice(0, 16)}...</p>
+              </div>
+
+              <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-medium text-text-primary">Plan Registry</p>
+                  <Badge tone={report.attestationDraft.ready ? 'success' : 'warning'}>
+                    {report.attestationDraft.ready ? '可直接上链' : '仅离线草案'}
+                  </Badge>
+                </div>
+                <p className="mt-2 break-all text-sm text-text-secondary">
+                  {report.attestationDraft.contractAddress || '当前未配置链上合约地址'}
+                </p>
+                {report.attestationDraft.explorerUrl ? (
+                  <a
+                    href={report.attestationDraft.explorerUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex text-xs text-gold-ink underline-offset-4 hover:underline"
+                  >
+                    查看 Explorer
+                  </a>
+                ) : null}
+              </div>
+            </Card>
+          ) : null}
+
+          <Card className="space-y-4 p-6">
+            <div className="flex items-center gap-3">
+              <TriangleAlert className="size-5 text-gold-primary" />
+              <h2 className="text-lg font-semibold text-text-primary">风险提醒</h2>
+            </div>
+            <div className="space-y-3">
               {report.disclaimers.map((disclaimer) => (
                 <div
                   key={disclaimer}
-                  className="rounded-[20px] border border-[rgba(249,228,159,0.16)] bg-[rgba(212,175,55,0.08)] p-4 text-sm leading-7 text-text-secondary"
+                  className="rounded-[18px] border border-[rgba(249,228,159,0.16)] bg-[rgba(212,175,55,0.08)] p-4 text-sm leading-7 text-text-secondary"
                 >
                   {disclaimer}
                 </div>
               ))}
+              <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4 text-sm leading-7 text-text-secondary">
+                稳定币、MMF 与各类 RWA 的风险结构不同，不应只按收益率排序。先看退出约束和权利边界，再看收益数字。
+              </div>
             </div>
           </Card>
 
           <Card className="space-y-4 p-6">
-            <h2 className="text-lg font-semibold text-text-primary">计算摘要</h2>
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="size-5 text-gold-primary" />
+              <h2 className="text-lg font-semibold text-text-primary">计算摘要</h2>
+            </div>
             <div className="space-y-3">
               {report.calculations.map((calculation) => (
                 <div
                   key={calculation.id}
                   className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4"
                 >
-                  <div className="flex items-center gap-2 text-text-primary">
-                    <CheckCircle2 className="size-4 text-gold-primary" />
-                    <p className="font-medium">{calculation.taskType}</p>
-                  </div>
-                  <p className="mt-3 text-sm text-gold-ink">
+                  <p className="font-medium text-text-primary">{calculation.taskType}</p>
+                  <p className="mt-2 text-sm text-gold-ink">
                     {calculation.result} {calculation.units}
                   </p>
-                  <p className="mt-2 text-sm leading-7 text-text-secondary">{calculation.formulaExpression}</p>
+                  <p className="mt-2 text-sm leading-7 text-text-secondary">
+                    {calculation.formulaExpression}
+                  </p>
                 </div>
               ))}
             </div>

@@ -325,6 +325,9 @@ export function buildMockAnalysisBundle(
       budgetSummary,
       budgetItems,
       tables,
+      assetCards: [],
+      simulations: [],
+      recommendedAllocations: [],
     }
 
     return {
@@ -381,6 +384,9 @@ export function buildMockAnalysisBundle(
     disclaimers: ['方案评分和成本区间只用于帮助比较，不是唯一决策依据。'],
     optionProfiles: options,
     tables,
+    assetCards: [],
+    simulations: [],
+    recommendedAllocations: [],
   }
 
   return {

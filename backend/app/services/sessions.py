@@ -1,4 +1,5 @@
 from app.domain.models import AnalysisMode, AnalysisSession, SessionEvent, SessionStatus, UserAnswer
+from app.domain.rwa import RwaIntakeContext
 from app.persistence.base import SessionRepository
 from app.services.audit import AuditLogService
 
@@ -19,12 +20,14 @@ class SessionService:
         mode: AnalysisMode,
         problem_statement: str,
         owner_client_id: str,
+        intake_context: RwaIntakeContext | None = None,
         ip_address: str = "unknown",
     ) -> AnalysisSession:
         session = AnalysisSession(
             owner_client_id=owner_client_id,
             mode=mode,
             problem_statement=problem_statement,
+            intake_context=intake_context or RwaIntakeContext(),
             follow_up_round_limit=self.follow_up_round_limit,
         )
         session.events.extend(
@@ -36,6 +39,7 @@ class SessionService:
                         "problem_statement_length": len(problem_statement),
                         "owner_client_id": owner_client_id,
                         "ip_address": ip_address,
+                        "preferred_asset_count": len((intake_context or RwaIntakeContext()).preferred_asset_ids),
                     },
                 ),
                 SessionEvent(
@@ -44,6 +48,7 @@ class SessionService:
                         "mode": mode.value,
                         "problem_statement": problem_statement,
                         "owner_client_id": owner_client_id,
+                        "intake_context": (intake_context or RwaIntakeContext()).model_dump(mode="json"),
                     },
                 ),
             ]

@@ -5,6 +5,7 @@ from typing import Any, Callable, TypeVar
 
 import httpx
 
+from app.config import Settings
 from app.domain.models import (
     AnalysisLoopPlan,
     AnalysisMode,
@@ -21,11 +22,14 @@ from app.domain.models import (
     SearchTask,
     SessionEvent,
 )
+from app.domain.rwa import LiquidityNeed, RiskTolerance, RwaIntakeContext
 from app.prompts import (
     build_clarification_prompts,
     build_planning_prompts,
     build_reporting_prompts,
 )
+from app.rwa.catalog import build_asset_library, build_chain_config
+from app.rwa.engine import build_rwa_report, resolve_selected_assets
 
 
 def _make_question(
@@ -228,6 +232,190 @@ def _build_multi_initial_questions(problem: str) -> list[ClarificationQuestion]:
     return questions
 
 
+def _answer_values(session: AnalysisSession) -> list[str]:
+    return [answer.value.strip() for answer in session.answers if answer.value.strip()]
+
+
+def _merged_rwa_context(session: AnalysisSession) -> RwaIntakeContext:
+    context = session.intake_context.model_copy(deep=True)
+    for value in _answer_values(session):
+        normalized = value.lower()
+        if any(keyword in normalized for keyword in ("保守", "conservative")):
+            context.risk_tolerance = RiskTolerance.CONSERVATIVE
+        elif any(keyword in normalized for keyword in ("均衡", "balanced", "中等")):
+            context.risk_tolerance = RiskTolerance.BALANCED
+        elif any(keyword in normalized for keyword in ("进取", "aggressive", "激进")):
+            context.risk_tolerance = RiskTolerance.AGGRESSIVE
+
+        if "t+0" in normalized or "即时" in normalized or "高流动性" in normalized:
+            context.liquidity_need = LiquidityNeed.INSTANT
+        elif "t+3" in normalized or "3天" in normalized:
+            context.liquidity_need = LiquidityNeed.T_PLUS_3
+        elif "锁定" in normalized or "30天" in normalized or "180天" in normalized:
+            context.liquidity_need = LiquidityNeed.LOCKED
+
+        if "专业投资者" in value or "professional" in normalized:
+            context.minimum_kyc_level = max(context.minimum_kyc_level, 2)
+        elif "基础kyc" in normalized or "basic kyc" in normalized:
+            context.minimum_kyc_level = max(context.minimum_kyc_level, 1)
+
+    return context
+
+
+def _build_rwa_questions(session: AnalysisSession) -> list[ClarificationQuestion]:
+    settings = Settings.from_env()
+    chain_config = build_chain_config(settings)
+    asset_library = build_asset_library(chain_config)
+    selected_assets = resolve_selected_assets(
+        session.mode,
+        session.problem_statement,
+        session.intake_context,
+        asset_library,
+    )
+    asset_hint = "、".join(asset.name for asset in selected_assets[:3]) or "USDC、MMF、白银 RWA"
+
+    questions = [
+        _make_question(
+            question_text="这笔资金最主要的目标是什么？",
+            purpose="先明确你是要流动性管理、稳健收益、通胀对冲，还是提高整体收益弹性。",
+            options=["保住流动性", "稳健增值", "增强收益", "做资产分散"],
+            question_group="objective",
+            input_hint="例如：希望 30 天内随时可退出，同时比纯稳定币更有收益。",
+            example_answer="希望保住高流动性，但愿意拿一小部分做更高收益的 RWA。",
+            allow_skip=False,
+        ),
+        _make_question(
+            question_text="你最晚需要在多久内可以退出这笔配置？",
+            purpose="RWA 的核心约束之一就是申赎时间和流动性摩擦，这会直接淘汰一部分资产。",
+            options=["T+0", "T+3", "30 天锁定也可", "180 天也可接受"],
+            question_group="liquidity",
+            input_hint="如果你有明确时间窗，也可以直接写 T+N 或具体天数。",
+            example_answer="最好 T+3 内可以退出，不能接受长期锁定。",
+            allow_skip=False,
+        ),
+        _make_question(
+            question_text="你的真实风险承受度更接近哪一类？",
+            purpose="系统会用风险承受度决定稳定币、MMF、贵金属和高波动 benchmark 的权重上限。",
+            options=["保守", "均衡", "进取"],
+            question_group="risk",
+            input_hint="也可以说明你最不能接受的回撤或波动。",
+            example_answer="偏均衡，能接受小波动，但不想承担明显回撤。",
+            allow_skip=False,
+        ),
+        _make_question(
+            question_text=f"当前你更想重点比较哪些资产？系统已识别：{asset_hint}",
+            purpose="让系统确认真正要比较的资产集合，避免把无关资产纳入推荐。",
+            question_group="assets",
+            input_hint="可以直接写 USDT / USDC / MMF / 白银 RWA / 房地产 RWA 等。",
+            example_answer="重点看 USDC、MMF 和白银 RWA。",
+            allow_skip=False,
+        ),
+        _make_question(
+            question_text="你目前具备怎样的 KYC / 专业投资者资格？",
+            purpose="HashKey Chain 上一部分 RWA 资产有明显准入门槛，KYC 会影响可购买范围。",
+            options=["暂无 KYC", "可完成基础 KYC", "已具备更高等级或专业投资者资格"],
+            question_group="kyc",
+            input_hint="如果不确定，也可以写你预计能完成到什么程度。",
+            example_answer="可以完成基础 KYC，但不确定是否满足专业投资者资格。",
+        ),
+    ]
+
+    if session.mode == AnalysisMode.SINGLE_DECISION:
+        questions.append(
+            _make_question(
+                question_text="如果最终只保留一个主配置腿，你最想保住什么？",
+                purpose="帮助系统判断该资产应该被当作流动性底仓、收益腿还是对冲腿。",
+                options=["流动性", "低回撤", "收益率", "对冲能力"],
+                question_group="priority",
+                input_hint="也可以直接说你最不能接受的后果。",
+                example_answer="优先保住流动性和低回撤。",
+            )
+        )
+
+    return questions
+
+
+def _build_rwa_search_tasks(session: AnalysisSession) -> list[SearchTask]:
+    settings = Settings.from_env()
+    chain_config = build_chain_config(settings)
+    asset_library = build_asset_library(chain_config)
+    selected_assets = resolve_selected_assets(
+        session.mode,
+        session.problem_statement,
+        _merged_rwa_context(session),
+        asset_library,
+    )
+    tasks: list[SearchTask] = []
+    for asset in selected_assets[:3]:
+        tasks.append(
+            SearchTask(
+                search_topic=asset.name,
+                search_goal=f"确认 {asset.name} 的申赎、托管、准入和链上可验证信息。",
+                search_scope="优先官方文档、发行方说明和 HashKey Chain 生态资料。",
+                suggested_queries=[
+                    asset.name,
+                    f"{asset.name} HashKey Chain",
+                    f"{asset.name} redemption custody kyc",
+                ],
+                required_fields=["liquidity", "custody", "kyc", "fees"],
+                freshness_requirement="high",
+                task_group="rwa-evidence",
+                notes="RWA 证据以官方和条款型信息优先，避免只用二手内容。",
+            )
+        )
+    return tasks
+
+
+def _build_rwa_calculation_tasks(session: AnalysisSession) -> list[CalculationTask]:
+    settings = Settings.from_env()
+    chain_config = build_chain_config(settings)
+    asset_library = build_asset_library(chain_config)
+    context = _merged_rwa_context(session)
+    selected_assets = resolve_selected_assets(
+        session.mode,
+        session.problem_statement,
+        context,
+        asset_library,
+    )
+    tasks: list[CalculationTask] = []
+    for asset in selected_assets:
+        total_cost_bps = asset.total_cost_bps(context.holding_period_days)
+        tasks.append(
+            CalculationTask(
+                objective=f"{asset.name} {context.holding_period_days} 天净值估算",
+                formula_hint="principal * (1 + annual_return * days / 365) * (1 - total_cost_bps / 10000)",
+                input_params={
+                    "principal": context.investment_amount,
+                    "annual_return": asset.expected_return_base,
+                    "days": context.holding_period_days,
+                    "total_cost_bps": total_cost_bps,
+                },
+                unit=context.base_currency,
+                notes="用于在结果页展示统一持有期下的净值比较。",
+            )
+        )
+    return tasks
+
+
+def _build_rwa_chart_tasks(session: AnalysisSession) -> list[ChartTask]:
+    return [
+        ChartTask(
+            objective="比较不同 RWA 资产在统一持有期下的净值表现。",
+            chart_type="bar",
+            title="Holding Period Value Comparison",
+            preferred_unit=session.intake_context.base_currency,
+            notes="统一持有期净值对比。",
+        ),
+        ChartTask(
+            objective="比较 RiskVector 的七维风险向量。",
+            chart_type="radar",
+            title="Risk Vector Radar",
+            preferred_unit="risk score",
+            notes="0-100 分越高越危险。",
+        ),
+    ]
+
+
 def _build_budget_report(session: AnalysisSession) -> AnalysisReport:
     scenario = _cost_scenario(session.problem_statement)
     if scenario == "competition":
@@ -398,9 +586,7 @@ def _build_multi_report(session: AnalysisSession) -> AnalysisReport:
 
 class MockAnalysisAdapter:
     def generate_initial_questions(self, session: AnalysisSession) -> list[ClarificationQuestion]:
-        if session.mode == AnalysisMode.MULTI_OPTION:
-            return _build_multi_initial_questions(session.problem_statement)
-        return _build_cost_initial_questions(session.problem_statement)
+        return _build_rwa_questions(session)
 
     def plan_next_round(self, session: AnalysisSession) -> AnalysisLoopPlan:
         unanswered = [question for question in session.clarification_questions if not question.answered]
@@ -417,97 +603,79 @@ class MockAnalysisAdapter:
                 stop_reason="Waiting for clarification answers before the next planning round.",
             )
 
-        if not session.evidence_items:
-            tasks = (
-                [
-                    SearchTask(
-                        search_topic="方案对比证据",
-                        search_goal="验证不同方案在成本、收益、风险和门槛上的现实差异。",
-                        search_scope="优先看权威来源和最新公开信息。",
-                        suggested_queries=[session.problem_statement, f"{session.problem_statement} pros cons"],
-                        required_fields=["cost", "upside", "risk", "conditions"],
-                        freshness_requirement="high",
-                        task_group="option-comparison",
-                    )
-                ]
-                if session.mode == AnalysisMode.MULTI_OPTION
-                else [
-                    SearchTask(
-                        search_topic="预算基准",
-                        search_goal="验证最主要成本项、潜在收入项和隐性成本来源。",
-                        search_scope="优先看最近 12 个月、与问题直接相关的来源。",
-                        suggested_queries=[session.problem_statement, f"{session.problem_statement} 费用", f"{session.problem_statement} 成本"],
-                        required_fields=["price range", "source", "date"],
-                        freshness_requirement="high",
-                        task_group="budget-benchmark",
-                    )
-                ]
-            )
+        if not (session.search_tasks or session.calculation_tasks or session.chart_tasks):
+            tasks = _build_rwa_search_tasks(session)
             return AnalysisLoopPlan(
                 search_tasks=tasks,
+                calculation_tasks=_build_rwa_calculation_tasks(session),
+                chart_tasks=_build_rwa_chart_tasks(session),
                 major_conclusions=[
                     MajorConclusionItem(
-                        content="External evidence should be gathered before the final report is written.",
+                        content="The selected RWA assets should first be normalized into evidence, net value, and risk-vector comparisons.",
                         conclusion_type="fact",
-                        confidence=0.77,
+                        confidence=0.84,
                     )
                 ],
-                reasoning_focus="Collect external evidence for the most decision-relevant uncertainties.",
-                stop_reason="Search should run before the final report.",
+                reasoning_focus="Collect evidence, run deterministic valuation tasks, and prepare RWA comparison views.",
+                stop_reason="The next step is a bounded MCP round for RWA evidence, calculations, and charts.",
             )
 
         if len(session.answers) < 5 and len(session.clarification_questions) < 7:
-            follow_up = (
-                _make_question(
-                    question_text="如果最后只能保留一个方案，你最不能接受的代价是什么？",
-                    purpose="帮助确定最终推荐应该优先保住什么。",
-                    options=["高成本", "高风险", "时间太长", "回报太慢"],
-                    question_group="tradeoff",
-                    priority=2,
-                    input_hint="也可以补充你最不想承担的后果。",
-                    example_answer="最不能接受高成本但回报还不确定。",
-                )
-                if session.mode == AnalysisMode.MULTI_OPTION
-                else _make_question(
-                    question_text="你希望最终预算结果更偏保守、基准还是冲高配置？",
-                    purpose="帮助结果页决定默认展示哪一个预算姿态。",
-                    options=["尽量保守", "以基准预算为主", "愿意为更高效果投入"],
-                    question_group="budget-style",
-                    priority=2,
-                    input_hint="可以说明你更关心安全缓冲还是效果上限。",
-                    example_answer="希望先看保守和基准预算。",
-                )
+            follow_up = _make_question(
+                question_text="如果需要把一部分资金保留为备用流动性，你愿意最多拿出多少比例做 RWA 或高摩擦资产？",
+                purpose="帮助系统决定稳定币缓冲仓和高门槛资产的上限。",
+                options=["最多 20%", "最多 40%", "最多 60%", "可更高"],
+                question_group="sizing",
+                priority=2,
+                input_hint="也可以直接写你理想的稳定币缓冲比例。",
+                example_answer="希望至少保留 30% 作为稳定币缓冲。",
             )
             return AnalysisLoopPlan(
                 clarification_questions=[follow_up],
                 major_conclusions=[
                     MajorConclusionItem(
-                        content="One more follow-up answer would materially improve the final recommendation.",
+                        content="One more sizing answer would materially improve the final allocation guardrails.",
                         conclusion_type="inference",
-                        confidence=0.74,
+                        confidence=0.78,
                     )
                 ],
-                reasoning_focus="Resolve the last major trade-off before writing the report.",
-                stop_reason="A final follow-up question would sharpen the result page.",
+                reasoning_focus="Resolve the last liquidity-buffer trade-off before writing the report.",
+                stop_reason="A final follow-up answer would sharpen the recommended sizing.",
             )
 
         return AnalysisLoopPlan(
             major_conclusions=[
                 MajorConclusionItem(
-                    content="The current session now has enough structure for a bounded final report.",
+                    content="The current session now has enough structure for a bounded RWA report with evidence, simulations, and an execution draft.",
                     conclusion_type="inference",
-                    confidence=0.83,
+                    confidence=0.88,
                 )
             ],
             ready_for_report=True,
-            reasoning_focus="Consolidate the evidence and write the final report.",
-            stop_reason="No additional clarification or search is required for the current snapshot.",
+            reasoning_focus="Consolidate the RWA evidence, simulations, and allocation suggestions into the final report.",
+            stop_reason="No additional clarification or deterministic task is required for the current snapshot.",
         )
 
     def build_report(self, session: AnalysisSession) -> AnalysisReport:
-        if session.mode == AnalysisMode.MULTI_OPTION:
-            return _build_multi_report(session)
-        return _build_budget_report(session)
+        settings = Settings.from_env()
+        chain_config = build_chain_config(settings)
+        asset_library = build_asset_library(chain_config)
+        report, evidence = build_rwa_report(
+            mode=session.mode,
+            problem_statement=session.problem_statement,
+            context=_merged_rwa_context(session),
+            chain_config=chain_config,
+            asset_library=asset_library,
+        )
+
+        existing_urls = {item.source_url for item in session.evidence_items}
+        for item in evidence:
+            if item.source_url in existing_urls:
+                continue
+            session.evidence_items.append(item)
+            existing_urls.add(item.source_url)
+
+        return report
 
 
 class LLMInvocationError(RuntimeError):
@@ -540,35 +708,62 @@ class OpenAICompatibleAnalysisAdapter(MockAnalysisAdapter):
         self.retry_attempts = max(1, retry_attempts)
 
     def generate_initial_questions(self, session: AnalysisSession) -> list[ClarificationQuestion]:
-        system_prompt, user_prompt = build_clarification_prompts(session)
-        return self._request_json_with_retry(
-            session=session,
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            operation="generate clarification questions",
-            validator=self._validate_initial_questions_payload,
-        )
+        try:
+            system_prompt, user_prompt = build_clarification_prompts(session)
+            return self._request_json_with_retry(
+                session=session,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                operation="generate clarification questions",
+                validator=self._validate_initial_questions_payload,
+            )
+        except Exception as error:
+            session.events.append(
+                SessionEvent(
+                    kind="llm_fallback_to_rwa_template_questions",
+                    payload={"error": str(error)},
+                )
+            )
+            return super().generate_initial_questions(session)
 
     def plan_next_round(self, session: AnalysisSession) -> AnalysisLoopPlan:
-        return self._request_json_with_retry(
-            session=session,
-            operation="plan the next analysis round",
-            validator=self._validate_planning_payload,
-            prompt_builder=lambda current_prompt_mode: build_planning_prompts(
-                session,
-                compact=(current_prompt_mode == "compact"),
-            ),
-        )
+        try:
+            return self._request_json_with_retry(
+                session=session,
+                operation="plan the next analysis round",
+                validator=self._validate_planning_payload,
+                prompt_builder=lambda current_prompt_mode: build_planning_prompts(
+                    session,
+                    compact=(current_prompt_mode == "compact"),
+                ),
+            )
+        except Exception as error:
+            session.events.append(
+                SessionEvent(
+                    kind="llm_fallback_to_rwa_template_plan",
+                    payload={"error": str(error)},
+                )
+            )
+            return super().plan_next_round(session)
 
     def build_report(self, session: AnalysisSession) -> AnalysisReport:
-        system_prompt, user_prompt = build_reporting_prompts(session)
-        return self._request_json_with_retry(
-            session=session,
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            operation="build the final report",
-            validator=lambda payload: self._validate_report_payload(session, payload),
-        )
+        try:
+            system_prompt, user_prompt = build_reporting_prompts(session)
+            return self._request_json_with_retry(
+                session=session,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                operation="build the final report",
+                validator=lambda payload: self._validate_report_payload(session, payload),
+            )
+        except Exception as error:
+            session.events.append(
+                SessionEvent(
+                    kind="llm_fallback_to_rwa_template_report",
+                    payload={"error": str(error)},
+                )
+            )
+            return super().build_report(session)
 
     def _validate_initial_questions_payload(
         self,

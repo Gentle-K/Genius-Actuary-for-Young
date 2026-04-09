@@ -20,6 +20,7 @@ from app.domain.schemas import (
     SessionSummaryResponse,
     SessionStepResponse,
 )
+from app.rwa.catalog import build_asset_library, build_chain_config
 
 router = APIRouter()
 CLIENT_COOKIE_NAME = "genius_actuary_client_id"
@@ -97,6 +98,8 @@ def frontend_bootstrap(request: Request, response: Response) -> FrontendBootstra
     ensure_client_cookie(request, response)
     services = get_app_services()
     settings = Settings.from_env()
+    chain_config = build_chain_config(settings)
+    asset_library = build_asset_library(chain_config)
     return FrontendBootstrapResponse(
         app_name="Genius Actuary",
         supported_modes=services.orchestrator.supported_modes(),
@@ -111,7 +114,12 @@ def frontend_bootstrap(request: Request, response: Response) -> FrontendBootstra
                 f"calculation_mcp_enabled={settings.calculation_mcp_enabled}"
             ),
             "Frontend should only call backend APIs and should not orchestrate MCP logic directly.",
+            "RWA reports must stay evidence-linked, risk-decomposed, and reproducible on HashKey Chain.",
         ],
+        chain_config=chain_config,
+        asset_library=asset_library,
+        supported_asset_types=sorted({asset.asset_type.value for asset in asset_library}),
+        holding_period_presets=[7, 30, 90, 180],
     )
 
 
@@ -127,6 +135,7 @@ def create_session(
         mode=payload.mode,
         problem_statement=payload.problem_statement,
         owner_client_id=client_id,
+        intake_context=payload.intake_context,
         ip_address=get_request_ip(request),
     )
     return services.orchestrator.advance_session(session.session_id)

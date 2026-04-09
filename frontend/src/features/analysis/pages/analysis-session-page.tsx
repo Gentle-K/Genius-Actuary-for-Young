@@ -82,9 +82,9 @@ function statusLabel(status?: string) {
     waiting_for_mcp_execution: 'AI 正在安排搜索、计算和图表任务',
     searching_web_for_evidence: '搜索网页中',
     searching_and_synthesizing: '搜索并综合证据中',
-    running_deterministic_calculations: '执行计算中',
-    preparing_visualizations: '生成图表与表格中',
-    waiting_for_llm_report_generation: 'AI 正在撰写结果',
+    running_deterministic_calculations: '执行 RWA 风险与收益计算中',
+    preparing_visualizations: '生成分布图、雷达图和矩阵中',
+    waiting_for_llm_report_generation: 'AI 正在整理 RWA 报告',
     report_generated_waiting_for_delivery: '结果已生成，正在整理展示',
     running_analysis_pipeline: '分析思考中',
     analyzing: '分析思考中',
@@ -121,6 +121,11 @@ export function AnalysisSessionPage() {
     queryFn: () => adapter.analysis.getById(sessionId),
   })
 
+  const rwaBootstrapQuery = useQuery({
+    queryKey: ['rwa', 'bootstrap'],
+    queryFn: adapter.rwa.getBootstrap,
+  })
+
   const progressQuery = useQuery({
     queryKey: ['analysis', sessionId, 'progress'],
     queryFn: () => adapter.analysis.getProgress(sessionId),
@@ -149,6 +154,12 @@ export function AnalysisSessionPage() {
     () => session?.questions.filter((question) => !question.answered) ?? [],
     [session?.questions],
   )
+  const selectedAssets = useMemo(() => {
+    const assetLibrary = rwaBootstrapQuery.data?.assetLibrary ?? []
+    const selectedIds = session?.intakeContext?.preferredAssetIds ?? []
+
+    return assetLibrary.filter((asset) => selectedIds.includes(asset.id))
+  }, [rwaBootstrapQuery.data?.assetLibrary, session?.intakeContext?.preferredAssetIds])
 
   useEffect(() => {
     if (!session) {
@@ -197,8 +208,53 @@ export function AnalysisSessionPage() {
       <PageHeader
         eyebrow="第 2 页 / 分析界面"
         title={session.problemStatement}
-        description="在这里回答 AI 的追问，并实时查看当前是在等待回答、搜索网页、执行计算、生成图表，还是撰写结果。"
+        description="在这里补充条款、流动性和 KYC 关键信息，并实时查看当前是在搜证据、算 RiskVector、跑持有期模拟，还是整理交易草案。"
       />
+
+      <Card className="p-5">
+        <div className="grid gap-3 md:grid-cols-5">
+          <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3">
+            <p className="text-xs text-text-muted">本金</p>
+            <p className="mt-2 font-medium text-text-primary">
+              {session.intakeContext.investmentAmount.toLocaleString('zh-CN')} {session.intakeContext.baseCurrency}
+            </p>
+          </div>
+          <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3">
+            <p className="text-xs text-text-muted">持有期</p>
+            <p className="mt-2 font-medium text-text-primary">
+              {session.intakeContext.holdingPeriodDays} 天
+            </p>
+          </div>
+          <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3">
+            <p className="text-xs text-text-muted">风险偏好</p>
+            <p className="mt-2 font-medium text-text-primary">
+              {session.intakeContext.riskTolerance}
+            </p>
+          </div>
+          <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3">
+            <p className="text-xs text-text-muted">流动性</p>
+            <p className="mt-2 font-medium text-text-primary">
+              {session.intakeContext.liquidityNeed}
+            </p>
+          </div>
+          <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3">
+            <p className="text-xs text-text-muted">KYC</p>
+            <p className="mt-2 font-medium text-text-primary">
+              L{session.intakeContext.minimumKycLevel}
+            </p>
+          </div>
+        </div>
+
+        {selectedAssets.length ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {selectedAssets.map((asset) => (
+              <Badge key={asset.id} tone="gold">
+                {asset.symbol}
+              </Badge>
+            ))}
+          </div>
+        ) : null}
+      </Card>
 
       <div className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
         <div className="space-y-4">
@@ -210,7 +266,7 @@ export function AnalysisSessionPage() {
                   AI 追问
                 </h2>
                 <p className="text-sm leading-7 text-text-secondary">
-                  回答越具体，后续的预算、方案对比和结果报告就会越可靠。
+                  回答越具体，后续的 RiskVector、持有期模拟和执行建议就越可靠。
                 </p>
               </div>
             </div>

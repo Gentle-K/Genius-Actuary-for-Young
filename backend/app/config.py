@@ -21,6 +21,10 @@ MINIMAX_BASE_URLS = {
     "global": "https://api.minimax.io/v1",
     "cn": "https://api.minimaxi.com/v1",
 }
+DEFAULT_HASHKEY_TESTNET_RPC_URL = "https://testnet.hsk.xyz"
+DEFAULT_HASHKEY_TESTNET_EXPLORER_URL = "https://testnet-explorer.hsk.xyz"
+DEFAULT_HASHKEY_MAINNET_RPC_URL = "https://mainnet.hsk.xyz"
+DEFAULT_HASHKEY_MAINNET_EXPLORER_URL = "https://hashkey.blockscout.com"
 
 
 def _strip_quotes(value: str) -> str:
@@ -77,6 +81,14 @@ class Settings:
     search_extra_snippets: bool
     chart_adapter: str
     calculation_mcp_enabled: bool
+    hashkey_testnet_chain_id: int
+    hashkey_testnet_rpc_url: str
+    hashkey_testnet_explorer_url: str
+    hashkey_mainnet_chain_id: int
+    hashkey_mainnet_rpc_url: str
+    hashkey_mainnet_explorer_url: str
+    plan_registry_address: str | None
+    kyc_sbt_address: str | None
     debug_username: str
     debug_password: str
 
@@ -87,6 +99,9 @@ class Settings:
         db_path = os.getenv("SESSION_DB_PATH")
         analysis_provider = os.getenv("ANALYSIS_PROVIDER", "minimax").strip().lower()
         analysis_region = os.getenv("ANALYSIS_REGION", "cn").strip().lower()
+        default_analysis_model = (
+            "MiniMax-M2.5" if analysis_provider == "minimax" else "gpt-4.1-mini"
+        )
         analysis_api_base_url = os.getenv("ANALYSIS_API_BASE_URL", "").strip()
         if not analysis_api_base_url and analysis_provider == "minimax":
             analysis_api_base_url = MINIMAX_BASE_URLS.get(
@@ -105,7 +120,7 @@ class Settings:
             analysis_region=analysis_region,
             analysis_api_base_url=analysis_api_base_url.rstrip("/"),
             analysis_api_key=os.getenv("ANALYSIS_API_KEY") or None,
-            analysis_model=os.getenv("ANALYSIS_MODEL", "MiniMax-M2.5"),
+            analysis_model=os.getenv("ANALYSIS_MODEL", default_analysis_model),
             analysis_timeout_seconds=float(os.getenv("ANALYSIS_TIMEOUT_SECONDS", "30")),
             analysis_retry_attempts=max(1, int(os.getenv("ANALYSIS_RETRY_ATTEMPTS", "4"))),
             clarification_follow_up_round_limit=max(
@@ -131,6 +146,32 @@ class Settings:
                 os.getenv("CALCULATION_MCP_ENABLED", "true").strip().lower()
                 in {"true", "1", "yes"}
             ),
+            hashkey_testnet_chain_id=max(
+                1,
+                int(os.getenv("HASHKEY_TESTNET_CHAIN_ID", "133")),
+            ),
+            hashkey_testnet_rpc_url=os.getenv(
+                "HASHKEY_TESTNET_RPC_URL",
+                DEFAULT_HASHKEY_TESTNET_RPC_URL,
+            ).strip(),
+            hashkey_testnet_explorer_url=os.getenv(
+                "HASHKEY_TESTNET_EXPLORER_URL",
+                DEFAULT_HASHKEY_TESTNET_EXPLORER_URL,
+            ).strip(),
+            hashkey_mainnet_chain_id=max(
+                1,
+                int(os.getenv("HASHKEY_MAINNET_CHAIN_ID", "177")),
+            ),
+            hashkey_mainnet_rpc_url=os.getenv(
+                "HASHKEY_MAINNET_RPC_URL",
+                DEFAULT_HASHKEY_MAINNET_RPC_URL,
+            ).strip(),
+            hashkey_mainnet_explorer_url=os.getenv(
+                "HASHKEY_MAINNET_EXPLORER_URL",
+                DEFAULT_HASHKEY_MAINNET_EXPLORER_URL,
+            ).strip(),
+            plan_registry_address=os.getenv("PLAN_REGISTRY_ADDRESS") or None,
+            kyc_sbt_address=os.getenv("KYC_SBT_ADDRESS") or None,
             debug_username=os.getenv("DEBUG_USERNAME", "debug-admin"),
             debug_password=os.getenv("DEBUG_PASSWORD", "change-me-debug-password"),
         )

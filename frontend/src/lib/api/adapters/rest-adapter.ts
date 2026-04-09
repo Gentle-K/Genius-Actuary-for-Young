@@ -20,6 +20,8 @@ import {
   mapBackendReport,
   mapBackendSession,
   mapModeDefinitions,
+  mapRwaBootstrap,
+  toBackendIntakeContext,
   toBackendAnswers,
 } from '@/lib/api/adapters/genius-backend'
 import { mockApiAdapter } from '@/lib/api/adapters/mock-adapter'
@@ -242,6 +244,12 @@ export const restApiAdapter: ApiAdapter = {
       return mapModeDefinitions(bootstrap)
     },
   },
+  rwa: {
+    async getBootstrap() {
+      const bootstrap = await getBootstrap()
+      return mapRwaBootstrap(bootstrap)
+    },
+  },
   dashboard: {
     async getOverview() {
       return buildDashboardOverview()
@@ -266,6 +274,7 @@ export const restApiAdapter: ApiAdapter = {
           body: JSON.stringify({
             mode: toBackendMode(payload.mode),
             problem_statement: payload.problemStatement,
+            intake_context: toBackendIntakeContext(payload.intakeContext),
           }),
         },
       )

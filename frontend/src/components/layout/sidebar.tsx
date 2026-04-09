@@ -19,8 +19,8 @@ interface SidebarProps {
 export function Sidebar({ collapsed }: SidebarProps) {
   const { i18n, t } = useTranslation()
   const isZh = i18n.language.startsWith('zh')
-  const title = 'Genius Actuary'
-  const tagline = isZh ? '您的私人精算师' : 'Your private actuary'
+  const title = 'Genius Actuary RWA'
+  const tagline = isZh ? 'HashKey Chain RWA 决策引擎' : 'HashKey Chain RWA decision engine'
   const getNavLabel = (key: (typeof navItems)[number]['key']) => {
     if (key === 'resources') {
       return isZh ? '历史分析记录' : 'Analysis History'

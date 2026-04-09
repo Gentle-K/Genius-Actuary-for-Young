@@ -20,10 +20,14 @@ import type {
   AnalysisSession,
   AuditLogEntry,
   FileItem,
+  HashKeyChainConfig,
   NotificationItem,
   PaginatedResponse,
   RequestMeta,
   ResourceRecord,
+  RwaAssetTemplate,
+  RwaBootstrap,
+  RwaIntakeContext,
 } from '@/types'
 
 const db = createMockDatabase()
@@ -33,6 +37,165 @@ const wait = async (duration = 220) =>
   new Promise((resolve) => window.setTimeout(resolve, duration))
 
 const nowIso = () => new Date().toISOString()
+
+const mockChainConfig: HashKeyChainConfig = {
+  ecosystemName: 'HashKey Chain',
+  nativeTokenSymbol: 'HSK',
+  defaultExecutionNetwork: 'testnet',
+  testnetChainId: 133,
+  testnetRpcUrl: 'https://testnet.hsk.xyz',
+  testnetExplorerUrl: 'https://testnet-explorer.hsk.xyz',
+  mainnetChainId: 177,
+  mainnetRpcUrl: 'https://mainnet.hsk.xyz',
+  mainnetExplorerUrl: 'https://hashkey.blockscout.com',
+  docsUrls: [
+    'https://docs.hashkeychain.net/docs/About-HashKey-Chain',
+    'https://docs.hashkeychain.net/docs/Build-on-HashKey-Chain/network-info',
+  ],
+}
+
+const mockAssetLibrary: RwaAssetTemplate[] = [
+  {
+    id: 'hsk-usdc',
+    symbol: 'USDC',
+    name: 'HashKey USDC',
+    assetType: 'stablecoin',
+    description: '高流动性稳定币基线资产。',
+    issuer: 'Circle / bridged deployment',
+    custody: 'Bridged USDC',
+    chainId: 177,
+    contractAddress: '0x054ed45810DbBAb8B27668922D110669c9D88D0a',
+    settlementAsset: 'USDC',
+    executionStyle: 'erc20',
+    benchmarkApy: 0.05,
+    expectedReturnLow: 0.03,
+    expectedReturnBase: 0.049,
+    expectedReturnHigh: 0.064,
+    priceVolatility: 0.012,
+    maxDrawdown180d: 0.018,
+    avgDailyVolumeUsd: 3800000,
+    redemptionDays: 0,
+    lockupDays: 0,
+    managementFeeBps: 28,
+    entryFeeBps: 0,
+    exitFeeBps: 0,
+    slippageBps: 5,
+    issuerDisclosureScore: 0.78,
+    custodyDisclosureScore: 0.76,
+    auditDisclosureScore: 0.75,
+    contractIsUpgradeable: false,
+    hasAdminKey: false,
+    oracleCount: 2,
+    oracleSources: ['HashKey Oracle'],
+    requiresKycLevel: 0,
+    minimumTicketUsd: 100,
+    tags: ['stablecoin', 'liquidity'],
+    thesis: '适合作为流动性底仓。',
+    fitSummary: '更适合保守或均衡型配置。',
+    evidenceUrls: ['https://docs.hashkeychain.net/docs/Build-on-HashKey-Chain/Token-Contracts'],
+    featured: true,
+  },
+  {
+    id: 'cpic-estable-mmf',
+    symbol: 'MMF',
+    name: 'CPIC Estable MMF',
+    assetType: 'mmf',
+    description: 'MMF 风格 RWA 演示模板。',
+    issuer: 'CPIC / Estable',
+    custody: 'Issuer-managed custody',
+    chainId: 177,
+    settlementAsset: 'USDT',
+    executionStyle: 'issuer_portal',
+    benchmarkApy: 0.048,
+    expectedReturnLow: 0.035,
+    expectedReturnBase: 0.046,
+    expectedReturnHigh: 0.055,
+    priceVolatility: 0.025,
+    maxDrawdown180d: 0.03,
+    avgDailyVolumeUsd: 1250000,
+    redemptionDays: 2,
+    lockupDays: 0,
+    managementFeeBps: 70,
+    entryFeeBps: 10,
+    exitFeeBps: 15,
+    slippageBps: 0,
+    issuerDisclosureScore: 0.82,
+    custodyDisclosureScore: 0.8,
+    auditDisclosureScore: 0.72,
+    contractIsUpgradeable: false,
+    hasAdminKey: false,
+    oracleCount: 1,
+    oracleSources: ['Issuer disclosure'],
+    requiresKycLevel: 2,
+    minimumTicketUsd: 10000,
+    tags: ['mmf', 'rwa'],
+    thesis: '适合做稳健收益腿。',
+    fitSummary: '适合中低风险偏好。',
+    evidenceUrls: ['https://www.prnewswire.com/news-releases/cpic-estable-mmf-launches-on-hashkey-chain-with-100m-first-day-subscriptions-302408505.html'],
+    featured: true,
+  },
+  {
+    id: 'hk-regulated-silver',
+    symbol: 'SILV',
+    name: 'Hong Kong Regulated Silver RWA',
+    assetType: 'precious_metal',
+    description: '白银 RWA 演示模板。',
+    issuer: 'HashKey ecosystem issuer',
+    custody: 'Third-party vault custody',
+    chainId: 177,
+    settlementAsset: 'USDT',
+    executionStyle: 'issuer_portal',
+    benchmarkApy: 0.022,
+    expectedReturnLow: -0.08,
+    expectedReturnBase: 0.065,
+    expectedReturnHigh: 0.18,
+    priceVolatility: 0.24,
+    maxDrawdown180d: 0.19,
+    avgDailyVolumeUsd: 420000,
+    redemptionDays: 3,
+    lockupDays: 0,
+    managementFeeBps: 85,
+    entryFeeBps: 20,
+    exitFeeBps: 25,
+    slippageBps: 30,
+    issuerDisclosureScore: 0.74,
+    custodyDisclosureScore: 0.88,
+    auditDisclosureScore: 0.7,
+    contractIsUpgradeable: false,
+    hasAdminKey: false,
+    oracleCount: 1,
+    oracleSources: ['Spot silver reference'],
+    requiresKycLevel: 2,
+    minimumTicketUsd: 5000,
+    tags: ['silver', 'rwa'],
+    thesis: '适合作为宏观对冲腿。',
+    fitSummary: '更适合均衡到进取型配置。',
+    evidenceUrls: ['https://group.hashkey.com/en/newsroom/hashkey-chain-supports-the-onchain-issuance-of-hk-s-first-regulated-silverbacked-rwa-token'],
+    featured: true,
+  },
+]
+
+const mockRwaBootstrap: RwaBootstrap = {
+  appName: 'Genius Actuary for RWA',
+  chainConfig: mockChainConfig,
+  assetLibrary: mockAssetLibrary,
+  supportedAssetTypes: ['stablecoin', 'mmf', 'precious_metal'],
+  holdingPeriodPresets: [7, 30, 90, 180],
+  notes: ['Mock mode returns seeded HashKey Chain asset templates for local UI testing.'],
+}
+
+export const defaultRwaIntakeContext: RwaIntakeContext = {
+  investmentAmount: 10000,
+  baseCurrency: 'USDT',
+  preferredAssetIds: ['hsk-usdc', 'cpic-estable-mmf', 'hk-regulated-silver'],
+  holdingPeriodDays: 30,
+  riskTolerance: 'balanced',
+  liquidityNeed: 't_plus_3',
+  minimumKycLevel: 0,
+  walletAddress: '',
+  wantsOnchainAttestation: true,
+  additionalConstraints: '',
+}
 
 function createId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`
@@ -363,6 +526,12 @@ export const mockApiAdapter: ApiAdapter = {
       return buildMockModeDefinitions()
     },
   },
+  rwa: {
+    async getBootstrap() {
+      await wait(120)
+      return structuredClone(mockRwaBootstrap)
+    },
+  },
   dashboard: {
     async getOverview() {
       await wait()
@@ -405,6 +574,7 @@ export const mockApiAdapter: ApiAdapter = {
         followUpBudgetExhausted: false,
         deferredFollowUpQuestionCount: 0,
         activityStatus: 'waiting_for_user_clarification_answers',
+        intakeContext: structuredClone(payload.intakeContext),
         currentFocus:
           payload.mode === 'multi-option'
             ? '等待用户补充决策目标、约束和偏好，以便识别并比较方案。'
@@ -831,6 +1001,20 @@ export const mockApiAdapter: ApiAdapter = {
           owner_client_id: 'mock-debug-owner',
           mode: toDebugMode(session.mode),
           problem_statement: session.problemStatement,
+          intake_context: {
+            investment_amount: session.intakeContext?.investmentAmount ?? 10000,
+            base_currency: session.intakeContext?.baseCurrency ?? 'USDT',
+            preferred_asset_ids: session.intakeContext?.preferredAssetIds ?? [],
+            holding_period_days: session.intakeContext?.holdingPeriodDays ?? 30,
+            risk_tolerance: session.intakeContext?.riskTolerance ?? 'balanced',
+            liquidity_need: session.intakeContext?.liquidityNeed ?? 't_plus_3',
+            minimum_kyc_level: session.intakeContext?.minimumKycLevel ?? 0,
+            wallet_address: session.intakeContext?.walletAddress ?? '',
+            wants_onchain_attestation:
+              session.intakeContext?.wantsOnchainAttestation ?? true,
+            additional_constraints:
+              session.intakeContext?.additionalConstraints ?? '',
+          },
           status: session.status,
           analysis_rounds_completed: session.status === 'COMPLETED' ? 1 : 0,
           follow_up_round_limit: session.followUpRoundLimit ?? 10,

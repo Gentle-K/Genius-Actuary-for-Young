@@ -1,0 +1,769 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import random
+from statistics import mean
+from typing import Iterable
+from urllib.parse import urlparse
+
+from app.domain.models import AnalysisMode, AnalysisReport, EvidenceItem, OptionProfile, ReportTable
+from app.domain.rwa import (
+    AssetAnalysisCard,
+    AssetTemplate,
+    AssetType,
+    AttestationDraft,
+    HashKeyChainConfig,
+    HoldingPeriodSimulation,
+    LiquidityNeed,
+    PortfolioAllocation,
+    RiskTolerance,
+    RiskVector,
+    RwaIntakeContext,
+    SimulationPathPoint,
+    TxDraft,
+    TxDraftStep,
+)
+
+
+def clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
+    return max(low, min(high, value))
+
+
+def sigmoid01(value: float) -> float:
+    return 1 / (1 + math.exp(-value))
+
+
+def percentile(values: list[float], pct: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    index = (len(ordered) - 1) * pct
+    lower = math.floor(index)
+    upper = math.ceil(index)
+    if lower == upper:
+        return ordered[int(index)]
+    lower_value = ordered[lower]
+    upper_value = ordered[upper]
+    fraction = index - lower
+    return lower_value + (upper_value - lower_value) * fraction
+
+
+def score_risk(asset: AssetTemplate) -> RiskVector:
+    market = 30.0
+    market += 50.0 * sigmoid01((asset.price_volatility - 0.25) / 0.15)
+    market += 40.0 * sigmoid01((abs(asset.max_drawdown_180d) - 0.15) / 0.10)
+    market = clamp(market)
+
+    liquidity = 20.0
+    if asset.avg_daily_volume_usd > 0:
+        liquidity += 60.0 * sigmoid01((100_000 - asset.avg_daily_volume_usd) / 500_000)
+    liquidity += clamp(5.0 * asset.redemption_days, 0, 40)
+    liquidity += clamp(2.0 * asset.lockup_days, 0, 40)
+    liquidity = clamp(liquidity)
+
+    peg_redemption = 0.0
+    if asset.depeg_events_90d is not None and asset.worst_depeg_bps_90d is not None:
+        peg_redemption = 20.0 + 10.0 * asset.depeg_events_90d + 0.08 * asset.worst_depeg_bps_90d
+    peg_redemption = clamp(peg_redemption)
+
+    issuer_custody = (
+        80.0 * (1 - asset.issuer_disclosure_score)
+        + 60.0 * (1 - asset.custody_disclosure_score)
+        + 40.0 * (1 - asset.audit_disclosure_score)
+    )
+    issuer_custody = clamp(issuer_custody)
+
+    smart_contract = 10.0
+    smart_contract += 25.0 if asset.contract_is_upgradeable else 0.0
+    smart_contract += 25.0 if asset.has_admin_key else 0.0
+    smart_contract = clamp(smart_contract)
+
+    oracle_dependency = clamp(60.0 * sigmoid01((2 - asset.oracle_count) / 0.8))
+
+    compliance_access = 0.0
+    if asset.requires_kyc_level is not None and asset.requires_kyc_level > 0:
+        compliance_access = clamp(10.0 * asset.requires_kyc_level + 20.0)
+
+    overall = mean(
+        [
+            market,
+            liquidity,
+            peg_redemption,
+            issuer_custody,
+            smart_contract,
+            oracle_dependency,
+            compliance_access,
+        ]
+    )
+
+    return RiskVector(
+        asset_id=asset.asset_id,
+        asset_name=asset.name,
+        market=round(market, 1),
+        liquidity=round(liquidity, 1),
+        peg_redemption=round(peg_redemption, 1),
+        issuer_custody=round(issuer_custody, 1),
+        smart_contract=round(smart_contract, 1),
+        oracle_dependency=round(oracle_dependency, 1),
+        compliance_access=round(compliance_access, 1),
+        overall=round(overall, 1),
+    )
+
+
+def _checkpoint_days(holding_period_days: int) -> list[int]:
+    points = {1, max(1, holding_period_days // 5), max(1, holding_period_days // 2), holding_period_days}
+    return sorted(points)
+
+
+def simulate_holding(
+    asset: AssetTemplate,
+    investment_amount: float,
+    holding_period_days: int,
+) -> HoldingPeriodSimulation:
+    seed_source = f"{asset.asset_id}:{investment_amount:.2f}:{holding_period_days}"
+    seed = int(hashlib.sha256(seed_source.encode("utf-8")).hexdigest()[:12], 16)
+    rng = random.Random(seed)
+    checkpoints = _checkpoint_days(holding_period_days)
+    path_snapshots = {day: [] for day in checkpoints}
+    ending_values: list[float] = []
+    return_series: list[float] = []
+    drawdowns: list[float] = []
+
+    for _ in range(280):
+        value = investment_amount
+        peak = investment_amount
+        max_drawdown = 0.0
+
+        for day in range(1, holding_period_days + 1):
+            drift = asset.expected_return_base / 365
+            volatility = asset.price_volatility / math.sqrt(365)
+            daily_return = rng.gauss(drift, volatility)
+
+            if asset.asset_type == AssetType.STABLECOIN:
+                daily_return = rng.gauss(drift, max(volatility * 0.12, 0.00025))
+                if asset.depeg_events_90d and rng.random() < asset.depeg_events_90d / 1500:
+                    daily_return -= rng.uniform(0.002, max((asset.worst_depeg_bps_90d or 30) / 10000, 0.004))
+            elif asset.asset_type == AssetType.MMF:
+                daily_return = rng.gauss(drift, max(volatility * 0.2, 0.0004))
+            elif asset.asset_type == AssetType.REAL_ESTATE:
+                daily_return = rng.gauss(drift, max(volatility * 0.55, 0.002))
+            elif asset.asset_type == AssetType.PRECIOUS_METAL:
+                daily_return = rng.gauss(drift, max(volatility * 0.8, 0.004))
+
+            daily_return -= asset.management_fee_bps / 10000 / 365
+            value *= max(0.55, 1 + daily_return)
+            peak = max(peak, value)
+            max_drawdown = max(max_drawdown, 1 - value / peak)
+
+            if day in path_snapshots:
+                path_snapshots[day].append(value)
+
+        value *= max(0.55, 1 - asset.total_cost_bps(holding_period_days) / 10000)
+        ending_values.append(value)
+        return_series.append(value / investment_amount - 1)
+        drawdowns.append(max_drawdown)
+
+    path = [
+        SimulationPathPoint(
+            day=day,
+            p10_value=round(percentile(path_snapshots[day], 0.1), 2),
+            p50_value=round(percentile(path_snapshots[day], 0.5), 2),
+            p90_value=round(percentile(path_snapshots[day], 0.9), 2),
+        )
+        for day in checkpoints
+    ]
+
+    return HoldingPeriodSimulation(
+        asset_id=asset.asset_id,
+        asset_name=asset.name,
+        holding_period_days=holding_period_days,
+        ending_value_low=round(percentile(ending_values, 0.1), 2),
+        ending_value_base=round(percentile(ending_values, 0.5), 2),
+        ending_value_high=round(percentile(ending_values, 0.9), 2),
+        return_pct_low=round(percentile(return_series, 0.1) * 100, 2),
+        return_pct_base=round(percentile(return_series, 0.5) * 100, 2),
+        return_pct_high=round(percentile(return_series, 0.9) * 100, 2),
+        var_95_pct=round(percentile(return_series, 0.05) * 100, 2),
+        cvar_95_pct=round(mean(sorted(return_series)[:14]) * 100, 2),
+        max_drawdown_low_pct=round(percentile(drawdowns, 0.1) * 100, 2),
+        max_drawdown_base_pct=round(percentile(drawdowns, 0.5) * 100, 2),
+        max_drawdown_high_pct=round(percentile(drawdowns, 0.9) * 100, 2),
+        scenario_note=_simulation_note(asset),
+        path=path,
+    )
+
+
+def _simulation_note(asset: AssetTemplate) -> str:
+    if asset.asset_type == AssetType.STABLECOIN:
+        return "稳定币场景包含低波动 carry 与小概率脱锚跳变压力测试，不代表价格预测。"
+    if asset.asset_type == AssetType.MMF:
+        return "MMF 场景强调稳态收益、管理费和申赎摩擦，不把日内交易深度视为核心来源。"
+    if asset.asset_type == AssetType.REAL_ESTATE:
+        return "房地产类场景强调锁定期与退出摩擦，收益分布更依赖结构和条款。"
+    return "场景基于历史波动级别近似，不代替对具体发行条款和链下资产质量的复核。"
+
+
+KEYWORD_ASSET_MAP = {
+    "usdt": "hsk-usdt",
+    "stablecoin": "hsk-usdc",
+    "稳定币": "hsk-usdc",
+    "usdc": "hsk-usdc",
+    "mmf": "cpic-estable-mmf",
+    "货币基金": "cpic-estable-mmf",
+    "白银": "hk-regulated-silver",
+    "silver": "hk-regulated-silver",
+    "real estate": "tokenized-real-estate-demo",
+    "地产": "tokenized-real-estate-demo",
+    "房产": "tokenized-real-estate-demo",
+    "btc": "hsk-wbtc-benchmark",
+    "wbtc": "hsk-wbtc-benchmark",
+}
+
+
+def resolve_selected_assets(
+    mode: AnalysisMode,
+    problem_statement: str,
+    context: RwaIntakeContext,
+    asset_library: list[AssetTemplate],
+) -> list[AssetTemplate]:
+    asset_map = {asset.asset_id: asset for asset in asset_library}
+    resolved_ids: list[str] = []
+
+    for asset_id in context.preferred_asset_ids:
+        if asset_id in asset_map and asset_id not in resolved_ids:
+            resolved_ids.append(asset_id)
+
+    normalized_problem = problem_statement.lower()
+    for keyword, asset_id in KEYWORD_ASSET_MAP.items():
+        if keyword in normalized_problem and asset_id in asset_map and asset_id not in resolved_ids:
+            resolved_ids.append(asset_id)
+
+    if not resolved_ids:
+        resolved_ids = ["hsk-usdc", "cpic-estable-mmf", "hk-regulated-silver"]
+
+    if mode == AnalysisMode.SINGLE_DECISION and len(resolved_ids) == 1:
+        for fallback_id in ("hsk-usdc", "cpic-estable-mmf"):
+            if fallback_id in asset_map and fallback_id not in resolved_ids:
+                resolved_ids.append(fallback_id)
+
+    return [asset_map[asset_id] for asset_id in resolved_ids if asset_id in asset_map][:5]
+
+
+def _liquidity_gate_penalty(asset: AssetTemplate, liquidity_need: LiquidityNeed) -> float:
+    if liquidity_need == LiquidityNeed.INSTANT and asset.redemption_days > 0:
+        return 16.0 + asset.redemption_days * 2.5
+    if liquidity_need == LiquidityNeed.T_PLUS_3 and asset.redemption_days > 3:
+        return 9.0 + asset.redemption_days
+    if liquidity_need == LiquidityNeed.LOCKED:
+        return 0.0
+    return 0.0
+
+
+TYPE_TARGET_WEIGHTS: dict[RiskTolerance, dict[AssetType, float]] = {
+    RiskTolerance.CONSERVATIVE: {
+        AssetType.STABLECOIN: 0.42,
+        AssetType.MMF: 0.28,
+        AssetType.PRECIOUS_METAL: 0.15,
+        AssetType.REAL_ESTATE: 0.08,
+        AssetType.BENCHMARK: 0.07,
+        AssetType.STOCKS: 0.0,
+    },
+    RiskTolerance.BALANCED: {
+        AssetType.STABLECOIN: 0.28,
+        AssetType.MMF: 0.25,
+        AssetType.PRECIOUS_METAL: 0.18,
+        AssetType.REAL_ESTATE: 0.16,
+        AssetType.BENCHMARK: 0.13,
+        AssetType.STOCKS: 0.0,
+    },
+    RiskTolerance.AGGRESSIVE: {
+        AssetType.STABLECOIN: 0.18,
+        AssetType.MMF: 0.19,
+        AssetType.PRECIOUS_METAL: 0.2,
+        AssetType.REAL_ESTATE: 0.2,
+        AssetType.BENCHMARK: 0.23,
+        AssetType.STOCKS: 0.0,
+    },
+}
+
+
+def recommend_allocations(
+    context: RwaIntakeContext,
+    asset_cards: list[AssetAnalysisCard],
+) -> list[PortfolioAllocation]:
+    by_type = TYPE_TARGET_WEIGHTS[context.risk_tolerance]
+    scored_cards: list[tuple[AssetAnalysisCard, float, str]] = []
+
+    for card in asset_cards:
+        penalty = _liquidity_gate_penalty(
+            AssetTemplate(
+                asset_id=card.asset_id,
+                symbol=card.symbol,
+                name=card.name,
+                asset_type=card.asset_type,
+                description=card.thesis or card.fit_summary,
+                issuer=card.issuer,
+                custody=card.custody,
+                chain_id=card.chain_id,
+                contract_address=card.contract_address,
+                expected_return_low=card.expected_return_low,
+                expected_return_base=card.expected_return_base,
+                expected_return_high=card.expected_return_high,
+                redemption_days=card.exit_days,
+                requires_kyc_level=card.kyc_required_level,
+            ),
+            context.liquidity_need,
+        )
+        blocked_reason = ""
+        if card.kyc_required_level and context.minimum_kyc_level < card.kyc_required_level:
+            blocked_reason = f"需要至少 KYC 等级 {card.kyc_required_level}"
+
+        score = (
+            by_type.get(card.asset_type, 0.05) * 100
+            + card.expected_return_base * 90
+            - card.risk_vector.overall * 0.32
+            - card.total_cost_bps / 30
+            - penalty
+        )
+        scored_cards.append((card, score, blocked_reason))
+
+    usable_scores = [max(score, 0.0) for _, score, blocked in scored_cards if not blocked]
+    score_sum = sum(usable_scores) or 1.0
+    allocations: list[PortfolioAllocation] = []
+
+    for card, score, blocked_reason in scored_cards:
+        usable_score = max(score, 0.0) if not blocked_reason else 0.0
+        target_weight = 0.0 if blocked_reason else usable_score / score_sum * 100
+        suggested_amount = context.investment_amount * target_weight / 100
+        rationale = (
+            "兼顾收益与风险分散。"
+            if target_weight >= 25
+            else "作为卫星仓位，用于增加分散性或收益弹性。"
+        )
+        if card.asset_type == AssetType.STABLECOIN and target_weight >= 20:
+            rationale = "承担流动性缓冲与待命资金池角色。"
+        if card.asset_type == AssetType.MMF:
+            rationale = "承担稳定收益腿，同时保持较短的可退出时间。"
+        if card.asset_type == AssetType.PRECIOUS_METAL:
+            rationale = "作为通胀与宏观不确定性的对冲腿。"
+        allocations.append(
+            PortfolioAllocation(
+                asset_id=card.asset_id,
+                asset_name=card.name,
+                target_weight_pct=round(target_weight, 1),
+                suggested_amount=round(suggested_amount, 2),
+                rationale=rationale,
+                blocked_reason=blocked_reason,
+            )
+        )
+
+    allocations.sort(key=lambda item: item.target_weight_pct, reverse=True)
+    return allocations
+
+
+def _source_name(url: str) -> str:
+    hostname = urlparse(url).hostname or ""
+    return hostname.replace("www.", "") or "source"
+
+
+def build_catalog_evidence(asset: AssetTemplate) -> list[EvidenceItem]:
+    evidence_items: list[EvidenceItem] = []
+    for index, url in enumerate(asset.evidence_urls[:2], start=1):
+        facts = [
+            f"资产类型: {asset.asset_type.value}",
+            f"最短退出时间: T+{asset.redemption_days}" if asset.redemption_days else "最短退出时间: T+0",
+            f"总成本估算: {asset.total_cost_bps(30)} bps / 30d 持有期",
+            f"KYC 门槛: {asset.requires_kyc_level or 0}",
+        ]
+        evidence_items.append(
+            EvidenceItem(
+                title=f"{asset.name} 依据 {index}",
+                source_url=url,
+                source_name=_source_name(url),
+                summary=(
+                    f"{asset.name} 的模板基于官方网络文档、Token Contracts、KYC 说明或发行方披露构建。"
+                ),
+                extracted_facts=facts,
+                confidence=0.82,
+            )
+        )
+    return evidence_items
+
+
+def build_asset_cards(
+    assets: list[AssetTemplate],
+    context: RwaIntakeContext,
+) -> list[AssetAnalysisCard]:
+    cards: list[AssetAnalysisCard] = []
+    for asset in assets:
+        risk_vector = score_risk(asset)
+        cards.append(
+            AssetAnalysisCard(
+                asset_id=asset.asset_id,
+                symbol=asset.symbol,
+                name=asset.name,
+                asset_type=asset.asset_type,
+                issuer=asset.issuer,
+                custody=asset.custody,
+                chain_id=asset.chain_id,
+                contract_address=asset.contract_address,
+                expected_return_low=asset.expected_return_low,
+                expected_return_base=asset.expected_return_base,
+                expected_return_high=asset.expected_return_high,
+                exit_days=asset.redemption_days,
+                total_cost_bps=asset.total_cost_bps(context.holding_period_days),
+                kyc_required_level=asset.requires_kyc_level,
+                thesis=asset.thesis,
+                fit_summary=asset.fit_summary,
+                tags=asset.tags,
+                risk_vector=risk_vector,
+                metadata={
+                    "minimum_ticket_usd": asset.minimum_ticket_usd,
+                    "oracle_count": asset.oracle_count,
+                    "lockup_days": asset.lockup_days,
+                },
+                evidence_refs=list(asset.evidence_urls),
+            )
+        )
+    return cards
+
+
+def build_comparison_tables(
+    asset_cards: list[AssetAnalysisCard],
+    simulations: list[HoldingPeriodSimulation],
+) -> list[ReportTable]:
+    simulation_map = {simulation.asset_id: simulation for simulation in simulations}
+
+    comparison_rows = []
+    risk_rows = []
+    for card in asset_cards:
+        simulation = simulation_map[card.asset_id]
+        comparison_rows.append(
+            {
+                "资产": card.name,
+                "类型": card.asset_type.value,
+                "预期年化": f"{card.expected_return_base * 100:.1f}%",
+                "持有期基准收益": f"{simulation.return_pct_base:.2f}%",
+                "最短退出": f"T+{card.exit_days}" if card.exit_days else "T+0",
+                "总成本(bps)": card.total_cost_bps,
+                "KYC": card.kyc_required_level or 0,
+            }
+        )
+        risk_rows.append(
+            {
+                "资产": card.name,
+                "Market": card.risk_vector.market,
+                "Liquidity": card.risk_vector.liquidity,
+                "Peg/Redemption": card.risk_vector.peg_redemption,
+                "Issuer/Custody": card.risk_vector.issuer_custody,
+                "Smart Contract": card.risk_vector.smart_contract,
+                "Oracle": card.risk_vector.oracle_dependency,
+                "Compliance": card.risk_vector.compliance_access,
+                "Overall": card.risk_vector.overall,
+            }
+        )
+
+    return [
+        ReportTable(
+            title="RWA 对比矩阵",
+            columns=["资产", "类型", "预期年化", "持有期基准收益", "最短退出", "总成本(bps)", "KYC"],
+            rows=comparison_rows,
+            notes="收益区间与退出速度按统一口径比较，便于快速筛掉不符合约束的方案。",
+        ),
+        ReportTable(
+            title="RiskVector 细分",
+            columns=["资产", "Market", "Liquidity", "Peg/Redemption", "Issuer/Custody", "Smart Contract", "Oracle", "Compliance", "Overall"],
+            rows=risk_rows,
+            notes="0-100 分越高越危险；这是用于同口径比较的工程化评分，不是法律或投资意见。",
+        ),
+    ]
+
+
+def build_option_profiles(
+    asset_cards: list[AssetAnalysisCard],
+    simulations: list[HoldingPeriodSimulation],
+) -> list[OptionProfile]:
+    simulation_map = {simulation.asset_id: simulation for simulation in simulations}
+    profiles: list[OptionProfile] = []
+    for card in asset_cards:
+        simulation = simulation_map[card.asset_id]
+        profiles.append(
+            OptionProfile(
+                name=card.name,
+                summary=card.fit_summary,
+                pros=[
+                    f"基准持有期收益约 {simulation.return_pct_base:.2f}%",
+                    f"退出节奏 {('T+0' if card.exit_days == 0 else f'T+{card.exit_days}')}",
+                ],
+                cons=[
+                    f"综合风险 {card.risk_vector.overall:.1f}/100",
+                    f"总成本 {card.total_cost_bps} bps",
+                ],
+                conditions=[
+                    f"KYC 等级要求: {card.kyc_required_level or 0}",
+                ],
+                fit_for=[card.fit_summary],
+                caution_flags=[
+                    f"Issuer/Custody 风险 {card.risk_vector.issuer_custody:.1f}",
+                    f"Liquidity 风险 {card.risk_vector.liquidity:.1f}",
+                ],
+                estimated_cost_low=card.total_cost_bps * 0.8,
+                estimated_cost_base=float(card.total_cost_bps),
+                estimated_cost_high=card.total_cost_bps * 1.2,
+                currency="bps",
+                score=round(max(0, 100 - card.risk_vector.overall + simulation.return_pct_base), 1),
+                confidence=0.79,
+                basis_refs=card.evidence_refs,
+            )
+        )
+    return profiles
+
+
+def build_tx_draft(
+    context: RwaIntakeContext,
+    allocations: list[PortfolioAllocation],
+    asset_lookup: dict[str, AssetTemplate],
+    chain_config: HashKeyChainConfig,
+) -> TxDraft:
+    steps: list[TxDraftStep] = [
+        TxDraftStep(
+            step=1,
+            title="切换到 HashKey Chain",
+            description="将钱包网络切换到 HashKey Chain 主网，确认 RPC 与 Explorer 参数正确。",
+            action_type="switch_network",
+            explorer_url=chain_config.mainnet_explorer_url,
+            estimated_fee_usd=0.0,
+        )
+    ]
+
+    step_index = 2
+    total_fee = 0.0
+
+    for allocation in allocations:
+        if allocation.target_weight_pct <= 0:
+            continue
+        asset = asset_lookup[allocation.asset_id]
+        if asset.execution_style == "erc20":
+            steps.append(
+                TxDraftStep(
+                    step=step_index,
+                    title=f"准备 {asset.symbol} 头寸",
+                    description=(
+                        f"确保钱包内有约 {allocation.suggested_amount:.2f} {context.base_currency}，"
+                        f"并检查目标合约 {asset.contract_address} 的交易路径与授权额度。"
+                    ),
+                    action_type="approve_or_swap",
+                    target_contract=asset.contract_address,
+                    explorer_url=f"{chain_config.mainnet_explorer_url}/address/{asset.contract_address}",
+                    estimated_fee_usd=0.42,
+                    caution="检查滑点和桥接路径，不要一次性放大授权额度。",
+                )
+            )
+            total_fee += 0.42
+        else:
+            steps.append(
+                TxDraftStep(
+                    step=step_index,
+                    title=f"完成 {asset.name} 的申购流程",
+                    description=(
+                        "该资产更接近 permissioned RWA，先完成 KYC/白名单校验，再经发行方入口发起申购或认购。"
+                    ),
+                    action_type="issuer_portal",
+                    estimated_fee_usd=0.15,
+                    caution="必须核对申赎条款、投资者类型限制与结算币种。",
+                )
+            )
+            total_fee += 0.15
+        step_index += 1
+
+    if context.wants_onchain_attestation:
+        steps.append(
+            TxDraftStep(
+                step=step_index,
+                title="记录报告存证",
+                description="在确认方案前，将报告哈希和组合哈希写入 Plan Registry，保留可审计决策痕迹。",
+                action_type="attest_plan",
+                target_contract=chain_config.plan_registry_address or "",
+                explorer_url=(
+                    f"{chain_config.mainnet_explorer_url}/address/{chain_config.plan_registry_address}"
+                    if chain_config.plan_registry_address
+                    else chain_config.mainnet_explorer_url
+                ),
+                estimated_fee_usd=0.28 if chain_config.plan_registry_address else 0.0,
+                caution="存证记录的是哈希摘要，不应包含原始敏感信息。",
+            )
+        )
+        total_fee += 0.28 if chain_config.plan_registry_address else 0.0
+
+    return TxDraft(
+        title="HashKey Chain 执行草案",
+        chain_id=chain_config.mainnet_chain_id,
+        chain_name="HashKey Chain Mainnet",
+        funding_asset=context.base_currency,
+        total_estimated_fee_usd=round(total_fee, 2),
+        steps=steps,
+        risk_warnings=[
+            "先核对 KYC 门槛和投资者类型要求，再看收益数字。",
+            "RWA 资产的退出速度通常不如 ERC20 稳定币，T+N 应视作硬约束。",
+            "报告中的模拟是压力测试，不是未来收益承诺。",
+        ],
+        can_execute_onchain=any(
+            asset_lookup[item.asset_id].execution_style == "erc20"
+            for item in allocations
+            if item.target_weight_pct > 0
+        ),
+    )
+
+
+def build_attestation_draft(
+    report_markdown: str,
+    allocations: list[PortfolioAllocation],
+    chain_config: HashKeyChainConfig,
+) -> AttestationDraft:
+    report_hash = hashlib.sha256(report_markdown.encode("utf-8")).hexdigest()
+    portfolio_payload = json.dumps(
+        [allocation.model_dump(mode="json") for allocation in allocations],
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    portfolio_hash = hashlib.sha256(portfolio_payload.encode("utf-8")).hexdigest()
+    attestation_hash = hashlib.sha256(
+        f"{report_hash}:{portfolio_hash}:{chain_config.mainnet_chain_id}".encode("utf-8")
+    ).hexdigest()
+    return AttestationDraft(
+        chain_id=chain_config.mainnet_chain_id,
+        report_hash=report_hash,
+        portfolio_hash=portfolio_hash,
+        attestation_hash=attestation_hash,
+        contract_address=chain_config.plan_registry_address or "",
+        explorer_url=chain_config.mainnet_explorer_url,
+        ready=bool(chain_config.plan_registry_address),
+    )
+
+
+def _recommendation_lines(
+    context: RwaIntakeContext,
+    allocations: list[PortfolioAllocation],
+) -> list[str]:
+    top_allocations = [allocation for allocation in allocations if allocation.target_weight_pct > 0][:3]
+    recommendations = [
+        f"先按 {context.holding_period_days} 天持有期审查退出节奏，不满足流动性约束的资产直接剔除。",
+    ]
+    for allocation in top_allocations:
+        recommendations.append(
+            f"{allocation.asset_name} 建议权重 {allocation.target_weight_pct:.1f}%：{allocation.rationale}"
+        )
+    if any(allocation.blocked_reason for allocation in allocations):
+        recommendations.append("对存在 KYC 或准入门槛的资产，先确认资格，再做收益比较。")
+    return recommendations
+
+
+def _open_questions(
+    context: RwaIntakeContext,
+    allocations: list[PortfolioAllocation],
+) -> list[str]:
+    questions: list[str] = []
+    if not context.wallet_address:
+        questions.append("钱包地址尚未提供，当前只能生成可执行草案，不能直接完成链上交互。")
+    if any(allocation.blocked_reason for allocation in allocations):
+        questions.append("部分资产因 KYC 等级不足被降权或剔除，需确认真实合规资格。")
+    if context.liquidity_need == LiquidityNeed.INSTANT:
+        questions.append("你要求高流动性，任何 T+N 资产都应重新核对赎回闸门和配额。")
+    return questions
+
+
+def _asset_summary_lines(
+    asset_cards: Iterable[AssetAnalysisCard],
+    simulations: dict[str, HoldingPeriodSimulation],
+) -> list[str]:
+    lines: list[str] = []
+    for card in asset_cards:
+        simulation = simulations[card.asset_id]
+        lines.append(
+            (
+                f"- **{card.name}**: 基准收益 {simulation.return_pct_base:.2f}%，"
+                f"综合风险 {card.risk_vector.overall:.1f}/100，"
+                f"退出 {('T+0' if card.exit_days == 0 else f'T+{card.exit_days}')}"
+            )
+        )
+    return lines
+
+
+def build_rwa_report(
+    *,
+    mode: AnalysisMode,
+    problem_statement: str,
+    context: RwaIntakeContext,
+    chain_config: HashKeyChainConfig,
+    asset_library: list[AssetTemplate],
+) -> tuple[AnalysisReport, list[EvidenceItem]]:
+    selected_assets = resolve_selected_assets(mode, problem_statement, context, asset_library)
+    asset_cards = build_asset_cards(selected_assets, context)
+    simulations = [
+        simulate_holding(asset, context.investment_amount, context.holding_period_days)
+        for asset in selected_assets
+    ]
+    simulation_map = {simulation.asset_id: simulation for simulation in simulations}
+    allocations = recommend_allocations(context, asset_cards)
+    asset_lookup = {asset.asset_id: asset for asset in selected_assets}
+    tx_draft = build_tx_draft(context, allocations, asset_lookup, chain_config)
+    evidence = [item for asset in selected_assets for item in build_catalog_evidence(asset)]
+    option_profiles = build_option_profiles(asset_cards, simulations)
+    tables = build_comparison_tables(asset_cards, simulations)
+    recommendations = _recommendation_lines(context, allocations)
+    open_questions = _open_questions(context, allocations)
+    top_choice = next(
+        (allocation for allocation in allocations if allocation.target_weight_pct > 0),
+        None,
+    )
+    summary = (
+        f"当前更适合以 {top_choice.asset_name} 作为核心配置腿，"
+        f"并围绕 {context.holding_period_days} 天持有期管理流动性、KYC 和赎回风险。"
+        if top_choice
+        else "当前更适合先确认准入门槛和退出条款，再决定是否进入 RWA 配置。"
+    )
+
+    markdown = "\n".join(
+        [
+            "## 决策结论",
+            summary,
+            "",
+            "## 资产对比",
+            *_asset_summary_lines(asset_cards, simulation_map),
+            "",
+            "## 组合建议",
+            *[f"- {item}" for item in recommendations],
+            "",
+            "## 风险拆解",
+            "- RiskVector 统一覆盖 Market、Liquidity、Peg/Redemption、Issuer/Custody、Smart Contract、Oracle、Compliance 七类风险。",
+            "- 稳定币不只看 APY，还要显式看待赎回信心和脱锚压力测试。",
+            "- RWA 类资产更应重视发行人、托管和法律结构，而不是只看收益率。",
+            "",
+            "## 执行与存证",
+            f"- 当前执行网络: HashKey Chain Mainnet ({chain_config.mainnet_chain_id})",
+            f"- Plan Registry 地址: {chain_config.plan_registry_address or '未配置，当前仅生成离线存证草案'}",
+        ]
+    )
+
+    report = AnalysisReport(
+        summary=summary,
+        assumptions=[
+            f"默认投资本金为 {context.investment_amount:.2f} {context.base_currency}",
+            f"持有期按 {context.holding_period_days} 天估算，收益为情景模拟而非预测。",
+            "RWA 资产的准入、申赎和托管条款以发行人实际文件为准。",
+        ],
+        recommendations=recommendations,
+        open_questions=open_questions,
+        markdown=markdown,
+        tables=tables,
+        option_profiles=option_profiles,
+        chain_config=chain_config,
+        asset_cards=asset_cards,
+        simulations=simulations,
+        recommended_allocations=allocations,
+        tx_draft=tx_draft,
+    )
+    report.attestation_draft = build_attestation_draft(markdown, allocations, chain_config)
+    return report, evidence

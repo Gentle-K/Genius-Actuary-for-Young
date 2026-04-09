@@ -1,4 +1,4 @@
-# Backend MVP
+# Backend MVP for HashKey Chain RWA
 
 ## Run
 
@@ -18,7 +18,16 @@ uvicorn app.main:app --reload
    - `ANALYSIS_API_BASE_URL`
    - `ANALYSIS_API_KEY`
    - `ANALYSIS_MODEL`
-5. When using Brave Search, fill at least:
+5. HashKey Chain defaults are now configurable through:
+   - `HASHKEY_TESTNET_CHAIN_ID`
+   - `HASHKEY_TESTNET_RPC_URL`
+   - `HASHKEY_TESTNET_EXPLORER_URL`
+   - `HASHKEY_MAINNET_CHAIN_ID`
+   - `HASHKEY_MAINNET_RPC_URL`
+   - `HASHKEY_MAINNET_EXPLORER_URL`
+   - `PLAN_REGISTRY_ADDRESS`
+   - `KYC_SBT_ADDRESS`
+6. When using Brave Search, fill at least:
    - `SEARCH_ADAPTER=brave`
    - `SEARCH_API_KEY`
 
@@ -26,16 +35,20 @@ Example:
 
 ```bash
 ANALYSIS_ADAPTER=openai_compatible
-ANALYSIS_PROVIDER=minimax
-ANALYSIS_REGION=cn
-ANALYSIS_API_BASE_URL=https://api.minimaxi.com/v1
+ANALYSIS_PROVIDER=openai-compatible
+ANALYSIS_REGION=global
+ANALYSIS_API_BASE_URL=https://api.openai.com/v1
 ANALYSIS_API_KEY=your_api_key
-ANALYSIS_MODEL=MiniMax-M2.5
+ANALYSIS_MODEL=gpt-4.1-mini
 SEARCH_ADAPTER=brave
 SEARCH_API_BASE_URL=https://api.search.brave.com/res/v1/web/search
 SEARCH_API_KEY=your_brave_key
 CHART_ADAPTER=structured
 CALCULATION_MCP_ENABLED=true
+HASHKEY_TESTNET_CHAIN_ID=133
+HASHKEY_TESTNET_RPC_URL=https://testnet.hsk.xyz
+HASHKEY_MAINNET_CHAIN_ID=177
+HASHKEY_MAINNET_RPC_URL=https://mainnet.hsk.xyz
 ```
 
 MiniMax notes:
@@ -58,12 +71,13 @@ Debug console notes:
 
 ## Current scope
 
-- FastAPI skeleton for the Genius Actuary backend
+- FastAPI backend for the Genius Actuary RWA decision engine
 - Python orchestrator main loop
 - Switchable analysis adapter: `mock` or OpenAI-compatible chat completions API
 - Switchable search adapter: `mock` or Brave Search API
 - Local calculation MCP can evaluate deterministic formulas from AI-planned tasks
 - Structured chart MCP can turn completed calculation tasks into frontend-ready chart specs
+- Built-in HashKey Chain asset library, RiskVector scoring, holding-period simulation, tx draft, and attestation draft
 - Frontend-facing session APIs with stable response contracts
 - Cookie-based anonymous client isolation for web sessions
 - SQLite-based session persistence

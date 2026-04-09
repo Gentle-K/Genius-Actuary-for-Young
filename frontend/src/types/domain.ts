@@ -5,6 +5,13 @@ export type ApiMode = 'mock' | 'rest'
 export type DisplayDensity = 'cozy' | 'compact'
 
 export type AnalysisMode = 'single-option' | 'multi-option'
+export type AssetType =
+  | 'stablecoin'
+  | 'mmf'
+  | 'precious_metal'
+  | 'real_estate'
+  | 'stocks'
+  | 'benchmark'
 export type SessionStatus =
   | 'INIT'
   | 'CLARIFYING'
@@ -24,6 +31,8 @@ export type NotificationChannel = 'in-app' | 'email' | 'push'
 export type FileStatus = 'available' | 'processing' | 'failed'
 export type UploadIntent = 'report' | 'evidence' | 'attachment'
 export type RealtimeTransport = 'mock' | 'websocket' | 'sse'
+export type RiskTolerance = 'conservative' | 'balanced' | 'aggressive'
+export type LiquidityNeed = 'instant' | 't_plus_3' | 'locked'
 
 export interface PaginatedResponse<T> {
   items: T[]
@@ -96,6 +105,77 @@ export interface ModeDefinition {
   description: string
   valueLens: string[]
   icon: string
+}
+
+export interface HashKeyChainConfig {
+  ecosystemName: string
+  nativeTokenSymbol: string
+  defaultExecutionNetwork: string
+  testnetChainId: number
+  testnetRpcUrl: string
+  testnetExplorerUrl: string
+  mainnetChainId: number
+  mainnetRpcUrl: string
+  mainnetExplorerUrl: string
+  planRegistryAddress?: string
+  kycSbtAddress?: string
+  docsUrls: string[]
+}
+
+export interface RwaIntakeContext {
+  investmentAmount: number
+  baseCurrency: string
+  preferredAssetIds: string[]
+  holdingPeriodDays: number
+  riskTolerance: RiskTolerance
+  liquidityNeed: LiquidityNeed
+  minimumKycLevel: number
+  walletAddress?: string
+  wantsOnchainAttestation: boolean
+  additionalConstraints?: string
+}
+
+export interface RwaAssetTemplate {
+  id: string
+  symbol: string
+  name: string
+  assetType: AssetType
+  description: string
+  issuer?: string
+  custody?: string
+  chainId: number
+  contractAddress?: string
+  settlementAsset: string
+  executionStyle: string
+  benchmarkApy: number
+  expectedReturnLow: number
+  expectedReturnBase: number
+  expectedReturnHigh: number
+  priceVolatility: number
+  maxDrawdown180d: number
+  avgDailyVolumeUsd: number
+  redemptionDays: number
+  lockupDays: number
+  managementFeeBps: number
+  entryFeeBps: number
+  exitFeeBps: number
+  slippageBps: number
+  depegEvents90d?: number
+  worstDepegBps90d?: number
+  issuerDisclosureScore: number
+  custodyDisclosureScore: number
+  auditDisclosureScore: number
+  contractIsUpgradeable: boolean
+  hasAdminKey: boolean
+  oracleCount: number
+  oracleSources: string[]
+  requiresKycLevel?: number
+  minimumTicketUsd: number
+  tags: string[]
+  thesis: string
+  fitSummary: string
+  evidenceUrls: string[]
+  featured: boolean
 }
 
 export interface ClarificationOption {
@@ -294,6 +374,120 @@ export interface OptionProfile {
   basisRefs: string[]
 }
 
+export interface RiskVector {
+  assetId: string
+  assetName: string
+  market: number
+  liquidity: number
+  pegRedemption: number
+  issuerCustody: number
+  smartContract: number
+  oracleDependency: number
+  complianceAccess: number
+  overall: number
+}
+
+export interface SimulationPathPoint {
+  day: number
+  p10Value: number
+  p50Value: number
+  p90Value: number
+}
+
+export interface HoldingPeriodSimulation {
+  assetId: string
+  assetName: string
+  holdingPeriodDays: number
+  endingValueLow: number
+  endingValueBase: number
+  endingValueHigh: number
+  returnPctLow: number
+  returnPctBase: number
+  returnPctHigh: number
+  var95Pct: number
+  cvar95Pct: number
+  maxDrawdownLowPct: number
+  maxDrawdownBasePct: number
+  maxDrawdownHighPct: number
+  scenarioNote: string
+  path: SimulationPathPoint[]
+}
+
+export interface PortfolioAllocation {
+  assetId: string
+  assetName: string
+  targetWeightPct: number
+  suggestedAmount: number
+  rationale: string
+  blockedReason?: string
+}
+
+export interface TxDraftStep {
+  step: number
+  title: string
+  description: string
+  actionType: string
+  targetContract?: string
+  explorerUrl?: string
+  estimatedFeeUsd: number
+  caution?: string
+}
+
+export interface TxDraft {
+  title: string
+  chainId: number
+  chainName: string
+  fundingAsset: string
+  totalEstimatedFeeUsd: number
+  steps: TxDraftStep[]
+  riskWarnings: string[]
+  canExecuteOnchain: boolean
+}
+
+export interface AttestationDraft {
+  chainId: number
+  reportHash: string
+  portfolioHash: string
+  attestationHash: string
+  createdAt: string
+  contractAddress?: string
+  explorerUrl?: string
+  eventName: string
+  ready: boolean
+}
+
+export interface AssetAnalysisCard {
+  assetId: string
+  symbol: string
+  name: string
+  assetType: AssetType
+  issuer?: string
+  custody?: string
+  chainId: number
+  contractAddress?: string
+  expectedReturnLow: number
+  expectedReturnBase: number
+  expectedReturnHigh: number
+  exitDays: number
+  totalCostBps: number
+  kycRequiredLevel?: number
+  thesis: string
+  fitSummary: string
+  tags: string[]
+  riskVector: RiskVector
+  metadata: Record<string, unknown>
+  evidenceRefs: string[]
+}
+
+export interface RwaBootstrap {
+  appName: string
+  chainConfig: HashKeyChainConfig
+  assetLibrary: RwaAssetTemplate[]
+  supportedAssetTypes: string[]
+  holdingPeriodPresets: number[]
+  notes: string[]
+}
+
 export interface ReportTable {
   id: string
   title: string
@@ -318,6 +512,12 @@ export interface AnalysisReport {
   budgetItems?: BudgetLineItem[]
   optionProfiles?: OptionProfile[]
   tables?: ReportTable[]
+  chainConfig?: HashKeyChainConfig
+  assetCards: AssetAnalysisCard[]
+  simulations: HoldingPeriodSimulation[]
+  recommendedAllocations: PortfolioAllocation[]
+  txDraft?: TxDraft
+  attestationDraft?: AttestationDraft
   exportedAt?: string
 }
 
@@ -366,6 +566,7 @@ export interface AnalysisSession extends AnalysisSessionSummary {
   activityStatus?: string
   currentFocus?: string
   lastStopReason?: string
+  intakeContext: RwaIntakeContext
   questions: ClarificationQuestion[]
   answers: UserAnswer[]
   searchTasks: SearchTask[]
@@ -471,6 +672,7 @@ export interface ResourceRecord {
 export interface CreateSessionPayload {
   mode: AnalysisMode
   problemStatement: string
+  intakeContext: RwaIntakeContext
 }
 
 export interface SubmitAnswersPayload {

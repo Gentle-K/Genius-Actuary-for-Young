@@ -1,4 +1,5 @@
 import type {
+  RwaBootstrap,
   AnalysisProgress,
   AnalysisReport,
   AnalysisSession,
@@ -32,6 +33,9 @@ export interface ApiAdapter {
   }
   modes: {
     list(): Promise<ModeDefinition[]>
+  }
+  rwa: {
+    getBootstrap(): Promise<RwaBootstrap>
   }
   dashboard: {
     getOverview(): Promise<DashboardOverview>

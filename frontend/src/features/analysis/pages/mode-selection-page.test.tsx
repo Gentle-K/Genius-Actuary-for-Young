@@ -8,7 +8,11 @@ describe('ModeSelectionPage', () => {
   it('renders both rebuilt analysis modes from the adapter', async () => {
     renderWithProviders(<ModeSelectionPage />, '/analysis/modes')
 
-    expect(await screen.findByText('成本预估')).toBeInTheDocument()
-    expect(await screen.findByText('多项决策')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: '单资产尽调' }),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: '多资产配置' }),
+    ).toBeInTheDocument()
   })
 })

@@ -3,18 +3,28 @@ import type {
   AnalysisProgress,
   AnalysisReport,
   AnalysisSession,
+  AssetAnalysisCard,
   AuditLogEntry,
+  AttestationDraft,
   BudgetLineItem,
   BudgetSummary,
   CalculationTask,
   ChartArtifact,
   ChartTask,
   ClarificationQuestion,
+  HashKeyChainConfig,
+  HoldingPeriodSimulation,
   ModeDefinition,
   OptionProfile,
+  PortfolioAllocation,
   ReportTable,
+  RiskVector,
   ResourceRecord,
+  RwaAssetTemplate,
+  RwaBootstrap,
+  RwaIntakeContext,
   SearchTask,
+  TxDraft,
   User,
   UserAnswer,
 } from '@/types'
@@ -29,6 +39,81 @@ export interface BackendBootstrapResponse {
   session_statuses: string[]
   next_actions: string[]
   notes: string[]
+  chain_config: BackendHashKeyChainConfig
+  asset_library: BackendAssetTemplate[]
+  supported_asset_types: string[]
+  holding_period_presets: number[]
+}
+
+export interface BackendHashKeyChainConfig {
+  ecosystem_name: string
+  native_token_symbol: string
+  default_execution_network: string
+  testnet_chain_id: number
+  testnet_rpc_url: string
+  testnet_explorer_url: string
+  mainnet_chain_id: number
+  mainnet_rpc_url: string
+  mainnet_explorer_url: string
+  plan_registry_address?: string
+  kyc_sbt_address?: string
+  docs_urls: string[]
+}
+
+export interface BackendRwaIntakeContext {
+  investment_amount: number
+  base_currency: string
+  preferred_asset_ids: string[]
+  holding_period_days: number
+  risk_tolerance: 'conservative' | 'balanced' | 'aggressive'
+  liquidity_need: 'instant' | 't_plus_3' | 'locked'
+  minimum_kyc_level: number
+  wallet_address?: string
+  wants_onchain_attestation: boolean
+  additional_constraints?: string
+}
+
+export interface BackendAssetTemplate {
+  asset_id: string
+  symbol: string
+  name: string
+  asset_type: string
+  description: string
+  issuer?: string
+  custody?: string
+  chain_id: number
+  contract_address?: string
+  settlement_asset: string
+  execution_style: string
+  benchmark_apy: number
+  expected_return_low: number
+  expected_return_base: number
+  expected_return_high: number
+  price_volatility: number
+  max_drawdown_180d: number
+  avg_daily_volume_usd: number
+  redemption_days: number
+  lockup_days: number
+  management_fee_bps: number
+  entry_fee_bps: number
+  exit_fee_bps: number
+  slippage_bps: number
+  depeg_events_90d?: number
+  worst_depeg_bps_90d?: number
+  issuer_disclosure_score: number
+  custody_disclosure_score: number
+  audit_disclosure_score: number
+  contract_is_upgradeable: boolean
+  has_admin_key: boolean
+  oracle_count: number
+  oracle_sources: string[]
+  requires_kyc_level?: number
+  minimum_ticket_usd: number
+  tags: string[]
+  thesis: string
+  fit_summary: string
+  evidence_urls: string[]
+  featured: boolean
 }
 
 export interface BackendClarificationQuestion {
@@ -182,6 +267,111 @@ export interface BackendReportTable {
   notes?: string
 }
 
+export interface BackendRiskVector {
+  asset_id: string
+  asset_name: string
+  market: number
+  liquidity: number
+  peg_redemption: number
+  issuer_custody: number
+  smart_contract: number
+  oracle_dependency: number
+  compliance_access: number
+  overall: number
+}
+
+export interface BackendSimulationPathPoint {
+  day: number
+  p10_value: number
+  p50_value: number
+  p90_value: number
+}
+
+export interface BackendHoldingPeriodSimulation {
+  asset_id: string
+  asset_name: string
+  holding_period_days: number
+  ending_value_low: number
+  ending_value_base: number
+  ending_value_high: number
+  return_pct_low: number
+  return_pct_base: number
+  return_pct_high: number
+  var_95_pct: number
+  cvar_95_pct: number
+  max_drawdown_low_pct: number
+  max_drawdown_base_pct: number
+  max_drawdown_high_pct: number
+  scenario_note: string
+  path: BackendSimulationPathPoint[]
+}
+
+export interface BackendPortfolioAllocation {
+  asset_id: string
+  asset_name: string
+  target_weight_pct: number
+  suggested_amount: number
+  rationale: string
+  blocked_reason?: string
+}
+
+export interface BackendTxDraftStep {
+  step: number
+  title: string
+  description: string
+  action_type: string
+  target_contract?: string
+  explorer_url?: string
+  estimated_fee_usd: number
+  caution?: string
+}
+
+export interface BackendTxDraft {
+  title: string
+  chain_id: number
+  chain_name: string
+  funding_asset: string
+  total_estimated_fee_usd: number
+  steps: BackendTxDraftStep[]
+  risk_warnings: string[]
+  can_execute_onchain: boolean
+}
+
+export interface BackendAttestationDraft {
+  chain_id: number
+  report_hash: string
+  portfolio_hash: string
+  attestation_hash: string
+  created_at: string
+  contract_address?: string
+  explorer_url?: string
+  event_name: string
+  ready: boolean
+}
+
+export interface BackendAssetAnalysisCard {
+  asset_id: string
+  symbol: string
+  name: string
+  asset_type: string
+  issuer?: string
+  custody?: string
+  chain_id: number
+  contract_address?: string
+  expected_return_low: number
+  expected_return_base: number
+  expected_return_high: number
+  exit_days: number
+  total_cost_bps: number
+  kyc_required_level?: number
+  thesis: string
+  fit_summary: string
+  tags: string[]
+  risk_vector: BackendRiskVector
+  metadata: Record<string, unknown>
+  evidence_refs: string[]
+}
+
 export interface BackendReport {
   summary: string
   assumptions: string[]
@@ -193,6 +383,12 @@ export interface BackendReport {
   budget_items?: BackendBudgetLineItem[]
   option_profiles?: BackendOptionProfile[]
   tables?: BackendReportTable[]
+  chain_config?: BackendHashKeyChainConfig | null
+  asset_cards?: BackendAssetAnalysisCard[]
+  simulations?: BackendHoldingPeriodSimulation[]
+  recommended_allocations?: BackendPortfolioAllocation[]
+  tx_draft?: BackendTxDraft | null
+  attestation_draft?: BackendAttestationDraft | null
 }
 
 export interface BackendSessionEvent {
@@ -206,6 +402,7 @@ export interface BackendSession {
   owner_client_id: string
   mode: 'single_decision' | 'multi_option'
   problem_statement: string
+  intake_context: BackendRwaIntakeContext
   status:
     | 'INIT'
     | 'CLARIFYING'
@@ -351,6 +548,258 @@ function buildFallbackLabels(values: number[]) {
   return values.map((_, index) => `#${index + 1}`)
 }
 
+function mapChainConfig(config: BackendHashKeyChainConfig): HashKeyChainConfig {
+  return {
+    ecosystemName: config.ecosystem_name,
+    nativeTokenSymbol: config.native_token_symbol,
+    defaultExecutionNetwork: config.default_execution_network,
+    testnetChainId: config.testnet_chain_id,
+    testnetRpcUrl: config.testnet_rpc_url,
+    testnetExplorerUrl: config.testnet_explorer_url,
+    mainnetChainId: config.mainnet_chain_id,
+    mainnetRpcUrl: config.mainnet_rpc_url,
+    mainnetExplorerUrl: config.mainnet_explorer_url,
+    planRegistryAddress: config.plan_registry_address || undefined,
+    kycSbtAddress: config.kyc_sbt_address || undefined,
+    docsUrls: config.docs_urls ?? [],
+  }
+}
+
+export function mapAssetType(value: string): RwaAssetTemplate['assetType'] {
+  switch (value) {
+    case 'stablecoin':
+    case 'mmf':
+    case 'precious_metal':
+    case 'real_estate':
+    case 'stocks':
+    case 'benchmark':
+      return value
+    default:
+      return 'benchmark'
+  }
+}
+
+export function mapRwaIntakeContext(
+  context?: BackendRwaIntakeContext,
+): RwaIntakeContext {
+  return {
+    investmentAmount: context?.investment_amount ?? 10000,
+    baseCurrency: context?.base_currency ?? 'USDT',
+    preferredAssetIds: context?.preferred_asset_ids ?? [],
+    holdingPeriodDays: context?.holding_period_days ?? 30,
+    riskTolerance: context?.risk_tolerance ?? 'balanced',
+    liquidityNeed: context?.liquidity_need ?? 't_plus_3',
+    minimumKycLevel: context?.minimum_kyc_level ?? 0,
+    walletAddress: context?.wallet_address ?? '',
+    wantsOnchainAttestation: context?.wants_onchain_attestation ?? true,
+    additionalConstraints: context?.additional_constraints ?? '',
+  }
+}
+
+export function toBackendIntakeContext(
+  context: RwaIntakeContext,
+): BackendRwaIntakeContext {
+  return {
+    investment_amount: context.investmentAmount,
+    base_currency: context.baseCurrency,
+    preferred_asset_ids: context.preferredAssetIds,
+    holding_period_days: context.holdingPeriodDays,
+    risk_tolerance: context.riskTolerance,
+    liquidity_need: context.liquidityNeed,
+    minimum_kyc_level: context.minimumKycLevel,
+    wallet_address: context.walletAddress || '',
+    wants_onchain_attestation: context.wantsOnchainAttestation,
+    additional_constraints: context.additionalConstraints || '',
+  }
+}
+
+function mapAssetTemplate(asset: BackendAssetTemplate): RwaAssetTemplate {
+  return {
+    id: asset.asset_id,
+    symbol: asset.symbol,
+    name: asset.name,
+    assetType: mapAssetType(asset.asset_type),
+    description: asset.description,
+    issuer: asset.issuer ?? '',
+    custody: asset.custody ?? '',
+    chainId: asset.chain_id,
+    contractAddress: asset.contract_address ?? '',
+    settlementAsset: asset.settlement_asset,
+    executionStyle: asset.execution_style,
+    benchmarkApy: asset.benchmark_apy,
+    expectedReturnLow: asset.expected_return_low,
+    expectedReturnBase: asset.expected_return_base,
+    expectedReturnHigh: asset.expected_return_high,
+    priceVolatility: asset.price_volatility,
+    maxDrawdown180d: asset.max_drawdown_180d,
+    avgDailyVolumeUsd: asset.avg_daily_volume_usd,
+    redemptionDays: asset.redemption_days,
+    lockupDays: asset.lockup_days,
+    managementFeeBps: asset.management_fee_bps,
+    entryFeeBps: asset.entry_fee_bps,
+    exitFeeBps: asset.exit_fee_bps,
+    slippageBps: asset.slippage_bps,
+    depegEvents90d: asset.depeg_events_90d,
+    worstDepegBps90d: asset.worst_depeg_bps_90d,
+    issuerDisclosureScore: asset.issuer_disclosure_score,
+    custodyDisclosureScore: asset.custody_disclosure_score,
+    auditDisclosureScore: asset.audit_disclosure_score,
+    contractIsUpgradeable: asset.contract_is_upgradeable,
+    hasAdminKey: asset.has_admin_key,
+    oracleCount: asset.oracle_count,
+    oracleSources: asset.oracle_sources ?? [],
+    requiresKycLevel: asset.requires_kyc_level,
+    minimumTicketUsd: asset.minimum_ticket_usd,
+    tags: asset.tags ?? [],
+    thesis: asset.thesis ?? '',
+    fitSummary: asset.fit_summary ?? '',
+    evidenceUrls: asset.evidence_urls ?? [],
+    featured: Boolean(asset.featured),
+  }
+}
+
+function mapRiskVector(vector: BackendRiskVector): RiskVector {
+  return {
+    assetId: vector.asset_id,
+    assetName: vector.asset_name,
+    market: vector.market,
+    liquidity: vector.liquidity,
+    pegRedemption: vector.peg_redemption,
+    issuerCustody: vector.issuer_custody,
+    smartContract: vector.smart_contract,
+    oracleDependency: vector.oracle_dependency,
+    complianceAccess: vector.compliance_access,
+    overall: vector.overall,
+  }
+}
+
+function mapSimulation(
+  simulation: BackendHoldingPeriodSimulation,
+): HoldingPeriodSimulation {
+  return {
+    assetId: simulation.asset_id,
+    assetName: simulation.asset_name,
+    holdingPeriodDays: simulation.holding_period_days,
+    endingValueLow: simulation.ending_value_low,
+    endingValueBase: simulation.ending_value_base,
+    endingValueHigh: simulation.ending_value_high,
+    returnPctLow: simulation.return_pct_low,
+    returnPctBase: simulation.return_pct_base,
+    returnPctHigh: simulation.return_pct_high,
+    var95Pct: simulation.var_95_pct,
+    cvar95Pct: simulation.cvar_95_pct,
+    maxDrawdownLowPct: simulation.max_drawdown_low_pct,
+    maxDrawdownBasePct: simulation.max_drawdown_base_pct,
+    maxDrawdownHighPct: simulation.max_drawdown_high_pct,
+    scenarioNote: simulation.scenario_note,
+    path: (simulation.path ?? []).map((point) => ({
+      day: point.day,
+      p10Value: point.p10_value,
+      p50Value: point.p50_value,
+      p90Value: point.p90_value,
+    })),
+  }
+}
+
+function mapAllocation(
+  allocation: BackendPortfolioAllocation,
+): PortfolioAllocation {
+  return {
+    assetId: allocation.asset_id,
+    assetName: allocation.asset_name,
+    targetWeightPct: allocation.target_weight_pct,
+    suggestedAmount: allocation.suggested_amount,
+    rationale: allocation.rationale,
+    blockedReason: allocation.blocked_reason ?? '',
+  }
+}
+
+function mapTxDraft(draft?: BackendTxDraft | null): TxDraft | undefined {
+  if (!draft) {
+    return undefined
+  }
+
+  return {
+    title: draft.title,
+    chainId: draft.chain_id,
+    chainName: draft.chain_name,
+    fundingAsset: draft.funding_asset,
+    totalEstimatedFeeUsd: draft.total_estimated_fee_usd,
+    steps: (draft.steps ?? []).map((step) => ({
+      step: step.step,
+      title: step.title,
+      description: step.description,
+      actionType: step.action_type,
+      targetContract: step.target_contract ?? '',
+      explorerUrl: step.explorer_url ?? '',
+      estimatedFeeUsd: step.estimated_fee_usd,
+      caution: step.caution ?? '',
+    })),
+    riskWarnings: draft.risk_warnings ?? [],
+    canExecuteOnchain: Boolean(draft.can_execute_onchain),
+  }
+}
+
+function mapAttestationDraft(
+  draft?: BackendAttestationDraft | null,
+): AttestationDraft | undefined {
+  if (!draft) {
+    return undefined
+  }
+
+  return {
+    chainId: draft.chain_id,
+    reportHash: draft.report_hash,
+    portfolioHash: draft.portfolio_hash,
+    attestationHash: draft.attestation_hash,
+    createdAt: draft.created_at,
+    contractAddress: draft.contract_address ?? '',
+    explorerUrl: draft.explorer_url ?? '',
+    eventName: draft.event_name,
+    ready: Boolean(draft.ready),
+  }
+}
+
+function mapAssetAnalysisCard(
+  card: BackendAssetAnalysisCard,
+): AssetAnalysisCard {
+  return {
+    assetId: card.asset_id,
+    symbol: card.symbol,
+    name: card.name,
+    assetType: mapAssetType(card.asset_type),
+    issuer: card.issuer ?? '',
+    custody: card.custody ?? '',
+    chainId: card.chain_id,
+    contractAddress: card.contract_address ?? '',
+    expectedReturnLow: card.expected_return_low,
+    expectedReturnBase: card.expected_return_base,
+    expectedReturnHigh: card.expected_return_high,
+    exitDays: card.exit_days,
+    totalCostBps: card.total_cost_bps,
+    kycRequiredLevel: card.kyc_required_level,
+    thesis: card.thesis ?? '',
+    fitSummary: card.fit_summary ?? '',
+    tags: card.tags ?? [],
+    riskVector: mapRiskVector(card.risk_vector),
+    metadata: card.metadata ?? {},
+    evidenceRefs: card.evidence_refs ?? [],
+  }
+}
+
+export function mapRwaBootstrap(
+  bootstrap: BackendBootstrapResponse,
+): RwaBootstrap {
+  return {
+    appName: bootstrap.app_name,
+    chainConfig: mapChainConfig(bootstrap.chain_config),
+    assetLibrary: bootstrap.asset_library.map(mapAssetTemplate),
+    supportedAssetTypes: bootstrap.supported_asset_types ?? [],
+    holdingPeriodPresets: bootstrap.holding_period_presets ?? [],
+    notes: bootstrap.notes ?? [],
+  }
+}
+
 function normalizeActivityLabel(activityStatus?: string) {
   const isZh = isChineseLocale()
   const mapping: Record<string, string> = {
@@ -360,8 +809,8 @@ function normalizeActivityLabel(activityStatus?: string) {
       : 'Waiting for answers',
     searching_web_for_evidence: isZh ? '搜索网页中' : 'Searching the web',
     running_deterministic_calculations: isZh
-      ? '执行预算或对比计算'
-      : 'Running calculations',
+      ? '执行 RWA 收益、风险与净值计算'
+      : 'Running RWA calculations',
     preparing_visualizations: isZh ? '生成图表中' : 'Preparing charts',
     searching_and_synthesizing: isZh ? '搜索并综合证据中' : 'Searching and synthesizing',
     running_analysis_pipeline: isZh ? '分析思考中' : 'Running analysis',
@@ -771,35 +1220,35 @@ export function mapModeDefinitions(
       title:
         id === 'single-option'
           ? isZh
-            ? '成本预估'
-            : 'Cost estimation'
+            ? '单资产尽调'
+            : 'Single-asset diligence'
           : isZh
-            ? '多项决策'
-            : 'Multi-option decision',
+            ? '多资产配置'
+            : 'Multi-asset allocation',
       subtitle:
         id === 'single-option'
           ? isZh
-            ? '输出预算范围、成本拆分、潜在回收与执行风险。'
-            : 'Estimate budget range, itemized costs, offsets, and risk.'
+            ? '围绕单个 RWA / 稳定币 / 收益资产做风险拆解与可执行草案。'
+            : 'Diligence one RWA, stablecoin, or yield product with risk decomposition.'
           : isZh
-            ? '识别可选方案，并平行比较优缺点、成本与适配度。'
-            : 'Identify options and compare pros, cons, cost, and fit in parallel.',
+            ? '输出 RWA 对比矩阵、持有期模拟、推荐权重与证据链。'
+            : 'Produce comparison matrix, simulations, recommended weights, and evidence links.',
       description:
         id === 'single-option'
           ? isZh
-            ? '适合评估一个具体计划值不值得推进，重点输出预算区间、成本项、收入回收和关键风险。'
-            : 'Best for a single plan where you need budget ranges, cost breakdowns, and downside control.'
+            ? '适合审查某个稳定币、MMF、贵金属或房地产类 RWA 的收益、流动性、KYC 与执行步骤。'
+            : 'Best for diligencing a single stablecoin, MMF, precious-metal, or real-estate style RWA.'
           : isZh
-            ? '适合开放式决策题，让系统先识别可能方案，再输出平行对比和建议。'
-            : 'Best for open-ended choices where the model should infer and compare viable options.',
+            ? '适合做 HashKey Chain 上的多资产配置，比较收益、风险、流动性和门槛。'
+            : 'Best for portfolio-style comparisons across HashKey Chain assets.',
       valueLens:
         id === 'single-option'
           ? isZh
-            ? ['预算范围', '成本拆分', '收入回收', '风险约束']
-            : ['Budget range', 'Cost breakdown', 'Revenue offsets', 'Execution risk']
+            ? ['RiskVector', '流动性', 'KYC 门槛', '执行草案']
+            : ['RiskVector', 'Liquidity', 'KYC gating', 'Execution draft']
           : isZh
-            ? ['方案识别', '平行优缺点', '成本对比', '偏好适配']
-            : ['Option discovery', 'Parallel pros/cons', 'Cost comparison', 'Preference fit'],
+            ? ['对比矩阵', '持有期模拟', '推荐权重', '证据面板']
+            : ['Comparison matrix', 'Holding simulation', 'Suggested weights', 'Evidence panel'],
       icon: id === 'single-option' ? 'sparkles' : 'git-compare',
     }
   })
@@ -822,6 +1271,7 @@ export function mapBackendSession(session: BackendSession): AnalysisSession {
     activityStatus: session.activity_status,
     currentFocus: session.current_focus,
     lastStopReason: session.last_stop_reason,
+    intakeContext: mapRwaIntakeContext(session.intake_context),
     lastInsight: mapLastInsight(session),
     questions: session.clarification_questions.map((question) => ({
       ...mapBackendQuestion(question),
@@ -883,6 +1333,41 @@ function buildHighlights(session: BackendSession) {
   const mode = mapBackendMode(session.mode)
   const budgetSummary = mapBudgetSummary(report?.budget_summary)
   const optionProfiles = mapOptionProfiles(report?.option_profiles)
+  const allocations = (report?.recommended_allocations ?? []).map(mapAllocation)
+  const assetCards = (report?.asset_cards ?? []).map(mapAssetAnalysisCard)
+  const bestAllocation = allocations.find((item) => item.targetWeightPct > 0)
+
+  if (assetCards.length > 0) {
+    const lowestRisk = [...assetCards].sort(
+      (left, right) => left.riskVector.overall - right.riskVector.overall,
+    )[0]
+    return [
+      {
+        id: 'asset-count',
+        label: isZh ? '比较资产数' : 'Assets compared',
+        value: String(assetCards.length),
+        detail: isZh ? '进入同口径比较与模拟的资产模板数量。' : 'Templates included in the normalized comparison.',
+      },
+      {
+        id: 'lead-allocation',
+        label: isZh ? '核心配置腿' : 'Lead allocation',
+        value: bestAllocation?.assetName ?? (isZh ? '待判断' : 'Pending'),
+        detail: isZh ? '在当前约束下建议承担最高权重的资产。' : 'Asset currently carrying the highest suggested weight.',
+      },
+      {
+        id: 'lowest-risk',
+        label: isZh ? '最低综合风险' : 'Lowest overall risk',
+        value: lowestRisk ? `${lowestRisk.name} / ${lowestRisk.riskVector.overall.toFixed(1)}` : '—',
+        detail: isZh ? '便于快速识别流动性底仓和风险缓冲资产。' : 'Useful for identifying the liquidity anchor asset.',
+      },
+      {
+        id: 'evidence-count',
+        label: isZh ? '证据条目' : 'Evidence items',
+        value: String(session.evidence_items.length),
+        detail: isZh ? '报告中的关键判断都应能回到这些证据卡片。' : 'Key report claims should trace back to these evidence cards.',
+      },
+    ]
+  }
 
   if (mode === 'single-option' && budgetSummary) {
     return [
@@ -994,6 +1479,12 @@ export function mapBackendReport(session: BackendSession): AnalysisReport {
     budgetItems: mapBudgetItems(report?.budget_items),
     optionProfiles: mapOptionProfiles(report?.option_profiles),
     tables: mapReportTables(report?.tables),
+    chainConfig: report?.chain_config ? mapChainConfig(report.chain_config) : undefined,
+    assetCards: (report?.asset_cards ?? []).map(mapAssetAnalysisCard),
+    simulations: (report?.simulations ?? []).map(mapSimulation),
+    recommendedAllocations: (report?.recommended_allocations ?? []).map(mapAllocation),
+    txDraft: mapTxDraft(report?.tx_draft),
+    attestationDraft: mapAttestationDraft(report?.attestation_draft),
   }
 }
 
@@ -1004,42 +1495,42 @@ function buildStages(mode: AnalysisMode): AnalysisProgress['stages'] {
     return [
       {
         id: 'clarify',
-        title: isZh ? '澄清决策目标' : 'Clarify the decision goal',
+        title: isZh ? '澄清配置目标' : 'Clarify the allocation goal',
         description: isZh
-          ? '补齐目标、约束和偏好，让系统知道真正要解决什么问题。'
-          : 'Clarify the real goal, constraints, and preference structure.',
+          ? '补齐本金、持有期、流动性和 KYC 约束。'
+          : 'Clarify principal, holding period, liquidity, and KYC constraints.',
         status: 'pending',
       },
       {
         id: 'search',
-        title: isZh ? '识别并搜索方案' : 'Discover and research options',
+        title: isZh ? '搜集条款与证据' : 'Collect evidence and terms',
         description: isZh
-          ? '识别可能方案，并搜索支持或反驳每种方案的外部证据。'
-          : 'Identify plausible options and gather evidence for each.',
+          ? '对发行人、托管、申赎和官方链上资料做可追溯核对。'
+          : 'Check issuer, custody, redemption, and official onchain references.',
         status: 'pending',
       },
       {
         id: 'compare',
-        title: isZh ? '整理平行优缺点' : 'Organize parallel pros and cons',
+        title: isZh ? '计算风险与模拟' : 'Run risk and simulation',
         description: isZh
-          ? '把每种方案的收益、代价、门槛和风险整理到同一比较框架里。'
-          : 'Normalize pros, cons, cost, and constraints into one frame.',
+          ? '统一输出 RiskVector、持有期收益分布和退出摩擦。'
+          : 'Normalize RiskVector, holding distributions, and exit friction.',
         status: 'pending',
       },
       {
         id: 'visualize',
         title: isZh ? '生成对比图表' : 'Generate comparison visuals',
         description: isZh
-          ? '输出分数图、成本图和辅助比较图表。'
-          : 'Generate score, cost, and comparison visuals.',
+          ? '输出收益分布、雷达图和建议权重。'
+          : 'Generate return distributions, radar charts, and target weights.',
         status: 'pending',
       },
       {
         id: 'report',
-        title: isZh ? '撰写决策结果' : 'Draft the decision report',
+        title: isZh ? '生成执行报告' : 'Draft the execution report',
         description: isZh
-          ? '汇总结论、建议、表格和长文分析。'
-          : 'Assemble recommendations, tables, and narrative analysis.',
+          ? '整理推荐权重、证据面板、交易草案与链上存证草案。'
+          : 'Assemble weights, evidence, tx draft, and attestation draft.',
         status: 'pending',
       },
     ]
@@ -1048,42 +1539,42 @@ function buildStages(mode: AnalysisMode): AnalysisProgress['stages'] {
   return [
     {
       id: 'clarify',
-      title: isZh ? '澄清预算边界' : 'Clarify the planning boundary',
+      title: isZh ? '澄清尽调边界' : 'Clarify diligence scope',
       description: isZh
-        ? '补齐目标范围、规模、关键约束和预算敏感点。'
-        : 'Clarify the scope, scale, constraints, and budget sensitivity.',
+        ? '补齐单资产尽调所需的收益目标、流动性和 KYC 约束。'
+        : 'Clarify the single-asset goal, liquidity, and KYC constraints.',
       status: 'pending',
     },
     {
       id: 'search',
-      title: isZh ? '搜索成本证据' : 'Research cost evidence',
+      title: isZh ? '搜索条款证据' : 'Research term-sheet evidence',
       description: isZh
-        ? '搜索成本、收益、价格和市场基准。'
-        : 'Gather benchmarks for cost, revenue, and market assumptions.',
+        ? '核对发行人、托管、申赎条款与官方链上资料。'
+        : 'Gather issuer, custody, redemption, and onchain evidence.',
       status: 'pending',
     },
     {
       id: 'calculate',
-      title: isZh ? '估算预算区间' : 'Estimate the budget range',
+      title: isZh ? '运行风险与收益计算' : 'Run risk and return math',
       description: isZh
-        ? '汇总预算项，形成低位、基准和高位区间。'
-        : 'Estimate low, base, and high budget ranges.',
+        ? '输出统一持有期下的净值、RiskVector 和压力测试。'
+        : 'Compute holding value, RiskVector, and stress scenarios.',
       status: 'pending',
     },
     {
       id: 'visualize',
-      title: isZh ? '生成预算图表' : 'Generate budget visuals',
+      title: isZh ? '生成尽调图表' : 'Generate diligence visuals',
       description: isZh
-        ? '把预算结构、回收和净投入绘制成图表。'
-        : 'Turn the budget structure and offsets into charts.',
+        ? '把收益分布、风险雷达和执行权重绘制成图表。'
+        : 'Render distributions, radar charts, and execution weights.',
       status: 'pending',
     },
     {
       id: 'report',
-      title: isZh ? '撰写预算结果' : 'Draft the budget report',
+      title: isZh ? '撰写资产报告' : 'Draft the asset report',
       description: isZh
-        ? '输出预算范围、成本明细、表格和文字结论。'
-        : 'Produce the final budget range, tables, and narrative.',
+        ? '输出结论、证据面板、交易草案与链上存证草案。'
+        : 'Produce the final narrative, evidence, tx draft, and attestation draft.',
       status: 'pending',
     },
   ]

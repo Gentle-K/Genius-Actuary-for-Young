@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { createJSONStorage, persist } from 'zustand/middleware'
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
 
 import type {
   ApiMode,
@@ -15,6 +15,30 @@ import { resolveRuntimeApiMode } from '@/lib/api/runtime-mode'
 const defaultApiMode = resolveRuntimeApiMode(
   import.meta.env['VITE_API_MODE'] as ApiMode | undefined,
 )
+
+const noopStorage: StateStorage = {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {},
+}
+
+function resolveBrowserStorage(): StateStorage {
+  if (typeof window === 'undefined') {
+    return noopStorage
+  }
+
+  const storage = window.localStorage as Partial<Storage> | undefined
+  if (
+    !storage ||
+    typeof storage.getItem !== 'function' ||
+    typeof storage.setItem !== 'function' ||
+    typeof storage.removeItem !== 'function'
+  ) {
+    return noopStorage
+  }
+
+  return storage as StateStorage
+}
 
 interface AppStoreState {
   themeMode: ThemeMode
@@ -79,7 +103,7 @@ export const useAppStore = create<AppStoreState>()(
     }),
     {
       name: 'genius-actuary-store',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(resolveBrowserStorage),
       merge: (persistedState, currentState) => {
         const merged = {
           ...currentState,
