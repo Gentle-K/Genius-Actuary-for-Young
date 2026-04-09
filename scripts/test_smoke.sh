@@ -10,8 +10,7 @@ mkdir -p "$TMP_ROOT"
 MODE="${MODE:-mock}"
 PYTHON_BIN="${PYTHON_BIN:-python3.13}"
 BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
-BACKEND_PORT="${BACKEND_PORT:-18000}"
-BACKEND_URL="${BACKEND_URL:-http://${BACKEND_HOST}:${BACKEND_PORT}}"
+BACKEND_PORT="${BACKEND_PORT:-}"
 START_BACKEND="${START_BACKEND:-1}"
 INSTALL_BACKEND_DEPS="${INSTALL_BACKEND_DEPS:-auto}"
 COOKIE_JAR="${COOKIE_JAR:-$TMP_ROOT/cookies.txt}"
@@ -45,6 +44,16 @@ trap cleanup EXIT
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
+}
+
+find_free_port() {
+  "$PYTHON_BIN" - <<'PY'
+import socket
+
+with socket.socket() as sock:
+    sock.bind(("127.0.0.1", 0))
+    print(sock.getsockname()[1])
+PY
 }
 
 sha256_file() {
@@ -84,7 +93,18 @@ ensure_backend_venv() {
 wait_for_health() {
   local attempt
   for attempt in $(seq 1 40); do
+    if [[ -f "$LOG_FILE" ]] && grep -q "address already in use" "$LOG_FILE"; then
+      fail "Backend failed to bind to ${BACKEND_HOST}:${BACKEND_PORT} because the port is already in use"
+    fi
+
+    if [[ -n "$BACKEND_PID" ]] && ! kill -0 "$BACKEND_PID" >/dev/null 2>&1; then
+      fail "Backend process exited before becoming healthy"
+    fi
+
     if curl -fsS "$BACKEND_URL/health" >/dev/null 2>&1; then
+      if [[ -n "$BACKEND_PID" ]] && ! kill -0 "$BACKEND_PID" >/dev/null 2>&1; then
+        fail "Health check reached another process, but the backend launched by test_smoke already exited"
+      fi
       return 0
     fi
     sleep 0.5
@@ -133,6 +153,12 @@ json_field() {
 require_cmd curl
 require_cmd jq
 ensure_backend_venv
+
+if [[ -z "$BACKEND_PORT" ]]; then
+  BACKEND_PORT="$(find_free_port)"
+fi
+
+BACKEND_URL="${BACKEND_URL:-http://${BACKEND_HOST}:${BACKEND_PORT}}"
 
 if [[ "$START_BACKEND" == "1" ]]; then
   start_backend
