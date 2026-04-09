@@ -34,6 +34,50 @@ export type RealtimeTransport = 'mock' | 'websocket' | 'sse'
 export type RiskTolerance = 'conservative' | 'balanced' | 'aggressive'
 export type LiquidityNeed = 'instant' | 't_plus_3' | 'locked'
 export type WalletNetworkKey = 'testnet' | 'mainnet'
+export type DataSourceTag =
+  | 'onchain_verified'
+  | 'oracle_fed'
+  | 'issuer_disclosed'
+  | 'model_inference'
+  | 'user_assumption'
+
+export interface OracleSnapshotBackend {
+  feedId: string
+  pair: string
+  network: WalletNetworkKey | string
+  sourceName: string
+  sourceUrl: string
+  feedAddress: string
+  explorerUrl?: string
+  price?: number
+  decimals: number
+  fetchedAt: string
+  updatedAt?: string
+  roundId?: number
+  note?: string
+  status: 'live' | 'unavailable'
+}
+
+export interface KycOnchainResult {
+  walletAddress: string
+  network: WalletNetworkKey | string
+  contractAddress?: string
+  isHuman: boolean
+  level: number
+  sourceUrl?: string
+  explorerUrl?: string
+  fetchedAt: string
+  note?: string
+}
+
+export interface TxReceipt {
+  transactionHash: string
+  transactionUrl: string
+  blockNumber?: number
+  submittedBy?: string
+  submittedAt?: string
+  network: WalletNetworkKey | string
+}
 
 export interface PaginatedResponse<T> {
   items: T[]
@@ -297,6 +341,7 @@ export interface EvidenceItem {
   extractedFacts: string[]
   fetchedAt: string
   confidence: number
+  sourceTag?: DataSourceTag
 }
 
 export interface CalculationTask {
@@ -546,6 +591,7 @@ export interface RwaBootstrap {
   supportedAssetTypes: string[]
   holdingPeriodPresets: number[]
   notes: string[]
+  oracleSnapshots?: OracleSnapshotBackend[]
 }
 
 export interface ReportTable {

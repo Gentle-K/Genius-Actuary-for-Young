@@ -20,6 +20,14 @@ class AssetType(str, Enum):
     BENCHMARK = "benchmark"
 
 
+class DataSourceTag(str, Enum):
+    ONCHAIN_VERIFIED = "onchain_verified"
+    ORACLE_FED = "oracle_fed"
+    ISSUER_DISCLOSED = "issuer_disclosed"
+    MODEL_INFERENCE = "model_inference"
+    USER_ASSUMPTION = "user_assumption"
+
+
 class RiskTolerance(str, Enum):
     CONSERVATIVE = "conservative"
     BALANCED = "balanced"
@@ -264,3 +272,45 @@ class AssetAnalysisCard(BaseModel):
     risk_vector: RiskVector
     metadata: dict[str, Any] = Field(default_factory=dict)
     evidence_refs: list[str] = Field(default_factory=list)
+
+
+class OracleSnapshot(BaseModel):
+    feed_id: str
+    pair: str
+    network: str
+    source_name: str
+    source_url: str
+    feed_address: str
+    explorer_url: str = ""
+    price: float | None = None
+    decimals: int = 8
+    fetched_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime | None = None
+    round_id: int | None = None
+    note: str = ""
+    status: str = "unavailable"
+
+
+class KycOnchainResult(BaseModel):
+    wallet_address: str
+    network: str
+    contract_address: str = ""
+    is_human: bool = False
+    level: int = 0
+    source_url: str = ""
+    explorer_url: str = ""
+    fetched_at: datetime = Field(default_factory=utcnow)
+    note: str = ""
+
+
+class EvidencePanelItem(BaseModel):
+    evidence_id: str = Field(default_factory=lambda: str(__import__("uuid").uuid4()))
+    asset_id: str = ""
+    title: str
+    source_url: str
+    source_name: str
+    source_tag: DataSourceTag = DataSourceTag.ISSUER_DISCLOSED
+    fetched_at: datetime = Field(default_factory=utcnow)
+    summary: str
+    extracted_facts: list[str] = Field(default_factory=list)
+    confidence: float = 0.5

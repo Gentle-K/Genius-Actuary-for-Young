@@ -28,6 +28,11 @@ const ReportPage = lazy(() =>
     default: module.ReportPage,
   })),
 )
+const ExecutionPage = lazy(() =>
+  import('@/features/analysis/pages/execution-page').then((module) => ({
+    default: module.ExecutionPage,
+  })),
+)
 const SettingsPage = lazy(() =>
   import('@/features/settings/settings-page').then((module) => ({
     default: module.SettingsPage,
@@ -149,6 +154,10 @@ export const router = createBrowserRouter([
           {
             path: '/analysis/session/:sessionId/result',
             element: withRouteSuspense(<ReportPage />),
+          },
+          {
+            path: '/analysis/session/:sessionId/execute',
+            element: withRouteSuspense(<ExecutionPage />),
           },
           { path: '/settings', element: withRouteSuspense(<SettingsPage />) },
           { path: '/profile', element: withRouteSuspense(<ProfilePage />) },

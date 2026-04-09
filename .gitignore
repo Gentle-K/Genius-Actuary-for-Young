@@ -8,3 +8,4 @@ backend/**/*.pyc
 .env
 .env.local
 .env.*.local
+external/

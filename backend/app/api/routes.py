@@ -13,6 +13,8 @@ from app.domain.schemas import (
     DebugAuthStatusResponse,
     DebugSessionListResponse,
     FrontendBootstrapResponse,
+    KycCheckResponse,
+    OracleSnapshotResponse,
     PersonalDataDeletionResponse,
     RecordAttestationRequest,
     RequestMoreFollowUpResponse,
@@ -23,6 +25,8 @@ from app.domain.schemas import (
 )
 from app.i18n import normalize_locale
 from app.rwa.catalog import build_asset_library, build_chain_config
+from app.rwa.kyc_service import read_kyc_from_chain
+from app.rwa.oracle_service import fetch_oracle_snapshots
 
 router = APIRouter()
 CLIENT_COOKIE_NAME = "genius_actuary_client_id"
@@ -113,6 +117,10 @@ def frontend_bootstrap(request: Request, response: Response) -> FrontendBootstra
         chain_config,
         locale=resolve_request_locale(request),
     )
+    oracle_snapshots = fetch_oracle_snapshots(
+        chain_config,
+        network=chain_config.default_execution_network or "testnet",
+    )
     return FrontendBootstrapResponse(
         app_name="Genius Actuary",
         supported_modes=services.orchestrator.supported_modes(),
@@ -133,6 +141,7 @@ def frontend_bootstrap(request: Request, response: Response) -> FrontendBootstra
         asset_library=asset_library,
         supported_asset_types=sorted({asset.asset_type.value for asset in asset_library}),
         holding_period_presets=[7, 30, 90, 180],
+        oracle_snapshots=oracle_snapshots,
     )
 
 
@@ -351,3 +360,49 @@ def delete_my_personal_data(
     deleted_count = services.session_service.delete_sessions_by_owner(client_id)
     clear_client_cookie(response)
     return PersonalDataDeletionResponse(deleted_session_count=deleted_count)
+
+
+@router.get("/api/oracle/snapshots", response_model=OracleSnapshotResponse)
+def get_oracle_snapshots(
+    request: Request,
+    network: str = "testnet",
+) -> OracleSnapshotResponse:
+    """Fetch live oracle price snapshots from HashKey Chain.
+
+    The backend makes JSON-RPC eth_call requests to the configured APRO
+    price feed contracts, normalizes the data, and caches briefly.  This
+    endpoint can be called by the frontend for real-time price display,
+    but the bootstrap response also includes oracle snapshots automatically.
+    """
+    settings = Settings.from_env()
+    chain_config = build_chain_config(settings)
+    snapshots = fetch_oracle_snapshots(chain_config, network=network)
+    live_count = sum(1 for s in snapshots if s.status == "live")
+    return OracleSnapshotResponse(
+        snapshots=snapshots,
+        network=network,
+        note=f"{live_count}/{len(snapshots)} feeds returned live data.",
+    )
+
+
+@router.get("/api/kyc/{wallet_address}", response_model=KycCheckResponse)
+def check_kyc(
+    wallet_address: str,
+    request: Request,
+    network: str = "testnet",
+) -> KycCheckResponse:
+    """Read KYC/SBT eligibility for a wallet from HashKey Chain.
+
+    The backend makes a JSON-RPC eth_call to the configured KYC SBT
+    contract's ``isHuman(address)`` function.  The result is the
+    authoritative KYC status used in report generation — it takes
+    precedence over any user-declared KYC level.
+    """
+    settings = Settings.from_env()
+    chain_config = build_chain_config(settings)
+    result = read_kyc_from_chain(
+        chain_config,
+        wallet_address=wallet_address,
+        network=network,
+    )
+    return KycCheckResponse(result=result)

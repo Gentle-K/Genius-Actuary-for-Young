@@ -16,7 +16,7 @@ from app.domain.models import (
     SessionStatus,
     UserAnswer,
 )
-from app.domain.rwa import AssetTemplate, HashKeyChainConfig, RwaIntakeContext
+from app.domain.rwa import AssetTemplate, HashKeyChainConfig, KycOnchainResult, OracleSnapshot, RwaIntakeContext
 
 
 class SessionCreateRequest(BaseModel):
@@ -117,6 +117,16 @@ class RequestMoreFollowUpResponse(BaseModel):
     step: SessionStepResponse
 
 
+class OracleSnapshotResponse(BaseModel):
+    snapshots: list[OracleSnapshot]
+    network: str
+    note: str = ""
+
+
+class KycCheckResponse(BaseModel):
+    result: KycOnchainResult
+
+
 class FrontendBootstrapResponse(BaseModel):
     app_name: str
     supported_modes: list[str]
@@ -127,3 +137,4 @@ class FrontendBootstrapResponse(BaseModel):
     asset_library: list[AssetTemplate]
     supported_asset_types: list[str]
     holding_period_presets: list[int]
+    oracle_snapshots: list[OracleSnapshot] = Field(default_factory=list)

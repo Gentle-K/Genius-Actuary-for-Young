@@ -1,5 +1,9 @@
 from app.rwa.catalog import build_asset_library, build_chain_config
 from app.rwa.engine import build_rwa_report, resolve_selected_assets, score_risk, simulate_holding
+from app.rwa.explorer_service import address_url, block_url, token_url, tx_url
+from app.rwa.kyc_service import read_kyc_from_chain
+from app.rwa.oracle_service import fetch_oracle_snapshots, clear_oracle_cache
+from app.rwa.portfolio_optimizer import optimize_weights
 
 __all__ = [
     "build_asset_library",
@@ -8,4 +12,12 @@ __all__ = [
     "resolve_selected_assets",
     "score_risk",
     "simulate_holding",
+    "address_url",
+    "block_url",
+    "token_url",
+    "tx_url",
+    "read_kyc_from_chain",
+    "fetch_oracle_snapshots",
+    "clear_oracle_cache",
+    "optimize_weights",
 ]

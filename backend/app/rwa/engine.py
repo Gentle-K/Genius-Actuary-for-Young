@@ -8,15 +8,20 @@ from statistics import mean
 from typing import Iterable
 from urllib.parse import urlparse
 
+import logging
+
 from app.domain.models import AnalysisMode, AnalysisReport, EvidenceItem, OptionProfile, ReportTable
 from app.domain.rwa import (
     AssetAnalysisCard,
     AssetTemplate,
     AssetType,
     AttestationDraft,
+    DataSourceTag,
     HashKeyChainConfig,
     HoldingPeriodSimulation,
     LiquidityNeed,
+    MarketDataSnapshot,
+    OracleSnapshot,
     PortfolioAllocation,
     RiskTolerance,
     RiskVector,
@@ -26,6 +31,9 @@ from app.domain.rwa import (
     TxDraftStep,
 )
 from app.i18n import text_for_locale
+from app.rwa.explorer_service import address_url, oracle_docs_url
+
+logger = logging.getLogger(__name__)
 
 
 def clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
@@ -976,6 +984,21 @@ def _asset_summary_lines(
     return lines
 
 
+def _classify_evidence_source(evidence: EvidenceItem) -> DataSourceTag:
+    """Classify an evidence item's data source tag based on its metadata."""
+    url = (evidence.source_url or "").lower()
+    name = (evidence.source_name or "").lower()
+    if any(k in url for k in ("explorer", "blockscout", "etherscan", "hashscan")):
+        return DataSourceTag.ONCHAIN_VERIFIED
+    if any(k in name for k in ("oracle", "apro", "chainlink", "supra")):
+        return DataSourceTag.ORACLE_FED
+    if evidence.source_type == "user":
+        return DataSourceTag.USER_ASSUMPTION
+    if any(k in url for k in ("prnewswire", "newsroom", "issuer", "docs.hashkey")):
+        return DataSourceTag.ISSUER_DISCLOSED
+    return DataSourceTag.MODEL_INFERENCE
+
+
 def build_rwa_report(
     *,
     mode: AnalysisMode,
@@ -984,10 +1007,45 @@ def build_rwa_report(
     chain_config: HashKeyChainConfig,
     asset_library: list[AssetTemplate],
     locale: str = "zh",
+    oracle_snapshots: list[OracleSnapshot] | None = None,
 ) -> tuple[AnalysisReport, list[EvidenceItem]]:
     selected_assets = resolve_selected_assets(mode, problem_statement, context, asset_library)
     asset_cards = build_asset_cards(selected_assets, context)
     effective_kyc_level = _effective_kyc_level(context)
+
+    # Try backend KYC override when wallet is connected
+    if context.wallet_address and context.wallet_network:
+        try:
+            from app.rwa.kyc_service import read_kyc_from_chain
+            kyc_result = read_kyc_from_chain(
+                chain_config,
+                context.wallet_address,
+                context.wallet_network or "testnet",
+            )
+            if kyc_result.is_human and kyc_result.level > 0:
+                context.wallet_kyc_level_onchain = kyc_result.level
+                context.wallet_kyc_verified = True
+                effective_kyc_level = max(effective_kyc_level, kyc_result.level)
+                logger.info(
+                    "KYC override: on-chain level %d for %s",
+                    kyc_result.level,
+                    context.wallet_address,
+                )
+        except Exception as exc:
+            logger.warning("KYC backend read failed, using intake: %s", exc)
+
+    # Fetch oracle snapshots if not provided
+    if oracle_snapshots is None:
+        try:
+            from app.rwa.oracle_service import fetch_oracle_snapshots
+            oracle_snapshots = fetch_oracle_snapshots(
+                chain_config,
+                network=chain_config.default_execution_network or "testnet",
+            )
+        except Exception as exc:
+            logger.warning("Oracle fetch failed for report: %s", exc)
+            oracle_snapshots = []
+
     simulations = [
         simulate_holding(
             asset,
@@ -1120,11 +1178,19 @@ def build_rwa_report(
         tables=tables,
         option_profiles=option_profiles,
         chain_config=chain_config,
-        market_snapshots=[],
+        market_snapshots=[
+            MarketDataSnapshot(**snap.model_dump())
+            for snap in (oracle_snapshots or [])
+        ],
         asset_cards=asset_cards,
         simulations=simulations,
         recommended_allocations=allocations,
         tx_draft=tx_draft,
     )
     report.attestation_draft = build_attestation_draft(markdown, allocations, chain_config)
+
+    # Classify evidence source tags
+    for item in evidence:
+        item.source_tag = _classify_evidence_source(item)
+
     return report, evidence

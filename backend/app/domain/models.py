@@ -109,6 +109,8 @@ class EvidenceItem(BaseModel):
     title: str
     source_url: str
     source_name: str
+    source_type: str = "internal"
+    source_tag: str = ""
     fetched_at: datetime = Field(default_factory=utcnow)
     summary: str
     extracted_facts: list[str] = Field(default_factory=list)

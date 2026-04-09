@@ -506,3 +506,27 @@ export function shortAddress(value?: string) {
   }
   return `${value.slice(0, 6)}...${value.slice(-4)}`
 }
+
+export function explorerTxUrl(
+  chainConfig: HashKeyChainConfig,
+  network: WalletNetworkKey,
+  txHash: string,
+) {
+  return `${explorerBase(chainConfig, network)}/tx/${txHash}`
+}
+
+export function explorerAddressUrl(
+  chainConfig: HashKeyChainConfig,
+  network: WalletNetworkKey,
+  address: string,
+) {
+  return `${explorerBase(chainConfig, network)}/address/${address}`
+}
+
+export function explorerTokenUrl(
+  chainConfig: HashKeyChainConfig,
+  network: WalletNetworkKey,
+  tokenAddress: string,
+) {
+  return `${explorerBase(chainConfig, network)}/token/${tokenAddress}`
+}
