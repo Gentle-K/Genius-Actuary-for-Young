@@ -330,6 +330,7 @@ export async function readWalletKyc(
       walletAddress,
       network,
       contractAddress,
+      status: 'none',
       isHuman: false,
       level: 0,
       sourceUrl: chainConfig.docsUrls.find((url) => url.includes('/Tools/KYC')),
@@ -355,6 +356,7 @@ export async function readWalletKyc(
     walletAddress,
     network,
     contractAddress,
+    status: isHuman ? 'approved' : Number(level) > 0 ? 'revoked' : 'none',
     isHuman,
     level: Number(level),
     sourceUrl: chainConfig.docsUrls.find((url) => url.includes('/Tools/KYC')),
@@ -458,6 +460,11 @@ export async function writePlanAttestation(params: {
   attestationHash: string
   sessionId: string
   summaryUri: string
+  onTransactionSubmitted?: (payload: {
+    account: string
+    transactionHash: string
+    transactionUrl: string
+  }) => void
 }) {
   const provider = getInjectedProvider()
   if (!provider) {
@@ -490,12 +497,18 @@ export async function writePlanAttestation(params: {
       params.summaryUri,
     ],
   })
+  const transactionUrl = `${explorerBase(params.chainConfig, params.network)}/tx/${hash}`
+  params.onTransactionSubmitted?.({
+    account,
+    transactionHash: hash,
+    transactionUrl,
+  })
   const receipt = await publicClient.waitForTransactionReceipt({ hash })
 
   return {
     account,
     transactionHash: hash,
-    transactionUrl: `${explorerBase(params.chainConfig, params.network)}/tx/${hash}`,
+    transactionUrl,
     blockNumber: Number(receipt.blockNumber),
   }
 }

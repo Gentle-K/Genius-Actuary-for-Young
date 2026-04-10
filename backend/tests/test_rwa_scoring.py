@@ -152,6 +152,10 @@ class ComparisonTableTests(unittest.TestCase):
 
 
 class BuildReportTests(unittest.TestCase):
+    def test_chain_config_defaults_to_testnet_demo_network(self):
+        chain_config = _chain_config()
+        self.assertEqual(chain_config.default_execution_network, "testnet")
+
     def test_build_rwa_report_produces_complete_report(self):
         library = _asset_library()
         chain_config = _chain_config()
@@ -170,7 +174,53 @@ class BuildReportTests(unittest.TestCase):
         self.assertGreater(len(report.recommendations), 0)
         self.assertGreater(len(report.markdown), 0)
         self.assertIsNotNone(report.attestation_draft)
+        self.assertIn("/address/", report.attestation_draft.explorer_url or "")
+        self.assertEqual("testnet", report.market_snapshots[0].network if report.market_snapshots else "testnet")
         self.assertGreater(len(evidence), 0)
+
+    def test_build_rwa_report_includes_structured_kyc_snapshot(self):
+        library = _asset_library()
+        chain_config = _chain_config()
+        context = _context(
+            wallet_address="0x1234567890abcdef1234567890abcdef12345678",
+            wallet_network="testnet",
+        )
+        report, _ = build_rwa_report(
+            mode=AnalysisMode.MULTI_OPTION,
+            problem_statement="Build a 30-day HashKey Chain RWA allocation for 10,000 USDT.",
+            context=context,
+            chain_config=chain_config,
+            asset_library=library,
+            locale="en",
+            oracle_snapshots=[],
+        )
+        self.assertIsNotNone(report.kyc_snapshot)
+        self.assertEqual("testnet", report.kyc_snapshot.network)
+
+    def test_tx_draft_adds_network_switch_before_attestation_when_networks_differ(self):
+        library = _asset_library()
+        chain_config = _chain_config()
+        context = _context(wallet_network="testnet")
+        assets = resolve_selected_assets(
+            AnalysisMode.MULTI_OPTION,
+            "30-day RWA allocation",
+            context,
+            library,
+        )
+        cards = build_asset_cards(assets, context)
+        allocations = recommend_allocations(context, cards, locale="en")
+        tx_draft = build_tx_draft(
+            context,
+            allocations,
+            {asset.asset_id: asset for asset in assets},
+            chain_config,
+            locale="en",
+        )
+        attestation_steps = [step for step in tx_draft.steps if step.action_type == "attest_plan"]
+        switch_steps = [step for step in tx_draft.steps if step.action_type == "switch_network"]
+        self.assertTrue(attestation_steps)
+        self.assertGreaterEqual(len(switch_steps), 2)
+        self.assertEqual(chain_config.mainnet_chain_id, tx_draft.chain_id)
 
     def test_report_evidence_has_source_tags(self):
         library = _asset_library()
@@ -222,6 +272,17 @@ class ClassifyEvidenceSourceTests(unittest.TestCase):
         )
         tag = _classify_evidence_source(e)
         self.assertEqual(tag, DataSourceTag.ISSUER_DISCLOSED)
+
+    def test_web_source_is_classified_as_third_party(self):
+        e = EvidenceItem(
+            title="Test",
+            source_url="https://www.reuters.com/world/test",
+            source_name="Reuters",
+            source_type="web",
+            summary="test",
+        )
+        tag = _classify_evidence_source(e)
+        self.assertEqual(tag, DataSourceTag.THIRD_PARTY_SOURCE)
 
 
 class PortfolioOptimizerTests(unittest.TestCase):

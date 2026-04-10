@@ -19,6 +19,7 @@ from app.domain.rwa import (
     DataSourceTag,
     HashKeyChainConfig,
     HoldingPeriodSimulation,
+    KycOnchainResult,
     LiquidityNeed,
     MarketDataSnapshot,
     OracleSnapshot,
@@ -31,7 +32,7 @@ from app.domain.rwa import (
     TxDraftStep,
 )
 from app.i18n import text_for_locale
-from app.rwa.explorer_service import address_url, oracle_docs_url
+from app.rwa.explorer_service import address_url, chain_id_for, oracle_docs_url
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,26 @@ def _effective_kyc_level(context: RwaIntakeContext) -> int:
             return 0
         return max(0, context.wallet_kyc_level_onchain)
     return max(0, context.minimum_kyc_level)
+
+
+def _normalize_network(value: str | None, default: str = "testnet") -> str:
+    normalized = (value or "").strip().lower()
+    if normalized in {"mainnet", "testnet"}:
+        return normalized
+    return default
+
+
+def _network_label(network: str, *, locale: str = "zh") -> str:
+    if network == "mainnet":
+        return text_for_locale(locale, "HashKey Chain 主网", "HashKey Chain Mainnet")
+    return text_for_locale(locale, "HashKey Chain 测试网", "HashKey Chain Testnet")
+
+
+def _report_network(context: RwaIntakeContext, chain_config: HashKeyChainConfig) -> str:
+    return _normalize_network(
+        context.wallet_network or chain_config.default_execution_network,
+        default="testnet",
+    )
 
 
 def _resolve_attestation_network(
@@ -779,20 +800,45 @@ def build_tx_draft(
     *,
     locale: str = "zh",
 ) -> TxDraft:
-    attestation_network, _, attestation_contract, attestation_explorer = _resolve_attestation_network(
-        chain_config
+    attestation_network, _, attestation_contract, attestation_explorer = _resolve_attestation_network(chain_config)
+    executable_allocations = [
+        allocation
+        for allocation in allocations
+        if allocation.target_weight_pct > 0 and asset_lookup[allocation.asset_id].execution_style == "erc20"
+    ]
+    has_mainnet_asset_steps = any(
+        asset_lookup[allocation.asset_id].chain_id == chain_config.mainnet_chain_id
+        for allocation in executable_allocations
     )
+    has_testnet_asset_steps = any(
+        asset_lookup[allocation.asset_id].chain_id == chain_config.testnet_chain_id
+        for allocation in executable_allocations
+    )
+    asset_execution_network = (
+        "mainnet"
+        if has_mainnet_asset_steps
+        else "testnet"
+        if has_testnet_asset_steps
+        else _report_network(context, chain_config)
+    )
+    primary_network = asset_execution_network if executable_allocations else attestation_network
+    primary_explorer = (
+        chain_config.mainnet_explorer_url
+        if primary_network == "mainnet"
+        else chain_config.testnet_explorer_url
+    )
+
     steps: list[TxDraftStep] = [
         TxDraftStep(
             step=1,
             title=text_for_locale(locale, "切换到 HashKey Chain", "Switch to HashKey Chain"),
             description=text_for_locale(
                 locale,
-                "将钱包网络切换到 HashKey Chain 主网，确认 RPC 与 Explorer 参数正确。",
-                "Switch the wallet network to HashKey Chain mainnet and verify the RPC and explorer settings.",
+                f"将钱包网络切换到{_network_label(primary_network, locale=locale)}，确认 RPC 与 Explorer 参数正确。",
+                f"Switch the wallet network to {_network_label(primary_network, locale=locale)} and verify the RPC plus explorer settings.",
             ),
             action_type="switch_network",
-            explorer_url=chain_config.mainnet_explorer_url,
+            explorer_url=primary_explorer,
             estimated_fee_usd=0.0,
         )
     ]
@@ -820,7 +866,7 @@ def build_tx_draft(
                     ),
                     action_type="approve_or_swap",
                     target_contract=asset.contract_address,
-                    explorer_url=f"{chain_config.mainnet_explorer_url}/address/{asset.contract_address}",
+                    explorer_url=address_url(chain_config, asset_execution_network, asset.contract_address),
                     estimated_fee_usd=0.42,
                     caution=text_for_locale(
                         locale,
@@ -857,6 +903,26 @@ def build_tx_draft(
         step_index += 1
 
     if context.wants_onchain_attestation:
+        if steps and attestation_network != primary_network:
+            steps.append(
+                TxDraftStep(
+                    step=step_index,
+                    title=text_for_locale(
+                        locale,
+                        f"切换到{_network_label(attestation_network, locale=locale)}",
+                        f"Switch to {_network_label(attestation_network, locale=locale)}",
+                    ),
+                    description=text_for_locale(
+                        locale,
+                        "资产准备完成后，切换到 attestation 目标网络以写入 Plan Registry。",
+                        "After preparing the asset positions, switch to the attestation target network before writing to Plan Registry.",
+                    ),
+                    action_type="switch_network",
+                    explorer_url=attestation_explorer,
+                    estimated_fee_usd=0.0,
+                )
+            )
+            step_index += 1
         steps.append(
             TxDraftStep(
                 step=step_index,
@@ -869,7 +935,7 @@ def build_tx_draft(
                 action_type="attest_plan",
                 target_contract=attestation_contract,
                 explorer_url=(
-                    f"{attestation_explorer}/address/{attestation_contract}"
+                    address_url(chain_config, attestation_network, attestation_contract)
                     if attestation_contract
                     else attestation_explorer
                 ),
@@ -885,8 +951,8 @@ def build_tx_draft(
 
     return TxDraft(
         title=text_for_locale(locale, "HashKey Chain 执行草案", "HashKey Chain execution draft"),
-        chain_id=chain_config.mainnet_chain_id,
-        chain_name="HashKey Chain Mainnet",
+        chain_id=chain_id_for(chain_config, primary_network),
+        chain_name=_network_label(primary_network, locale="en"),
         funding_asset=context.base_currency,
         total_estimated_fee_usd=round(total_fee, 2),
         steps=steps,
@@ -938,7 +1004,11 @@ def build_attestation_draft(
         attestation_hash=attestation_hash,
         network=network,
         contract_address=contract_address,
-        explorer_url=explorer_url,
+        explorer_url=(
+            address_url(chain_config, network, contract_address)
+            if contract_address
+            else explorer_url
+        ),
         ready=bool(contract_address),
     )
 
@@ -1047,6 +1117,8 @@ def _classify_evidence_source(evidence: EvidenceItem) -> DataSourceTag:
         return DataSourceTag.ORACLE_FED
     if evidence.source_type == "user":
         return DataSourceTag.USER_ASSUMPTION
+    if evidence.source_type == "web" or any(k in url for k in ("defillama", "brave.com", "coingecko", "reuters")):
+        return DataSourceTag.THIRD_PARTY_SOURCE
     if any(k in url for k in ("prnewswire", "newsroom", "issuer", "docs.hashkey")):
         return DataSourceTag.ISSUER_DISCLOSED
     return DataSourceTag.MODEL_INFERENCE
@@ -1065,25 +1137,29 @@ def build_rwa_report(
     selected_assets = resolve_selected_assets(mode, problem_statement, context, asset_library)
     asset_cards = build_asset_cards(selected_assets, context)
     effective_kyc_level = _effective_kyc_level(context)
+    resolved_report_network = _report_network(context, chain_config)
+    kyc_snapshot: KycOnchainResult | None = None
 
     # Try backend KYC override when wallet is connected
-    if context.wallet_address and context.wallet_network:
+    if context.wallet_address:
         try:
             from app.rwa.kyc_service import read_kyc_from_chain
-            kyc_result = read_kyc_from_chain(
+            kyc_snapshot = read_kyc_from_chain(
                 chain_config,
                 context.wallet_address,
-                context.wallet_network or "testnet",
+                context.wallet_network or resolved_report_network,
             )
-            if kyc_result.is_human and kyc_result.level > 0:
-                context.wallet_kyc_level_onchain = kyc_result.level
-                context.wallet_kyc_verified = True
-                effective_kyc_level = max(effective_kyc_level, kyc_result.level)
-                logger.info(
-                    "KYC override: on-chain level %d for %s",
-                    kyc_result.level,
-                    context.wallet_address,
-                )
+            context.wallet_kyc_level_onchain = kyc_snapshot.level
+            context.wallet_kyc_verified = kyc_snapshot.is_human
+            context.wallet_network = context.wallet_network or resolved_report_network
+            effective_kyc_level = _effective_kyc_level(context)
+            logger.info(
+                "KYC snapshot: status=%s level=%d for %s on %s",
+                kyc_snapshot.status.value,
+                kyc_snapshot.level,
+                context.wallet_address,
+                context.wallet_network,
+            )
         except Exception as exc:
             logger.warning("KYC backend read failed, using intake: %s", exc)
 
@@ -1093,7 +1169,7 @@ def build_rwa_report(
             from app.rwa.oracle_service import fetch_oracle_snapshots
             oracle_snapshots = fetch_oracle_snapshots(
                 chain_config,
-                network=chain_config.default_execution_network or "testnet",
+                network=resolved_report_network,
             )
         except Exception as exc:
             logger.warning("Oracle fetch failed for report: %s", exc)
@@ -1177,8 +1253,8 @@ def build_rwa_report(
             text_for_locale(locale, "## 执行与存证", "## Execution and attestation"),
             text_for_locale(
                 locale,
-                f"- 当前执行网络: HashKey Chain Mainnet ({chain_config.mainnet_chain_id})",
-                f"- Active execution network: HashKey Chain Mainnet ({chain_config.mainnet_chain_id})",
+                f"- 当前执行网络: {_network_label(resolved_report_network, locale=locale)} ({chain_id_for(chain_config, resolved_report_network)})",
+                f"- Active execution network: {_network_label(resolved_report_network, locale='en')} ({chain_id_for(chain_config, resolved_report_network)})",
             ),
             text_for_locale(
                 locale,
@@ -1224,6 +1300,11 @@ def build_rwa_report(
                     else f"The current screening uses the user-declared KYC constraint of L{effective_kyc_level}."
                 ),
             ),
+            text_for_locale(
+                locale,
+                f"报告使用的链上数据网络为 {_network_label(resolved_report_network, locale=locale)}。",
+                f"The report uses {_network_label(resolved_report_network, locale='en')} as the active onchain data network.",
+            ),
         ],
         recommendations=recommendations,
         open_questions=open_questions,
@@ -1231,6 +1312,7 @@ def build_rwa_report(
         tables=tables,
         option_profiles=option_profiles,
         chain_config=chain_config,
+        kyc_snapshot=kyc_snapshot,
         market_snapshots=[
             MarketDataSnapshot(**snap.model_dump())
             for snap in (oracle_snapshots or [])

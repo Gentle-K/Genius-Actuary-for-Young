@@ -6,7 +6,7 @@ from unittest.mock import patch, MagicMock
 import httpx
 
 from app.config import Settings
-from app.domain.rwa import KycOnchainResult
+from app.domain.rwa import KycOnchainResult, KycStatus
 from app.rwa.catalog import build_chain_config
 from app.rwa.kyc_service import read_kyc_from_chain
 
@@ -22,6 +22,7 @@ class KycServiceTests(unittest.TestCase):
         self.assertIsInstance(result, KycOnchainResult)
         self.assertFalse(result.is_human)
         self.assertEqual(result.level, 0)
+        self.assertEqual(result.status, KycStatus.NONE)
         self.assertIn("No wallet", result.note)
 
     def test_unconfigured_contract_returns_not_verified(self):
@@ -34,6 +35,7 @@ class KycServiceTests(unittest.TestCase):
             chain_config, "0x1234567890abcdef1234567890abcdef12345678", "testnet"
         )
         self.assertFalse(result.is_human)
+        self.assertEqual(result.status, KycStatus.UNAVAILABLE)
         self.assertIn("not configured", result.note)
 
     def test_rpc_success_verified(self):
@@ -54,6 +56,7 @@ class KycServiceTests(unittest.TestCase):
 
         self.assertTrue(result.is_human)
         self.assertEqual(result.level, 2)
+        self.assertEqual(result.status, KycStatus.APPROVED)
         self.assertIn("eligibility detected", result.note)
 
     def test_rpc_success_not_verified(self):
@@ -70,10 +73,11 @@ class KycServiceTests(unittest.TestCase):
         with patch("app.rwa.kyc_service.httpx.post", return_value=mock_response):
             result = read_kyc_from_chain(
                 chain_config, "0x1234567890abcdef1234567890abcdef12345678", "testnet"
-            )
+        )
 
         self.assertFalse(result.is_human)
         self.assertEqual(result.level, 0)
+        self.assertEqual(result.status, KycStatus.NONE)
 
     def test_rpc_error_returns_not_verified(self):
         chain_config = _chain_config()
@@ -91,9 +95,10 @@ class KycServiceTests(unittest.TestCase):
         with patch("app.rwa.kyc_service.httpx.post", return_value=mock_response):
             result = read_kyc_from_chain(
                 chain_config, "0x1234567890abcdef1234567890abcdef12345678", "testnet"
-            )
+        )
 
         self.assertFalse(result.is_human)
+        self.assertEqual(result.status, KycStatus.UNAVAILABLE)
         self.assertIn("RPC error", result.note)
 
     def test_network_error_returns_not_verified(self):
@@ -107,10 +112,11 @@ class KycServiceTests(unittest.TestCase):
         ):
             result = read_kyc_from_chain(
                 chain_config, "0x1234567890abcdef1234567890abcdef12345678", "testnet"
-            )
+        )
 
         self.assertFalse(result.is_human)
         self.assertEqual(result.level, 0)
+        self.assertEqual(result.status, KycStatus.UNAVAILABLE)
 
 
 class ExplorerServiceTests(unittest.TestCase):

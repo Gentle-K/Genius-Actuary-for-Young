@@ -1,6 +1,10 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo } from 'react'
 
+import {
+  fetchBackendKycSnapshot,
+  fetchBackendOracleSnapshots,
+} from '@/lib/api/hashkey-backend'
 import { useAppStore } from '@/lib/store/app-store'
 import type {
   HashKeyChainConfig,
@@ -13,8 +17,6 @@ import {
   getInjectedProvider,
   getNetworkLabel,
   readInjectedWalletState,
-  readMarketSnapshots,
-  readWalletKyc,
   resolveWalletNetwork,
   shortAddress,
   switchWalletNetwork,
@@ -123,7 +125,7 @@ export function useHashKeyWallet(chainConfig?: HashKeyChainConfig) {
       if (!chainConfig || !walletAddress || !walletNetwork) {
         throw new Error('Wallet KYC query requires a connected wallet on HashKey.')
       }
-      return readWalletKyc(chainConfig, walletAddress, walletNetwork)
+      return fetchBackendKycSnapshot(walletAddress, walletNetwork)
     },
     enabled: Boolean(chainConfig && walletAddress && walletNetwork),
     staleTime: 30_000,
@@ -161,7 +163,7 @@ export function useLiveMarketSnapshots(
       if (!chainConfig) {
         throw new Error('Chain config is not loaded yet.')
       }
-      return readMarketSnapshots(chainConfig, defaultNetwork)
+      return fetchBackendOracleSnapshots(defaultNetwork)
     },
     enabled: Boolean(chainConfig),
     staleTime: 30_000,
@@ -178,6 +180,11 @@ export function useAttestationWriter(chainConfig?: HashKeyChainConfig) {
       attestationHash: string
       sessionId: string
       summaryUri: string
+      onTransactionSubmitted?: (payload: {
+        account: string
+        transactionHash: string
+        transactionUrl: string
+      }) => void
     }) => {
       if (!chainConfig) {
         throw new Error('Chain config is not loaded yet.')

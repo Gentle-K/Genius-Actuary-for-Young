@@ -38,8 +38,11 @@ export type DataSourceTag =
   | 'onchain_verified'
   | 'oracle_fed'
   | 'issuer_disclosed'
+  | 'third_party_source'
   | 'model_inference'
   | 'user_assumption'
+
+export type KycStatus = 'none' | 'approved' | 'revoked' | 'unavailable'
 
 export interface OracleSnapshotBackend {
   feedId: string
@@ -62,6 +65,7 @@ export interface KycOnchainResult {
   walletAddress: string
   network: WalletNetworkKey | string
   contractAddress?: string
+  status: KycStatus
   isHuman: boolean
   level: number
   sourceUrl?: string
@@ -203,6 +207,7 @@ export interface WalletKycSnapshot {
   walletAddress: string
   network: WalletNetworkKey
   contractAddress?: string
+  status: KycStatus
   isHuman: boolean
   level: number
   sourceUrl?: string
@@ -619,6 +624,7 @@ export interface AnalysisReport {
   optionProfiles?: OptionProfile[]
   tables?: ReportTable[]
   chainConfig?: HashKeyChainConfig
+  kycSnapshot?: KycOnchainResult
   marketSnapshots?: MarketDataSnapshot[]
   assetCards: AssetAnalysisCard[]
   simulations: HoldingPeriodSimulation[]

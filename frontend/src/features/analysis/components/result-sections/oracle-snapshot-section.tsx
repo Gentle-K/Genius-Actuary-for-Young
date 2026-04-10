@@ -1,10 +1,11 @@
-import { ExternalLink, Radio, AlertTriangle } from 'lucide-react'
+import { AlertTriangle, ExternalLink, Radio } from 'lucide-react'
 
-import type { OracleSnapshotBackend } from '@/types'
+import { formatDateTime } from '@/lib/utils/format'
+import type { LanguageCode, MarketDataSnapshot } from '@/types'
 
 interface OracleSnapshotSectionProps {
-  snapshots: OracleSnapshotBackend[]
-  locale?: 'zh' | 'en'
+  snapshots: MarketDataSnapshot[]
+  locale?: LanguageCode
 }
 
 export function OracleSnapshotSection({
@@ -13,9 +14,11 @@ export function OracleSnapshotSection({
 }: OracleSnapshotSectionProps) {
   const isZh = locale === 'zh'
 
-  if (!snapshots.length) return null
+  if (!snapshots.length) {
+    return null
+  }
 
-  const liveCount = snapshots.filter((s) => s.status === 'live').length
+  const liveCount = snapshots.filter((snapshot) => snapshot.status === 'live').length
 
   return (
     <div
@@ -35,70 +38,86 @@ export function OracleSnapshotSection({
       <div className="space-y-2">
         {snapshots.map((snapshot) => (
           <div
-            key={snapshot.feedId}
-            className={`flex items-center justify-between rounded-lg px-3 py-2 ${
+            key={`${snapshot.feedId}-${snapshot.network}`}
+            className={`rounded-lg border px-3 py-3 ${
               snapshot.status === 'live'
-                ? 'bg-white/5'
-                : 'bg-amber-500/5 border border-amber-500/15'
+                ? 'border-white/10 bg-white/5'
+                : 'border-amber-500/15 bg-amber-500/5'
             }`}
           >
-            <div className="flex items-center gap-3">
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  snapshot.status === 'live' ? 'bg-emerald-400' : 'bg-amber-400'
-                }`}
-              />
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <span className="text-sm font-medium text-white/80">
-                  {snapshot.pair}
-                </span>
-                <span className="ml-2 text-xs text-white/40">
-                  {snapshot.sourceName}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      snapshot.status === 'live' ? 'bg-emerald-400' : 'bg-amber-400'
+                    }`}
+                  />
+                  <span className="text-sm font-medium text-white/90">
+                    {snapshot.pair}
+                  </span>
+                  <span className="text-xs text-white/40">{snapshot.network}</span>
+                </div>
+                <p className="mt-1 text-xs text-white/45">{snapshot.sourceName}</p>
+              </div>
+
+              <div className="text-right">
+                {typeof snapshot.price === 'number' ? (
+                  <p className="font-mono text-sm font-semibold text-white/90">
+                    ${snapshot.price.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: snapshot.decimals > 4 ? 4 : 2,
+                    })}
+                  </p>
+                ) : (
+                  <p className="inline-flex items-center gap-1 text-xs text-amber-300">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    {isZh ? '数据不可用' : 'Unavailable'}
+                  </p>
+                )}
+                {snapshot.updatedAt ? (
+                  <p className="mt-1 text-[11px] text-white/35">
+                    {isZh ? '更新时间' : 'Updated'}:{' '}
+                    {formatDateTime(snapshot.updatedAt, locale)}
+                  </p>
+                ) : null}
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              {snapshot.price != null ? (
-                <span className="font-mono text-sm font-semibold text-white/90">
-                  ${snapshot.price.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: snapshot.decimals > 4 ? 4 : 2,
-                  })}
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-xs text-amber-400">
-                  <AlertTriangle className="h-3 w-3" />
-                  {isZh ? '不可用' : 'Unavailable'}
-                </span>
-              )}
+            {snapshot.note ? (
+              <p className="mt-2 text-xs text-white/45">{snapshot.note}</p>
+            ) : null}
 
-              {snapshot.updatedAt && (
-                <span className="text-xs text-white/30">
-                  {new Date(snapshot.updatedAt).toLocaleTimeString()}
-                </span>
-              )}
-
-              {snapshot.explorerUrl && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-white/35">
+              <span>
+                {isZh ? '抓取时间' : 'Fetched'}: {formatDateTime(snapshot.fetchedAt, locale)}
+              </span>
+              {snapshot.explorerUrl ? (
                 <a
                   href={snapshot.explorerUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-white/30 transition hover:text-white/60"
+                  className="inline-flex items-center gap-1 text-white/55 transition hover:text-white/80"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
+                  {isZh ? '查看喂价合约' : 'View feed contract'}
                 </a>
-              )}
+              ) : null}
+              {snapshot.sourceUrl ? (
+                <a
+                  href={snapshot.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-white/55 transition hover:text-white/80"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  {isZh ? '查看来源文档' : 'View docs'}
+                </a>
+              ) : null}
             </div>
           </div>
         ))}
       </div>
-
-      <p className="mt-2 text-xs text-white/40">
-        {isZh
-          ? '价格来自 HashKey Chain 后端 JSON-RPC 读取，用于报告生成和推荐。'
-          : 'Prices fetched via backend JSON-RPC reads from HashKey Chain oracles. Used as source of truth for report generation.'}
-      </p>
     </div>
   )
 }

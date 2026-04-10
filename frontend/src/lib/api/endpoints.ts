@@ -2,6 +2,9 @@ export const endpoints = {
   backend: {
     health: '/health',
     bootstrap: '/api/frontend/bootstrap',
+    oracleSnapshots: (network: 'testnet' | 'mainnet') => `/api/oracle/snapshots?network=${network}`,
+    walletKyc: (walletAddress: string, network: 'testnet' | 'mainnet') =>
+      `/api/kyc/${walletAddress}?network=${network}`,
     logout: '/api/auth/logout',
     sessions: '/api/sessions',
     mySessions: '/api/my/sessions',

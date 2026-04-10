@@ -1,184 +1,92 @@
 # Genius Actuary
 
-Genius Actuary is now positioned as a HashKey Chain RWA decision engine. This repository contains the FastAPI backend, the React + TypeScript frontend under `frontend/`, and older proposal artifacts kept for reference.
+Genius Actuary is an AI-powered HashKey Chain RWA decision-and-execution layer. The backend owns analysis, risk decomposition, oracle normalization, KYC reads, evidence records, report generation, and attestation metadata. The frontend handles intake, wallet connection, network switching, rendering, and transaction initiation.
 
-## Product summary
+## What the product does
 
-The current product is no longer a generic “AI analysis demo”. It is a full RWA allocation and due-diligence workflow for HashKey Chain:
-
-- Page 1: structured intake for investment amount, base currency, holding period, risk tolerance, liquidity need, KYC level, wallet address, on-chain attestation preference, and selected assets
-- Page 2: session workspace that drives clarification, evidence collection, deterministic calculations, and chart generation
-- Page 3: final RWA report with asset cards, RiskVector decomposition, holding-period simulations, recommended allocations, evidence panel, transaction draft, and attestation draft
-
-The backend keeps the final report deterministic and evidence-linked. The OpenAI-compatible model adapter is optional and mainly used for question/planning/report language generation. If the model path fails, the backend falls back to the built-in RWA rules engine.
-
-## New capabilities
-
-### HashKey Chain integration
-
-- Built-in HashKey Chain bootstrap payload exposed to the frontend
-- Mainnet / testnet chain metadata, RPC URLs, and explorer URLs
-- Wallet connection, network switching, explorer deep links, and onchain KYC reads via `viem`
-- Per-network `HASHKEY_*_PLAN_REGISTRY_ADDRESS` and `HASHKEY_*_KYC_SBT_ADDRESS` wiring
-- Seeded HashKey asset library based on official network and token references
-- Live APRO oracle reads for configured `BTC/USD`, `USDT/USD`, and `USDC/USD` feeds
-- Plan Registry attestation flow that can write a real transaction and persist the tx hash back into the session report
-
-### RWA asset library
-
-The backend now ships a structured asset template library, including:
-
-- HashKey USDT
-- HashKey USDC
-- CPIC Estable MMF
-- Hong Kong regulated silver RWA demo
-- Tokenized real estate demo
-- HashKey WBTC benchmark
-
-Each asset template carries structured fields for:
-
-- asset type, issuer, custody, settlement asset, and execution style
-- expected return range, volatility, max drawdown, fees, slippage, and liquidity window
-- KYC requirement, minimum ticket, oracle assumptions, upgradeability, admin-key flags, and evidence URLs
-
-### Deterministic RWA engine
-
-The backend now computes:
-
-- `RiskVector` across market, liquidity, peg/redemption, issuer/custody, smart-contract, oracle, and compliance-access dimensions
-- holding-period simulations with P10 / P50 / P90 outcomes
-- `VaR(95)` and `CVaR(95)` style downside metrics
-- drawdown estimates and scenario notes
-- allocation recommendations based on risk tolerance, liquidity constraints, and KYC gating
-- transaction execution draft with step-by-step actions and fee estimates
-- on-chain attestation draft with report hash, portfolio hash, and registry readiness
-
-### Frontend report experience
-
-The React frontend now renders:
-
-- RWA intake and asset selection
-- wallet connection, HashKey network switching, and onchain KYC/SBT status
-- chain configuration summary
-- live oracle snapshots with source URL, update timestamp, and explorer link
-- asset analysis cards
-- holding-period simulation summaries
-- comparison tables and chart artifacts
-- evidence panel with linked sources
-- recommended weights and suggested ticket sizes
-- tx draft and on-chain attestation draft
-- attestation execution console with onchain receipt, tx hash, and explorer jump
-- assumptions, disclaimers, and calculation summaries
-
-### Hackathon fit
-
-This repo is now intentionally aligned with the HashKey Chain DeFi / RWA track:
-
-- it is built around HashKey Chain rather than a chain-agnostic UI shell
-- it focuses on stablecoins, MMF-style RWAs, precious metals, and other compliant RWA workflows
-- it uses official-recommended HashKey infrastructure patterns where possible: explorer links, KYC/SBT reads, oracle feeds, and real testnet transaction flows
-- it preserves the product's differentiator: deterministic RiskVector, holding-period simulation, evidence panel, and allocation logic, instead of turning the demo into a generic wallet-only swap screen
-
-### Debug and operations
-
-- protected debug login page and debug-only audit/session pages
-- cookie-based anonymous session isolation for normal product use
-- repository-root `.env.local` is ignored by git and should hold all local-only backend, frontend, wallet, and chain-specific settings
-- OpenAI-compatible adapter and mock adapter remain switchable
+- structured RWA intake for capital, holding period, liquidity, risk tolerance, wallet, and KYC constraints
+- backend-driven clarification and analysis sessions
+- deterministic RWA scoring, comparison matrices, and holding-period simulations
+- evidence-linked recommendation and report generation
+- backend-owned HashKey oracle snapshots for `BTC/USD`, `USDT/USD`, and `USDC/USD`
+- backend-owned HashKey KYC snapshot reads
+- wallet connection and HashKey network switching in the frontend via `viem`
+- plan attestation draft generation and real on-chain Plan Registry writes on testnet
+- result pages with tx hash, explorer links, KYC/oracle context, and execution path
 
 ## Repository layout
 
-- `Agent/`: proposal, planning, and reference documents already tracked in the repository
-- `backend/`: FastAPI backend, orchestrator loop, RWA domain engine, session persistence
-- `frontend/`: React + TypeScript + Vite product frontend
-- `frontend-demo/`: legacy static prototype retained for reference
-- `.github/workflows/ci.yml`: frontend CI pipeline
+- `backend/` FastAPI API, session orchestration, RWA engine, persistence, KYC/oracle services
+- `frontend/` React + TypeScript + Vite product UI
+- `contracts/` minimal `PlanRegistry` contract
+- `scripts/` deploy and verification entrypoints
+- `AUDIT_REPORT.md` repository audit, broken-flow inventory, and priority order
+- `IMPLEMENTATION_SUMMARY.md` delivered changes, remaining gaps, and limitations
 
-## Backend highlights
+## Requirements
 
-- FastAPI API surface for frontend bootstrap and session lifecycle
-- SQLite-backed session persistence
-- RWA-specific domain models for intake context, chain config, asset templates, simulations, tx drafts, and attestation drafts
-- OpenAI-compatible analysis adapter with deterministic fallback
-- mock or Brave-style search adapter support
-- deterministic chart artifacts derived from report data
-- stable frontend-facing contracts for session creation, progress, and final reports
-- portfolio optimization adapter with rule-based allocation, risk filtering, liquidity penalty, and horizon matching
-- DeFi Llama data adapter for external yield/protocol evidence
-- evidence pipeline with deduplication and confidence normalization
-- multi-horizon simulation (90d/180d/365d) and net-return-after-fees estimation
-- ERC-3643 compliance metadata on asset templates (issuer model, holder eligibility, transfer compliance, redemption/custody notes)
+- Python 3.13 recommended on Windows. The smoke/full runners will prefer Python 3.13 or 3.12 automatically when available.
+- Node.js 20+ and npm
+- An injected EVM wallet such as MetaMask for the live demo flow
 
-Key routes (session lifecycle):
+## Environment setup
 
-- `GET /health`
-- `GET /api/frontend/bootstrap`
-- `POST /api/sessions`
-- `GET /api/sessions/{session_id}`
-- `POST /api/sessions/{session_id}/step`
-- `POST /api/sessions/{session_id}/attestation`
+Copy the root example file and adjust values as needed:
 
-Dedicated RWA routes:
+```bash
+cp .env.local.example .env.local
+```
 
-- `GET /api/rwa/catalog` — full asset library and chain config
-- `POST /api/rwa/analyze` — one-shot comparison, scoring, simulation, allocation, and report
-- `POST /api/rwa/clarify` — structured follow-up questions for an RWA query
+Important defaults in `.env.local.example`:
 
-### Portfolio optimizer design
+- `ANALYSIS_ADAPTER=mock` so the repo boots locally without an external model
+- `HASHKEY_DEFAULT_EXECUTION_NETWORK=testnet`
+- frontend points to the local backend through `VITE_PROXY_TARGET=http://127.0.0.1:8000`
 
-The optimizer uses Option B: a lightweight rule-based engine behind a thin adapter interface (`adapters/portfolio_opt.py`). It performs:
+Most important variables:
 
-- composite scoring with configurable risk tolerance
-- risk filtering (conservative users reject high-risk assets)
-- liquidity penalty (T+0 / T+3 mismatch penalisation)
-- horizon matching (lockup vs holding period)
-- volatile-asset cap and per-asset weight bounds
+- `ANALYSIS_ADAPTER`
+- `ANALYSIS_API_BASE_URL`
+- `ANALYSIS_API_KEY`
+- `ANALYSIS_MODEL`
+- `HASHKEY_DEFAULT_EXECUTION_NETWORK`
+- `HASHKEY_TESTNET_RPC_URL`
+- `HASHKEY_TESTNET_EXPLORER_URL`
+- `HASHKEY_TESTNET_PLAN_REGISTRY_ADDRESS`
+- `HASHKEY_TESTNET_KYC_SBT_ADDRESS`
+- `HASHKEY_MAINNET_RPC_URL`
+- `HASHKEY_MAINNET_EXPLORER_URL`
+- `HASHKEY_MAINNET_PLAN_REGISTRY_ADDRESS`
+- `HASHKEY_MAINNET_KYC_SBT_ADDRESS`
+- `VITE_API_MODE`
+- `VITE_API_BASE_URL`
+- `VITE_PROXY_TARGET`
+- `PLAN_REGISTRY_DEPLOYER_PRIVATE_KEY`
 
-PyPortfolioOpt can be added later by installing `pypfopt` and uncommenting the efficient-frontier backend in `adapters/portfolio_opt.py`. No changes to API routes or report generation are needed.
+If the plan registry address is blank, the app still produces a deterministic attestation draft but disables the live on-chain write.
 
-### Evidence pipeline
-
-Evidence is collected from multiple sources and normalised into `EvidencePanelItem` instances:
-
-1. **Catalog evidence** — static facts from asset templates
-2. **DeFi Llama evidence** — yield pool and protocol metadata from `adapters/llama_data.py`
-
-The pipeline (`rwa/evidence.py`) deduplicates by URL+title, strips empty facts, and clamps confidence to [0, 1]. DeFi Llama data is cached with a 5-minute TTL and degrades gracefully on network errors.
-
-### External repositories
-
-All external repos live in `./external/` (gitignored) and are used as follows:
-
-| Repo | Role | Usage |
-|---|---|---|
-| scaffold-eth-2 | reference | Studied for wallet connect patterns; NOT merged into frontend |
-| PyPortfolioOpt | reference + future dependency | API patterns studied; optional `pypfopt` import with fallback |
-| defillama-sdk | reference | Adapter patterns studied; our own `llama_data.py` adapter instead |
-| ERC-3643 | reference | Compliance metadata fields informed by the standard |
-
-
-## Frontend highlights
-
-- React + TypeScript + Vite + Tailwind CSS v4
-- TanStack Query, React Router, Zustand persist, ECharts
-- mock + REST adapter switch
-- black-gold design system shared across dark / light / system modes
-- analysis flow rebuilt around HashKey Chain RWA intake, analysis, and report pages
-- report rendering for RiskVector, simulations, evidence, tx draft, and attestation draft
-
-## Quick start
-
-### Backend
+## Run the backend
 
 ```bash
 cd backend
-python3.13 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+py -3.13 -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-### Frontend
+PowerShell alternative if `py -3.13` is unavailable:
+
+```powershell
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Health check:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+## Run the frontend
 
 ```bash
 cd frontend
@@ -186,137 +94,97 @@ npm install
 npm run dev
 ```
 
-Then open [http://localhost:5173](http://localhost:5173).
-
-## Environment notes
-
-Local secrets and environment-specific settings should live in the repository-root `.env.local`. Keep that file local only.
-For another machine, start from the tracked [`.env.local.example`](/Users/kk./Desktop/Gay/.env.local.example).
-
-Important backend variables:
-
-- `ANALYSIS_ADAPTER`
-- `ANALYSIS_PROVIDER`
-- `ANALYSIS_API_BASE_URL`
-- `ANALYSIS_API_KEY`
-- `ANALYSIS_MODEL`
-- `HASHKEY_TESTNET_CHAIN_ID`
-- `HASHKEY_TESTNET_RPC_URL`
-- `HASHKEY_TESTNET_EXPLORER_URL`
-- `HASHKEY_TESTNET_PLAN_REGISTRY_ADDRESS`
-- `HASHKEY_TESTNET_KYC_SBT_ADDRESS`
-- `HASHKEY_MAINNET_CHAIN_ID`
-- `HASHKEY_MAINNET_RPC_URL`
-- `HASHKEY_MAINNET_EXPLORER_URL`
-- `HASHKEY_MAINNET_PLAN_REGISTRY_ADDRESS`
-- `HASHKEY_MAINNET_KYC_SBT_ADDRESS`
-- `PLAN_REGISTRY_ADDRESS`
-- `KYC_SBT_ADDRESS`
-- `DEBUG_USERNAME`
-- `DEBUG_PASSWORD`
-
-Additional root-only local variables commonly used from the same `.env.local`:
-
-- `VITE_API_MODE`
-- `VITE_API_BASE_URL`
-- `VITE_API_WITH_CREDENTIALS`
-- `VITE_PROXY_TARGET`
-- `VITE_WS_PROXY_TARGET`
-- `PRIVATE_KEY`
-
-The consolidated root example in [`.env.local.example`](/Users/kk./Desktop/Gay/.env.local.example) uses:
-
-- provider: `openai-compatible`
-- base URL: `https://api.openai.com/v1`
-- model: `glm-5.1`
-
-## Onchain demo flow
-
-### 1. Start the product
-
-```bash
-cd backend
-. .venv/bin/activate
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-
-cd ../frontend
-npm run dev
-```
-
 Open `http://localhost:5173`.
 
-### 2. Connect a wallet and read KYC
+## Main local flow
 
-- connect MetaMask or another injected wallet from the intake page or report page
-- switch to HashKey testnet or mainnet
-- let the frontend read the configured KYC SBT contract
-- note that onchain KYC overrides the manual intake-only KYC selector
+1. Start the backend.
+2. Start the frontend.
+3. Open the intake page and create an RWA session.
+4. Answer clarifications until the report page is ready.
+5. Review the report, evidence, allocations, live oracle snapshots, and KYC snapshot.
+6. Open the execution console.
+7. Connect an EVM wallet and switch to the target HashKey network.
+8. Submit the on-chain attestation when a Plan Registry address is configured.
+9. Return to the result page and verify the tx hash and explorer link.
 
-### 3. Deploy the demo Plan Registry contract
+## Testnet demo flow
 
-The repo includes a minimal contract at `contracts/PlanRegistry.sol` and a deploy script at `scripts/deploy_plan_registry.mjs`.
+### 1. Deploy the demo Plan Registry
 
 ```bash
 cd frontend
-PLAN_REGISTRY_DEPLOYER_PRIVATE_KEY=0x... HASHKEY_DEPLOY_NETWORK=testnet npm run deploy:plan-registry
+npm run deploy:plan-registry
 ```
 
-The deploy script also auto-loads `PRIVATE_KEY`, `DEPLOYER_PRIVATE_KEY`, or `PLAN_REGISTRY_DEPLOYER_PRIVATE_KEY` from the repository root `.env.local`.
+Expected env:
 
-After deployment, copy the printed contract address into the repository-root `.env.local`:
+- `PLAN_REGISTRY_DEPLOYER_PRIVATE_KEY`
+- `HASHKEY_DEPLOY_NETWORK=testnet`
 
-- `HASHKEY_TESTNET_PLAN_REGISTRY_ADDRESS` for testnet
-- `HASHKEY_MAINNET_PLAN_REGISTRY_ADDRESS` for mainnet
+Copy the deployed contract address into:
 
-### 4. Write a real attestation transaction
+- `HASHKEY_TESTNET_PLAN_REGISTRY_ADDRESS`
 
-- complete an analysis session until the report page is available
-- connect the same wallet on the target network
-- click `Write onchain attestation`
-- the app stores the resulting tx hash, block number, and explorer URL back into the report payload through `/api/sessions/{session_id}/attestation`
+### 2. Configure the KYC SBT and RPC endpoints
 
-If no Plan Registry address is configured yet, the UI still generates the deterministic attestation draft but disables live onchain submission.
+Set:
 
-## Test scripts
+- `HASHKEY_TESTNET_RPC_URL`
+- `HASHKEY_TESTNET_EXPLORER_URL`
+- `HASHKEY_TESTNET_KYC_SBT_ADDRESS`
 
-Repository root now includes scripted regression entry points:
+### 3. Run the product
 
+Start backend and frontend, complete a session, then use the execution console to write the attestation transaction.
+
+### 4. Verify the result
+
+The result page should show:
+
+- wallet/network context
+- KYC snapshot
+- live oracle snapshots
+- attestation contract address
+- tx hash
+- explorer link
+
+## Tests and verification
+
+Cross-platform entrypoints:
+
+- `python scripts/test_smoke.py`
+- `python scripts/test_full.py`
+- `powershell -ExecutionPolicy Bypass -File scripts/test_smoke.ps1`
+- `powershell -ExecutionPolicy Bypass -File scripts/test_full.ps1`
 - `./scripts/test_smoke.sh`
 - `./scripts/test_full.sh`
 
-Examples:
+Direct commands:
 
 ```bash
-./scripts/test_smoke.sh
-MODE=live ./scripts/test_smoke.sh
-./scripts/test_full.sh
-MODE=live ./scripts/test_full.sh
+cd backend
+python -m unittest discover -s tests
+
+cd ../frontend
+npm run lint
+npm run test:run
+npm run build
 ```
 
-## Verification
+## Verified in this repository
 
-Latest local verification completed in this repository:
+The current codebase was verified with:
 
-- `./scripts/test_smoke.sh`
-- `./scripts/test_full.sh`
-- `cd frontend && npm run test:run`
-- `cd frontend && npm run build`
-- `cd backend && python3.13 -m venv .venv-test && . .venv-test/bin/activate && pip install -r requirements.txt && python -m unittest discover -s tests`
+- `python -m unittest discover -s tests` in `backend/`
+- `npm run lint` in `frontend/`
+- `npm run test:run` in `frontend/`
+- `npm run build` in `frontend/`
+- `python scripts/test_smoke.py`
+- `python scripts/test_full.py`
 
-Status at verification time:
+## Notes
 
-- frontend tests: passed
-- frontend production build: passed
-- backend unit tests: passed
-
-## Product rules
-
-- Every clarification question must allow custom user input. Preset options are shortcuts only.
-- RWA outputs must stay evidence-linked, risk-decomposed, and reproducible.
-- The UI should not own orchestration logic; it should consume typed backend contracts.
-- API secrets must stay in local `.env` files and must not be committed.
-
-## Additional docs
-
-- [backend/README.md](backend/README.md)
-- [frontend/README.md](frontend/README.md)
+- The backend is the source of truth for normalized oracle data, KYC status, evidence tagging, explorer targets, and report inputs.
+- The frontend no longer fakes attestation or tx success states.
+- Testnet is the default execution network unless overridden through env.

@@ -106,34 +106,3 @@ export function RiskRadarChart({
     </div>
   )
 }
-
-/**
- * Convert a backend RiskVector object into the format expected by RiskRadarChart.
- */
-export function riskVectorToRadarData(
-  assetName: string,
-  riskVector: {
-    market: number
-    liquidity: number
-    peg_redemption: number
-    issuer_custody: number
-    smart_contract: number
-    oracle_dependency: number
-    compliance_access: number
-  },
-  color?: string,
-): AssetRadarData {
-  return {
-    assetName,
-    color,
-    dimensions: [
-      { name: 'Market', value: riskVector.market },
-      { name: 'Liquidity', value: riskVector.liquidity },
-      { name: 'Peg/Redemption', value: riskVector.peg_redemption },
-      { name: 'Issuer/Custody', value: riskVector.issuer_custody },
-      { name: 'Smart Contract', value: riskVector.smart_contract },
-      { name: 'Oracle', value: riskVector.oracle_dependency },
-      { name: 'Compliance', value: riskVector.compliance_access },
-    ],
-  }
-}

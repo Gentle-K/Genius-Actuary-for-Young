@@ -1,5 +1,5 @@
 interface TransactionStatusProps {
-  status: 'idle' | 'pending' | 'confirmed' | 'failed'
+  status: 'idle' | 'signing' | 'submitted' | 'pending' | 'confirmed' | 'failed'
   txHash?: string
   explorerUrl?: string
   blockNumber?: number
@@ -11,11 +11,23 @@ const STATUS_CONFIG = {
   idle: {
     label: 'Ready',
     dot: 'bg-neutral-500',
-    text: 'text-neutral-400',
-    bg: 'bg-neutral-800/50',
+    text: 'text-neutral-300',
+    bg: 'bg-neutral-900/40',
+  },
+  signing: {
+    label: 'Awaiting Signature',
+    dot: 'bg-blue-400 animate-pulse',
+    text: 'text-blue-300',
+    bg: 'bg-blue-900/20',
+  },
+  submitted: {
+    label: 'Submitted',
+    dot: 'bg-amber-400 animate-pulse',
+    text: 'text-amber-300',
+    bg: 'bg-amber-900/20',
   },
   pending: {
-    label: 'Pending…',
+    label: 'Pending Confirmation',
     dot: 'bg-amber-400 animate-pulse',
     text: 'text-amber-300',
     bg: 'bg-amber-900/20',
@@ -48,21 +60,15 @@ export function TransactionStatus({
     <div
       className={`rounded-lg border border-neutral-700/50 p-3 ${config.bg} ${className}`}
     >
-      {/* Status row */}
       <div className="flex items-center gap-2">
         <span className={`inline-block h-2 w-2 rounded-full ${config.dot}`} />
-        <span className={`text-sm font-medium ${config.text}`}>
-          {config.label}
-        </span>
-        {blockNumber != null && (
-          <span className="ml-auto text-xs text-neutral-500">
-            Block #{blockNumber}
-          </span>
-        )}
+        <span className={`text-sm font-medium ${config.text}`}>{config.label}</span>
+        {blockNumber != null ? (
+          <span className="ml-auto text-xs text-neutral-500">Block #{blockNumber}</span>
+        ) : null}
       </div>
 
-      {/* Tx hash */}
-      {txHash && (
+      {txHash ? (
         <div className="mt-2">
           {explorerUrl ? (
             <a
@@ -74,17 +80,16 @@ export function TransactionStatus({
               {txHash}
             </a>
           ) : (
-            <span className="inline-block break-all font-mono text-xs text-neutral-400">
+            <span className="inline-block break-all font-mono text-xs text-neutral-300">
               {txHash}
             </span>
           )}
         </div>
-      )}
+      ) : null}
 
-      {/* Error */}
-      {errorMessage && status === 'failed' && (
-        <p className="mt-2 text-xs text-red-400">{errorMessage}</p>
-      )}
+      {errorMessage && status === 'failed' ? (
+        <p className="mt-2 text-xs text-red-300">{errorMessage}</p>
+      ) : null}
     </div>
   )
 }

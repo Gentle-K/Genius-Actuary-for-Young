@@ -17,6 +17,7 @@ import type {
   MarketDataSnapshot,
   ModeDefinition,
   OptionProfile,
+  OracleSnapshotBackend,
   OracleFeedConfig,
   PortfolioAllocation,
   ReportTable,
@@ -45,6 +46,7 @@ export interface BackendBootstrapResponse {
   asset_library: BackendAssetTemplate[]
   supported_asset_types: string[]
   holding_period_presets: number[]
+  oracle_snapshots?: BackendMarketDataSnapshot[]
 }
 
 export interface BackendHashKeyChainConfig {
@@ -203,10 +205,35 @@ export interface BackendEvidenceItem {
   title: string
   source_url: string
   source_name: string
+  source_type?: 'web' | 'internal' | 'user'
+  source_tag?: string
   fetched_at: string
   summary: string
   extracted_facts: string[]
   confidence: number
+}
+
+export interface BackendKycOnchainResult {
+  wallet_address: string
+  network: 'testnet' | 'mainnet' | string
+  contract_address?: string
+  status: 'none' | 'approved' | 'revoked' | 'unavailable'
+  is_human: boolean
+  level: number
+  source_url?: string
+  explorer_url?: string
+  fetched_at: string
+  note?: string
+}
+
+export interface BackendKycCheckResponse {
+  result: BackendKycOnchainResult
+}
+
+export interface BackendOracleSnapshotResponse {
+  snapshots: BackendMarketDataSnapshot[]
+  network: 'testnet' | 'mainnet' | string
+  note?: string
 }
 
 export interface BackendMarketDataSnapshot {
@@ -433,6 +460,7 @@ export interface BackendReport {
   option_profiles?: BackendOptionProfile[]
   tables?: BackendReportTable[]
   chain_config?: BackendHashKeyChainConfig | null
+  kyc_snapshot?: BackendKycOnchainResult | null
   market_snapshots?: BackendMarketDataSnapshot[]
   asset_cards?: BackendAssetAnalysisCard[]
   simulations?: BackendHoldingPeriodSimulation[]
@@ -896,6 +924,24 @@ function mapMarketSnapshot(
   }
 }
 
+export function mapKycSnapshot(
+  result: BackendKycOnchainResult,
+) {
+  return {
+    walletAddress: result.wallet_address,
+    network:
+      result.network === 'mainnet' ? 'mainnet' : 'testnet',
+    contractAddress: result.contract_address ?? '',
+    status: result.status,
+    isHuman: result.is_human,
+    level: result.level,
+    sourceUrl: result.source_url ?? '',
+    explorerUrl: result.explorer_url ?? '',
+    fetchedAt: result.fetched_at,
+    note: result.note ?? '',
+  } as const
+}
+
 export function mapRwaBootstrap(
   bootstrap: BackendBootstrapResponse,
 ): RwaBootstrap {
@@ -906,6 +952,9 @@ export function mapRwaBootstrap(
     supportedAssetTypes: bootstrap.supported_asset_types ?? [],
     holdingPeriodPresets: bootstrap.holding_period_presets ?? [],
     notes: bootstrap.notes ?? [],
+    oracleSnapshots: (bootstrap.oracle_snapshots ?? []).map((snapshot) =>
+      mapMarketSnapshot(snapshot) as OracleSnapshotBackend,
+    ),
   }
 }
 
@@ -1402,7 +1451,7 @@ export function mapBackendSession(session: BackendSession): AnalysisSession {
     evidence: session.evidence_items.map((item) => ({
       id: item.evidence_id,
       sessionId: session.session_id,
-      sourceType: 'web',
+      sourceType: item.source_type ?? 'internal',
       sourceUrl: item.source_url,
       sourceName: item.source_name,
       title: item.title,
@@ -1410,6 +1459,15 @@ export function mapBackendSession(session: BackendSession): AnalysisSession {
       extractedFacts: item.extracted_facts,
       fetchedAt: item.fetched_at,
       confidence: item.confidence,
+      sourceTag:
+        item.source_tag === 'onchain_verified' ||
+        item.source_tag === 'oracle_fed' ||
+        item.source_tag === 'issuer_disclosed' ||
+        item.source_tag === 'third_party_source' ||
+        item.source_tag === 'model_inference' ||
+        item.source_tag === 'user_assumption'
+          ? item.source_tag
+          : undefined,
     })),
     conclusions: session.major_conclusions.map((item) => ({
       id: item.conclusion_id,
@@ -1590,6 +1648,7 @@ export function mapBackendReport(session: BackendSession): AnalysisReport {
     optionProfiles: mapOptionProfiles(report?.option_profiles),
     tables: mapReportTables(report?.tables),
     chainConfig: report?.chain_config ? mapChainConfig(report.chain_config) : undefined,
+    kycSnapshot: report?.kyc_snapshot ? mapKycSnapshot(report.kyc_snapshot) : undefined,
     marketSnapshots: (report?.market_snapshots ?? []).map(mapMarketSnapshot),
     assetCards: (report?.asset_cards ?? []).map(mapAssetAnalysisCard),
     simulations: (report?.simulations ?? []).map(mapSimulation),

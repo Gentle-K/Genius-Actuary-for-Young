@@ -3,6 +3,7 @@ from app.domain.rwa import RwaIntakeContext
 from app.i18n import normalize_locale
 from app.persistence.base import SessionRepository
 from app.rwa.catalog import build_chain_config
+from app.rwa.explorer_service import address_url, tx_url
 from app.config import Settings
 from app.services.audit import AuditLogService
 
@@ -223,9 +224,13 @@ class SessionService:
         draft.network = normalized_network
         draft.chain_id = chain_id
         draft.contract_address = contract_address
-        draft.explorer_url = explorer_base
+        draft.explorer_url = (
+            address_url(chain_config, normalized_network, contract_address)
+            if contract_address
+            else explorer_base
+        )
         draft.transaction_hash = transaction_hash
-        draft.transaction_url = f"{explorer_base}/tx/{transaction_hash}"
+        draft.transaction_url = tx_url(chain_config, normalized_network, transaction_hash)
         draft.submitted_by = submitted_by.strip()
         draft.submitted_at = utcnow()
         draft.block_number = block_number
