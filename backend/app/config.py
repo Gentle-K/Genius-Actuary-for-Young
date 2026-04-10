@@ -26,6 +26,7 @@ DEFAULT_HASHKEY_TESTNET_RPC_URL = "https://testnet.hsk.xyz"
 DEFAULT_HASHKEY_TESTNET_EXPLORER_URL = "https://testnet-explorer.hsk.xyz"
 DEFAULT_HASHKEY_MAINNET_RPC_URL = "https://mainnet.hsk.xyz"
 DEFAULT_HASHKEY_MAINNET_EXPLORER_URL = "https://hashkey.blockscout.com"
+DEFAULT_HASHKEY_DEFAULT_EXECUTION_NETWORK = "testnet"
 
 
 def _strip_quotes(value: str) -> str:
@@ -99,6 +100,7 @@ class Settings:
     hashkey_mainnet_chain_id: int
     hashkey_mainnet_rpc_url: str
     hashkey_mainnet_explorer_url: str
+    hashkey_default_execution_network: str
     hashkey_testnet_plan_registry_address: str | None
     hashkey_mainnet_plan_registry_address: str | None
     hashkey_testnet_kyc_sbt_address: str | None
@@ -207,6 +209,14 @@ class Settings:
                 "HASHKEY_MAINNET_EXPLORER_URL",
                 DEFAULT_HASHKEY_MAINNET_EXPLORER_URL,
             ).strip(),
+            hashkey_default_execution_network=(
+                os.getenv(
+                    "HASHKEY_DEFAULT_EXECUTION_NETWORK",
+                    DEFAULT_HASHKEY_DEFAULT_EXECUTION_NETWORK,
+                )
+                .strip()
+                .lower()
+            ),
             hashkey_testnet_plan_registry_address=testnet_plan_registry_address,
             hashkey_mainnet_plan_registry_address=mainnet_plan_registry_address,
             hashkey_testnet_kyc_sbt_address=testnet_kyc_sbt_address,

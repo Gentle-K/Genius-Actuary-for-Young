@@ -24,6 +24,7 @@ class DataSourceTag(str, Enum):
     ONCHAIN_VERIFIED = "onchain_verified"
     ORACLE_FED = "oracle_fed"
     ISSUER_DISCLOSED = "issuer_disclosed"
+    THIRD_PARTY_SOURCE = "third_party_source"
     MODEL_INFERENCE = "model_inference"
     USER_ASSUMPTION = "user_assumption"
 
@@ -38,6 +39,13 @@ class LiquidityNeed(str, Enum):
     INSTANT = "instant"
     T_PLUS_3 = "t_plus_3"
     LOCKED = "locked"
+
+
+class KycStatus(str, Enum):
+    NONE = "none"
+    APPROVED = "approved"
+    REVOKED = "revoked"
+    UNAVAILABLE = "unavailable"
 
 
 class HashKeyChainConfig(BaseModel):
@@ -300,6 +308,7 @@ class KycOnchainResult(BaseModel):
     wallet_address: str
     network: str
     contract_address: str = ""
+    status: KycStatus = KycStatus.NONE
     is_human: bool = False
     level: int = 0
     source_url: str = ""

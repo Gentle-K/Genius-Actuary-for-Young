@@ -5,6 +5,7 @@ from typing import Any
 import httpx
 
 from app.domain.models import EvidenceItem, SearchTask
+from app.domain.rwa import DataSourceTag
 
 
 class MockSearchAdapter:
@@ -16,6 +17,7 @@ class MockSearchAdapter:
                     title=f"Mock result for {task.search_topic}",
                     source_url="https://example.com/mock-search",
                     source_name="MockSearch",
+                    source_type="internal",
                     summary=f"Placeholder evidence generated for query planning: {task.search_goal}",
                     extracted_facts=[
                         "This is a mock evidence item.",
@@ -132,6 +134,8 @@ class BraveSearchAdapter:
                     source_url=url or "https://search.brave.com/",
                     source_name=str(item.get("profile", {}).get("long_name", "Brave Search")).strip()
                     or "Brave Search",
+                    source_type="web",
+                    source_tag=DataSourceTag.THIRD_PARTY_SOURCE.value,
                     summary=description or f"Brave search evidence for task: {task.search_goal}",
                     extracted_facts=facts[:5],
                     confidence=0.78,

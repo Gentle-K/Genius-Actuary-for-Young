@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from app.domain.rwa import HashKeyChainConfig, KycOnchainResult
+from app.domain.rwa import HashKeyChainConfig, KycOnchainResult, KycStatus
 from app.rwa.explorer_service import address_url, kyc_docs_url, rpc_url_for
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,16 @@ def _kycSbt_address_for(chain_config: HashKeyChainConfig, network: str) -> str:
     return chain_config.mainnet_kyc_sbt_address or chain_config.kyc_sbt_address or ""
 
 
+def _status_for_result(*, is_human: bool, level: int, available: bool = True) -> KycStatus:
+    if not available:
+        return KycStatus.UNAVAILABLE
+    if is_human:
+        return KycStatus.APPROVED
+    if level > 0:
+        return KycStatus.REVOKED
+    return KycStatus.NONE
+
+
 def read_kyc_from_chain(
     chain_config: HashKeyChainConfig,
     wallet_address: str,
@@ -60,6 +70,7 @@ def read_kyc_from_chain(
             wallet_address=wallet_address,
             network=network,
             contract_address=contract_address,
+            status=KycStatus.NONE,
             is_human=False,
             level=0,
             source_url=kyc_docs_url(chain_config),
@@ -72,6 +83,7 @@ def read_kyc_from_chain(
             wallet_address=wallet_address,
             network=network,
             contract_address="",
+            status=KycStatus.UNAVAILABLE,
             is_human=False,
             level=0,
             source_url=kyc_docs_url(chain_config),
@@ -114,6 +126,7 @@ def read_kyc_from_chain(
                 wallet_address=wallet_address,
                 network=network,
                 contract_address=contract_address,
+                status=KycStatus.UNAVAILABLE,
                 is_human=False,
                 level=0,
                 source_url=kyc_docs_url(chain_config),
@@ -128,6 +141,7 @@ def read_kyc_from_chain(
                 wallet_address=wallet_address,
                 network=network,
                 contract_address=contract_address,
+                status=KycStatus.UNAVAILABLE,
                 is_human=False,
                 level=0,
                 source_url=kyc_docs_url(chain_config),
@@ -145,6 +159,7 @@ def read_kyc_from_chain(
             wallet_address=wallet_address,
             network=network,
             contract_address=contract_address,
+            status=_status_for_result(is_human=is_human, level=level),
             is_human=is_human,
             level=level,
             source_url=kyc_docs_url(chain_config),
@@ -153,7 +168,11 @@ def read_kyc_from_chain(
             note=(
                 "Onchain KYC/SBT eligibility detected."
                 if is_human
-                else "No onchain KYC/SBT eligibility detected for this wallet."
+                else (
+                    "Onchain KYC/SBT appears revoked or inactive for this wallet."
+                    if level > 0
+                    else "No onchain KYC/SBT eligibility detected for this wallet."
+                )
             ),
         )
 
@@ -168,6 +187,7 @@ def read_kyc_from_chain(
             wallet_address=wallet_address,
             network=network,
             contract_address=contract_address,
+            status=KycStatus.UNAVAILABLE,
             is_human=False,
             level=0,
             source_url=kyc_docs_url(chain_config),

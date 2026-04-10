@@ -57,7 +57,11 @@ def build_chain_config(settings: Settings) -> HashKeyChainConfig:
     mainnet_kyc_sbt_address = settings.hashkey_mainnet_kyc_sbt_address or ""
 
     return HashKeyChainConfig(
-        default_execution_network="mainnet",
+        default_execution_network=(
+            "mainnet"
+            if settings.hashkey_default_execution_network == "mainnet"
+            else "testnet"
+        ),
         testnet_chain_id=settings.hashkey_testnet_chain_id,
         testnet_rpc_url=settings.hashkey_testnet_rpc_url,
         testnet_explorer_url=settings.hashkey_testnet_explorer_url,
