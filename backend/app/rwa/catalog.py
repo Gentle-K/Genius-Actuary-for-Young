@@ -31,21 +31,21 @@ HASHKEY_ORACLE_FEEDS = [
         feed_id="btc-usd",
         pair="BTC/USD",
         docs_url=HASHKEY_ORACLE_URL,
-        testnet_address="0x646970afb65c1fc88d7dff5d17bebf7ca7639290",
-        mainnet_address="0x2042d24ed0a86e12b8a3d38db530d7dc3c85ea00",
+        testnet_address="0x64697A6Abb508079687465FA9EF99D2Da955D791",
+        mainnet_address="0x204ED500ab56A2E19B051561258E3A45c850360F",
     ),
     OracleFeedConfig(
         feed_id="usdt-usd",
         pair="USDT/USD",
         docs_url=HASHKEY_ORACLE_URL,
-        testnet_address="0x450d4d4b55284b9e7a0f2d88ca00f95e29e44e9f",
+        testnet_address="0xC45D520D18A465Ec23eE99A58Dc4cB96b357E744",
     ),
     OracleFeedConfig(
         feed_id="usdc-usd",
         pair="USDC/USD",
         docs_url=HASHKEY_ORACLE_URL,
-        testnet_address="0x6655445f8a6ca6f03f8c4f31da95174cef63f8f6",
-        mainnet_address="0xe4a755800df1f47179d35b30fd90f80b1f4f2ea6",
+        testnet_address="0xCdB10dC9dB30B6ef2a63aB4460263655808fAE27",
+        mainnet_address="0x823d7f90f7A3498DB6595886b6B5dC95E6B0B7f3",
     ),
 ]
 
