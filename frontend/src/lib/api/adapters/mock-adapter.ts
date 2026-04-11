@@ -243,6 +243,10 @@ export const defaultRwaIntakeContext: RwaIntakeContext = {
   walletKycVerified: undefined,
   wantsOnchainAttestation: true,
   additionalConstraints: '',
+  includeNonProductionAssets: false,
+  demoMode: false,
+  demoScenarioId: '',
+  analysisSeed: undefined,
 }
 
 function createId(prefix: string) {

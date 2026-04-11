@@ -8,14 +8,22 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 from app.domain.rwa import (
+    ActionIntent,
     AssetAnalysisCard,
     AttestationDraft,
+    ComparableReportSnapshot,
+    ComparisonMatrix,
+    EvidenceFactType,
+    EvidenceFreshness,
+    EvidenceGovernance,
     HashKeyChainConfig,
     HoldingPeriodSimulation,
     KycOnchainResult,
     MarketDataSnapshot,
     MethodologyReference,
     PortfolioAllocation,
+    RecommendationReason,
+    ReanalysisDiff,
     RwaIntakeContext,
     TxDraft,
 )
@@ -112,6 +120,7 @@ class ChartTask(BaseModel):
 
 class EvidenceItem(BaseModel):
     evidence_id: str = Field(default_factory=lambda: str(uuid4()))
+    asset_id: str = ""
     title: str
     source_url: str
     source_name: str
@@ -121,6 +130,9 @@ class EvidenceItem(BaseModel):
     summary: str
     extracted_facts: list[str] = Field(default_factory=list)
     confidence: float = 0.5
+    fact_type: EvidenceFactType = EvidenceFactType.OFFCHAIN_DISCLOSED_FACT
+    freshness: EvidenceFreshness = Field(default_factory=EvidenceFreshness)
+    conflict_keys: list[str] = Field(default_factory=list)
 
 
 class ChartArtifact(BaseModel):
@@ -207,6 +219,8 @@ class AnalysisLoopPlan(BaseModel):
 class AnalysisReport(BaseModel):
     summary: str
     assumptions: list[str] = Field(default_factory=list)
+    unknowns: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list)
     open_questions: list[str] = Field(default_factory=list)
     chart_refs: list[str] = Field(default_factory=list)
@@ -221,6 +235,11 @@ class AnalysisReport(BaseModel):
     asset_cards: list[AssetAnalysisCard] = Field(default_factory=list)
     simulations: list[HoldingPeriodSimulation] = Field(default_factory=list)
     recommended_allocations: list[PortfolioAllocation] = Field(default_factory=list)
+    comparison_matrix: ComparisonMatrix | None = None
+    recommendation_reason: RecommendationReason | None = None
+    action_intents: list[ActionIntent] = Field(default_factory=list)
+    evidence_governance: EvidenceGovernance | None = None
+    reanalysis_diff: ReanalysisDiff | None = None
     methodology_references: list[MethodologyReference] = Field(default_factory=list)
     tx_draft: TxDraft | None = None
     attestation_draft: AttestationDraft | None = None
@@ -261,6 +280,7 @@ class AnalysisSession(BaseModel):
     chart_artifacts: list[ChartArtifact] = Field(default_factory=list)
     major_conclusions: list[MajorConclusionItem] = Field(default_factory=list)
     report: AnalysisReport | None = None
+    report_snapshots: list[ComparableReportSnapshot] = Field(default_factory=list)
     analysis_rounds_completed: int = 0
     follow_up_round_limit: int = 10
     follow_up_rounds_used: int = 0

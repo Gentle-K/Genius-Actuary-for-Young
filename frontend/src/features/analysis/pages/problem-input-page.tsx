@@ -127,6 +127,10 @@ export function ProblemInputPage() {
                   walletAddress: '',
                   wantsOnchainAttestation: true,
                   additionalConstraints: '',
+                  includeNonProductionAssets: false,
+                  demoMode: false,
+                  demoScenarioId: '',
+                  analysisSeed: undefined,
                 },
               })
             }}
