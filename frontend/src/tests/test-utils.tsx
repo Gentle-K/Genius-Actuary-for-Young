@@ -7,7 +7,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { i18n } from '@/lib/i18n'
 import { useAppStore } from '@/lib/store/app-store'
 import { ThemeProvider } from '@/lib/theme/theme-provider'
-import type { ApiMode, LanguageCode } from '@/types'
+import type { ApiMode, LanguageCode, User } from '@/types'
 
 function Providers({
   children,
@@ -57,22 +57,23 @@ interface RenderAppOptions {
   route?: string
   apiMode?: ApiMode
   locale?: LanguageCode
+  currentUser?: User | null
 }
 
 export function renderWithAppState(
   ui: ReactElement,
-  { route = '/', apiMode = 'mock', locale = 'zh' }: RenderAppOptions = {},
+  { route = '/', apiMode = 'mock', currentUser = null, locale = 'zh' }: RenderAppOptions = {},
 ) {
   useAppStore.setState({
-    themeMode: 'dark',
-    resolvedTheme: 'dark',
+    themeMode: 'light',
+    resolvedTheme: 'light',
     locale,
     displayDensity: 'cozy',
     apiMode,
     sidebarOpen: true,
     accessToken: null,
     refreshToken: null,
-    currentUser: null,
+    currentUser,
   })
   void i18n.changeLanguage(locale)
 

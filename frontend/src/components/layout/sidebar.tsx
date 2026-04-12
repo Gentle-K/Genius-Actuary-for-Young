@@ -1,14 +1,29 @@
-import { ClipboardPenLine, Settings, UserRound, Workflow } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import {
+  FileSearch,
+  FileText,
+  Home,
+  Menu,
+  PlusSquare,
+  Settings,
+  Sigma,
+  X,
+} from 'lucide-react'
 import { NavLink } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
+import { useApiAdapter } from '@/lib/api/use-api-adapter'
+import { useAppStore } from '@/lib/store/app-store'
 import { cn } from '@/lib/utils/cn'
+import { formatRelativeTime } from '@/features/analysis/lib/view-models'
 
 const navItems = [
-  { to: '/analysis/modes', key: 'analyze', icon: ClipboardPenLine },
-  { to: '/resources/analyses', key: 'resources', icon: Workflow },
-  { to: '/settings', key: 'settings', icon: Settings },
-  { to: '/profile', key: 'profile', icon: UserRound },
+  { to: '/new-analysis', label: 'New Analysis', icon: PlusSquare },
+  { to: '/sessions', label: 'Sessions', icon: Home },
+  { to: '/reports', label: 'Reports', icon: FileText },
+  { to: '/evidence', label: 'Evidence', icon: FileSearch },
+  { to: '/calculations', label: 'Calculations', icon: Sigma },
+  { to: '/settings', label: 'Settings', icon: Settings },
 ] as const
 
 interface SidebarProps {
@@ -16,73 +31,98 @@ interface SidebarProps {
 }
 
 export function Sidebar({ collapsed }: SidebarProps) {
-  const { i18n, t } = useTranslation()
-  const isZh = i18n.language.startsWith('zh')
-
-  const getNavLabel = (key: (typeof navItems)[number]['key']) => {
-    if (key === 'resources') {
-      return isZh ? '历史记录' : 'History'
+  const adapter = useApiAdapter()
+  const setSidebarOpen = useAppStore((state) => state.setSidebarOpen)
+  const handleNavClick = () => {
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false)
     }
-    return t(`nav.${key}`)
   }
+
+  const sessionsQuery = useQuery({
+    queryKey: ['sidebar', 'sessions'],
+    queryFn: () => adapter.analysis.list({ page: 1, pageSize: 50 }),
+    staleTime: 30_000,
+  })
+
+  const sessions = sessionsQuery.data?.items ?? []
+  const activeSessionsCount = sessions.filter(
+    (item) => item.status === 'CLARIFYING' || item.status === 'ANALYZING',
+  ).length
+  const reportCount = sessions.filter((item) => item.status === 'COMPLETED').length
+  const latestSync = sessions[0]?.updatedAt
 
   return (
     <aside
       className={cn(
-        'apple-section-dark sticky top-4 hidden h-[calc(100vh-2rem)] flex-col justify-between border border-white/10 px-3 py-4 shadow-[0_24px_60px_rgba(0,0,0,0.32)] lg:flex',
-        collapsed ? 'w-[96px]' : 'w-[228px]',
+        'panel-card fixed inset-y-3 left-3 z-50 flex flex-col justify-between overflow-hidden border lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:translate-x-0',
+        collapsed ? 'w-[98px] lg:w-[98px]' : 'w-[292px]',
+        collapsed ? '-translate-x-[120%] lg:flex lg:-translate-x-0' : 'translate-x-0',
       )}
     >
-      <div className="space-y-8">
-        <div className="space-y-4 px-3">
+      <div className="space-y-8 p-4">
+        <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-[18px] bg-white text-lg font-semibold tracking-[-0.05em] text-[#1d1d1f]">
-              G
+            <div className="flex size-12 items-center justify-center rounded-[18px] bg-gold-primary text-lg font-semibold tracking-[-0.05em] text-white">
+              GA
             </div>
             {!collapsed ? (
               <div className="min-w-0">
-                <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-white/48">
+                <p className="text-sm font-semibold tracking-[-0.03em] text-text-primary">
                   Genius Actuary
                 </p>
-                <p className="truncate text-sm font-medium text-white">RWA Decision Engine</p>
+                <p className="text-xs leading-5 text-text-secondary">
+                  AI decision analysis agent
+                </p>
               </div>
             ) : null}
           </div>
-
           {!collapsed ? (
-            <p className="text-sm leading-7 text-text-secondary">
-              {isZh
-                ? '把模式选择、证据核验、执行草案和链上存证放进一条工作流。'
-                : 'Keep mode selection, evidence checks, execution planning, and attestation in one flow.'}
-            </p>
+            <button
+              type="button"
+              className="interactive-lift inline-flex size-9 items-center justify-center rounded-full border border-border-subtle bg-app-bg-elevated text-text-secondary lg:hidden"
+              aria-label="Close navigation"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <X className="size-4" />
+            </button>
           ) : null}
         </div>
+
+        {!collapsed ? (
+          <div className="rounded-[22px] bg-brand-soft/55 px-4 py-4">
+            <p className="text-sm leading-6 text-text-secondary">
+              Break decisions into explicit costs, risk paths, evidence, calculations,
+              and a bounded recommendation.
+            </p>
+          </div>
+        ) : null}
 
         <nav className="space-y-1.5">
           {navItems.map((item) => {
             const Icon = item.icon
             return (
-              <NavLink key={item.to} to={item.to}>
+              <NavLink key={item.to} to={item.to} onClick={handleNavClick}>
                 {({ isActive }) => (
                   <div
                     className={cn(
-                      'group flex items-center gap-3 rounded-[20px] px-3 py-3.5 text-sm transition',
+                      'interactive-lift group flex items-center gap-3 rounded-[20px] px-3 py-3 text-sm font-medium transition',
                       isActive
-                        ? 'bg-[rgba(0,113,227,0.18)] text-white shadow-[inset_0_0_0_1px_rgba(41,151,255,0.24)]'
-                        : 'text-white/68 hover:bg-white/8 hover:text-white',
+                        ? 'bg-brand-soft text-text-primary shadow-[0_0_0_1px_rgba(70,106,84,0.12)]'
+                        : 'text-text-secondary hover:bg-app-bg-elevated hover:text-text-primary',
                     )}
                   >
                     <span
                       className={cn(
                         'flex size-10 shrink-0 items-center justify-center rounded-[16px] transition',
                         isActive
-                          ? 'bg-white text-[#1d1d1f]'
-                          : 'bg-white/6 text-white/68 group-hover:bg-white/10 group-hover:text-white',
+                          ? 'bg-gold-primary text-white'
+                          : 'bg-white/60 text-text-secondary group-hover:bg-white group-hover:text-text-primary',
                       )}
                     >
                       <Icon className="size-5" />
                     </span>
-                    {!collapsed ? <span className="truncate">{getNavLabel(item.key)}</span> : null}
+                    {!collapsed ? <span className="truncate">{item.label}</span> : null}
                   </div>
                 )}
               </NavLink>
@@ -91,22 +131,47 @@ export function Sidebar({ collapsed }: SidebarProps) {
         </nav>
       </div>
 
-      {!collapsed ? (
-        <div className="rounded-[24px] border border-white/10 bg-white/6 px-4 py-4">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/48">
-            Decision stack
-          </p>
-          <p className="mt-2 text-sm leading-6 text-white/72">
-            {isZh
-              ? '从问题输入到结果存证，保持分析上下文连续。'
-              : 'Keep the analysis context continuous from intake to attestation.'}
-          </p>
-        </div>
-      ) : (
-        <div className="px-2 text-center text-[11px] font-medium uppercase tracking-[0.18em] text-white/40">
-          RWA
-        </div>
-      )}
+      <div className="border-t border-border-subtle p-4">
+        {!collapsed ? (
+          <div className="space-y-4">
+            <div className="grid gap-3">
+              <div className="rounded-[20px] bg-app-bg-elevated px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
+                  Active sessions
+                </p>
+                <p className="mt-1 text-xl font-semibold text-text-primary">
+                  {activeSessionsCount}
+                </p>
+              </div>
+              <div className="rounded-[20px] bg-app-bg-elevated px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
+                  Reports generated
+                </p>
+                <p className="mt-1 text-xl font-semibold text-text-primary">
+                  {reportCount}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Badge tone="info">Mock data</Badge>
+              <p className="text-xs text-text-muted">
+                Latest sync {latestSync ? formatRelativeTime(latestSync) : 'pending'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              className="interactive-lift inline-flex size-10 items-center justify-center rounded-full border border-border-subtle bg-app-bg-elevated text-text-secondary"
+              aria-label="Expand navigation"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="size-4" />
+            </button>
+          </div>
+        )}
+      </div>
     </aside>
   )
 }

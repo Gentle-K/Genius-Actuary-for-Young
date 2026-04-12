@@ -1,3 +1,9 @@
+import {
+  getLocalStorageItem,
+  removeLocalStorageItem,
+  setLocalStorageItem,
+} from '@/lib/utils/safe-storage'
+
 const DEBUG_AUTH_STORAGE_KEY = 'genius-actuary-debug-basic-auth'
 
 function isBrowser() {
@@ -9,7 +15,7 @@ export function getDebugAuthHeader() {
     return null
   }
 
-  return window.localStorage.getItem(DEBUG_AUTH_STORAGE_KEY)
+  return getLocalStorageItem(DEBUG_AUTH_STORAGE_KEY)
 }
 
 export function setDebugAuthHeader(value: string) {
@@ -17,7 +23,7 @@ export function setDebugAuthHeader(value: string) {
     return
   }
 
-  window.localStorage.setItem(DEBUG_AUTH_STORAGE_KEY, value)
+  setLocalStorageItem(DEBUG_AUTH_STORAGE_KEY, value)
 }
 
 export function clearDebugAuthHeader() {
@@ -25,7 +31,7 @@ export function clearDebugAuthHeader() {
     return
   }
 
-  window.localStorage.removeItem(DEBUG_AUTH_STORAGE_KEY)
+  removeLocalStorageItem(DEBUG_AUTH_STORAGE_KEY)
 }
 
 export function buildBasicAuthHeader(username: string, password: string) {

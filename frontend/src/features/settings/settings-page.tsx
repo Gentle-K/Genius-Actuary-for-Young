@@ -1,129 +1,322 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Form, Formik } from 'formik'
-import { useTranslation } from 'react-i18next'
-import * as Yup from 'yup'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
+import {
+  EmptyState,
+  ErrorState,
+  MetricCard,
+  PreviewNote,
+  SectionCard,
+} from '@/components/product/decision-ui'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Select } from '@/components/ui/field'
+import { Input, Select } from '@/components/ui/field'
+import { Badge } from '@/components/ui/badge'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
 import { useAppStore } from '@/lib/store/app-store'
+import { getLocalStorageItem, setLocalStorageItem } from '@/lib/utils/safe-storage'
 
 export function SettingsPage() {
-  const { i18n, t } = useTranslation()
   const adapter = useApiAdapter()
   const syncFromSettings = useAppStore((state) => state.syncFromSettings)
-  const currentApiMode = useAppStore((state) => state.apiMode)
-  const currentDisplayDensity = useAppStore((state) => state.displayDensity)
-  const isZh = i18n.language.startsWith('zh')
+  const [riskDefault, setRiskDefault] = useState('Balanced')
+  const [dataRetention, setDataRetention] = useState('90 days')
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
     queryFn: adapter.settings.get,
   })
 
+  const profileQuery = useQuery({
+    queryKey: ['profile'],
+    queryFn: adapter.profile.get,
+  })
+
   const updateMutation = useMutation({
     mutationFn: adapter.settings.update,
     onSuccess: (settings) => {
       syncFromSettings(settings)
-      void i18n.changeLanguage(settings.language)
+      toast.success('Settings saved')
     },
   })
 
-  const text = {
-    eyebrow: isZh ? '工作台偏好' : 'Workspace',
-    title: isZh ? '界面设置' : 'Interface Settings',
-    subtitle: isZh
-      ? '当前仅保留主题和语言设置。'
-      : 'Only theme and language settings are available right now.',
-    appearanceTitle: isZh ? '外观与语言' : 'Appearance',
-    appearanceDescription: isZh
-      ? '在黑金暗色、浅色和系统模式之间切换时，整套设计 token 保持一致。'
-      : 'Keep the same token system while switching between obsidian dark, champagne light, and system mode.',
+  const deleteMutation = useMutation({
+    mutationFn: adapter.auth.deletePersonalData,
+    onSuccess: (result) => {
+      toast.success(`Deleted ${result.deletedSessionCount} demo session(s)`)
+    },
+  })
+
+  useEffect(() => {
+    const storedRisk = getLocalStorageItem('ga-risk-default')
+    const storedRetention = getLocalStorageItem('ga-data-retention')
+    if (storedRisk) setRiskDefault(storedRisk)
+    if (storedRetention) setDataRetention(storedRetention)
+  }, [])
+
+  const saveLocalPreferences = (nextRisk = riskDefault, nextRetention = dataRetention) => {
+    setLocalStorageItem('ga-risk-default', nextRisk)
+    setLocalStorageItem('ga-data-retention', nextRetention)
   }
+
+  if (settingsQuery.isError || profileQuery.isError) {
+    return (
+      <ErrorState
+        title="Could not load settings"
+        description={
+          (settingsQuery.error as Error | undefined)?.message ??
+          (profileQuery.error as Error | undefined)?.message ??
+          'The settings page is unavailable.'
+        }
+        action={
+          <Button
+            variant="secondary"
+            onClick={() => {
+              void settingsQuery.refetch()
+              void profileQuery.refetch()
+            }}
+          >
+            Retry
+          </Button>
+        }
+      />
+    )
+  }
+
+  if (settingsQuery.isLoading || profileQuery.isLoading || !settingsQuery.data || !profileQuery.data) {
+    return (
+      <Card className="space-y-4 p-6">
+        <p className="text-base font-semibold text-text-primary">Loading settings</p>
+        <p className="text-sm text-text-secondary">
+          Preparing profile, preferences, and retention controls.
+        </p>
+      </Card>
+    )
+  }
+
+  const settings = settingsQuery.data
+  const profile = profileQuery.data
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={text.eyebrow}
-        title={text.title}
-        description={text.subtitle}
+        eyebrow="Settings"
+        title="Settings"
+        description="Manage profile details, default analysis preferences, export behavior, notifications, and data retention for this personal workspace."
       />
 
-      {settingsQuery.data ? (
-        <Formik
-          initialValues={settingsQuery.data}
-          enableReinitialize
-          validationSchema={Yup.object({
-            themeMode: Yup.string().required(),
-            language: Yup.string().required(),
-          })}
-          onSubmit={async (values) => {
-            await updateMutation.mutateAsync({
-              ...values,
-              apiMode: currentApiMode,
-              displayDensity: currentDisplayDensity,
-            })
-          }}
-        >
-          {({ values, handleChange, isSubmitting }) => (
-            <Form className="max-w-3xl">
-              <Card className="space-y-5 p-6">
-                <div>
-                  <h2 className="text-text-primary text-lg font-semibold">
-                    {text.appearanceTitle}
-                  </h2>
-                  <p className="text-text-secondary mt-1 text-sm leading-7">
-                    {text.appearanceDescription}
-                  </p>
-                </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          title="Profile"
+          value={profile.name}
+          detail={profile.email}
+          tone="brand"
+        />
+        <MetricCard
+          title="Default risk preference"
+          value={riskDefault}
+          detail="Used as an intake default when starting a new analysis."
+          tone="success"
+        />
+        <MetricCard
+          title="Export behavior"
+          value={settings.autoExportPdf ? 'Auto PDF on' : 'Manual export'}
+          detail="Report export preferences affect only the frontend presentation layer."
+          tone="brand"
+        />
+        <MetricCard
+          title="Data retention"
+          value={dataRetention}
+          detail="Local preference only in this MVP."
+          tone="success"
+        />
+      </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-text-secondary text-sm">
-                      {t('common.theme')}
-                    </label>
-                    <Select
-                      name="themeMode"
-                      value={values.themeMode}
-                      onChange={handleChange}
-                    >
-                      <option value="dark">{t('common.dark')}</option>
-                      <option value="light">{t('common.light')}</option>
-                      <option value="system">{t('common.system')}</option>
-                    </Select>
-                  </div>
+      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="space-y-6">
+          <SectionCard title="Profile" description="Basic account information for this browser-linked workspace.">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-text-primary">Name</label>
+                <Input value={profile.name} readOnly />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-text-primary">Email</label>
+                <Input value={profile.email} readOnly />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-text-primary">Timezone</label>
+                <Input value={profile.timezone} readOnly />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-text-primary">Workspace bio</label>
+                <Input value={profile.bio} readOnly />
+              </div>
+            </div>
+          </SectionCard>
 
-                  <div className="space-y-2">
-                    <label className="text-text-secondary text-sm">
-                      {t('common.language')}
-                    </label>
-                    <Select
-                      name="language"
-                      value={values.language}
-                      onChange={handleChange}
-                    >
-                      <option value="zh">中文</option>
-                      <option value="en">English</option>
-                    </Select>
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting || updateMutation.isPending}
-                  >
-                    {updateMutation.isPending
-                      ? t('common.loading')
-                      : t('common.save')}
-                  </Button>
-                </div>
-              </Card>
-            </Form>
-          )}
-        </Formik>
-      ) : null}
+          <SectionCard title="Default analysis preferences" description="These defaults shape the initial intake surface.">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-text-primary">Language</label>
+                <Select
+                  value={settings.language}
+                  onChange={(event) =>
+                    void updateMutation.mutateAsync({
+                      ...settings,
+                      language: event.target.value === 'en' ? 'en' : 'zh',
+                    })
+                  }
+                >
+                  <option value="zh">Chinese</option>
+                  <option value="en">English</option>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-text-primary">Theme</label>
+                <Select
+                  value={settings.themeMode}
+                  onChange={(event) =>
+                    void updateMutation.mutateAsync({
+                      ...settings,
+                      themeMode:
+                        event.target.value === 'dark'
+                          ? 'dark'
+                          : event.target.value === 'system'
+                            ? 'system'
+                            : 'light',
+                    })
+                  }
+                >
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                  <option value="system">System</option>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-text-primary">
+                  Risk preference default
+                </label>
+                <Select
+                  value={riskDefault}
+                  onChange={(event) => {
+                    const nextValue = event.target.value
+                    setRiskDefault(nextValue)
+                    saveLocalPreferences(nextValue, dataRetention)
+                  }}
+                >
+                  <option value="Conservative">Conservative</option>
+                  <option value="Balanced">Balanced</option>
+                  <option value="Aggressive">Aggressive</option>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-text-primary">
+                  Report export preference
+                </label>
+                <Select
+                  value={settings.autoExportPdf ? 'auto' : 'manual'}
+                  onChange={(event) =>
+                    void updateMutation.mutateAsync({
+                      ...settings,
+                      autoExportPdf: event.target.value === 'auto',
+                    })
+                  }
+                >
+                  <option value="manual">Manual export</option>
+                  <option value="auto">Auto PDF after completion</option>
+                </Select>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Notification settings" description="Delivery channels for product events.">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Button
+                variant={settings.notificationsEmail ? 'primary' : 'secondary'}
+                onClick={() =>
+                  void updateMutation.mutateAsync({
+                    ...settings,
+                    notificationsEmail: !settings.notificationsEmail,
+                  })
+                }
+              >
+                Email notifications {settings.notificationsEmail ? 'on' : 'off'}
+              </Button>
+              <Button
+                variant={settings.notificationsPush ? 'primary' : 'secondary'}
+                onClick={() =>
+                  void updateMutation.mutateAsync({
+                    ...settings,
+                    notificationsPush: !settings.notificationsPush,
+                  })
+                }
+              >
+                Push notifications {settings.notificationsPush ? 'on' : 'off'}
+              </Button>
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Data retention" description="Retention and deletion controls stay visible because this product handles decision context, evidence, and assumptions.">
+            <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-text-primary">Retention preference</label>
+                <Select
+                  value={dataRetention}
+                  onChange={(event) => {
+                    const nextValue = event.target.value
+                    setDataRetention(nextValue)
+                    saveLocalPreferences(riskDefault, nextValue)
+                  }}
+                >
+                  <option value="30 days">30 days</option>
+                  <option value="90 days">90 days</option>
+                  <option value="Keep until deleted">Keep until deleted</option>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button
+                  variant="danger"
+                  onClick={() => void deleteMutation.mutateAsync()}
+                  disabled={deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending ? 'Deleting...' : 'Delete personal data'}
+                </Button>
+              </div>
+            </div>
+          </SectionCard>
+        </div>
+
+        <div className="space-y-6">
+          <SectionCard title="Connected services" description="Reserved for future integrations.">
+            <EmptyState
+              title="No connected services yet"
+              description="Future versions can show search providers, storage connectors, or export integrations here."
+            />
+          </SectionCard>
+
+          <SectionCard title="Model and environment" description="Visible only for preview and internal testing.">
+            <div className="flex flex-wrap gap-2">
+              <Badge tone="info">Mock adapter</Badge>
+              <Badge tone="neutral">Frontend-only orchestration</Badge>
+              <Badge tone="gold">Decision support preview</Badge>
+            </div>
+            <PreviewNote>
+              This product offers decision support, not professional advice. Model and
+              environment badges stay visible in preview builds to make testing boundaries explicit.
+            </PreviewNote>
+          </SectionCard>
+
+          <SectionCard title="Team features coming later" description="The MVP is optimized for a single user workspace.">
+            <p className="text-sm leading-6 text-text-secondary">
+              Shared workspaces, reviewers, and approval flows are intentionally deferred so the
+              product can stay focused on the single-user decision analysis loop.
+            </p>
+          </SectionCard>
+        </div>
+      </div>
     </div>
   )
 }

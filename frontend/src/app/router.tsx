@@ -14,34 +14,54 @@ const LoginPage = lazy(() =>
     default: module.LoginPage,
   })),
 )
-const ModeSelectionPage = lazy(() =>
+const NewAnalysisPage = lazy(() =>
   import('@/features/analysis/pages/mode-selection-page').then((module) => ({
     default: module.ModeSelectionPage,
   })),
 )
-const AnalysisSessionPage = lazy(() =>
+const SessionsPage = lazy(() =>
+  import('@/features/analysis/pages/sessions-page').then((module) => ({
+    default: module.SessionsPage,
+  })),
+)
+const SessionDetailPage = lazy(() =>
+  import('@/features/analysis/pages/session-detail-page').then((module) => ({
+    default: module.SessionDetailPage,
+  })),
+)
+const ClarifyPage = lazy(() =>
   import('@/features/analysis/pages/analysis-session-page').then((module) => ({
     default: module.AnalysisSessionPage,
   })),
 )
-const ReportPage = lazy(() =>
+const AnalyzingPage = lazy(() =>
+  import('@/features/analysis/pages/progress-page').then((module) => ({
+    default: module.ProgressPage,
+  })),
+)
+const ReportsPage = lazy(() =>
+  import('@/features/analysis/pages/reports-page').then((module) => ({
+    default: module.ReportsPage,
+  })),
+)
+const ReportDetailPage = lazy(() =>
   import('@/features/analysis/pages/report-page').then((module) => ({
     default: module.ReportPage,
   })),
 )
-const ExecutionPage = lazy(() =>
-  import('@/features/analysis/pages/execution-page').then((module) => ({
-    default: module.ExecutionPage,
+const EvidencePage = lazy(() =>
+  import('@/features/analysis/pages/evidence-page').then((module) => ({
+    default: module.EvidencePage,
+  })),
+)
+const CalculationsPage = lazy(() =>
+  import('@/features/analysis/pages/calculations-page').then((module) => ({
+    default: module.CalculationsPage,
   })),
 )
 const SettingsPage = lazy(() =>
   import('@/features/settings/settings-page').then((module) => ({
     default: module.SettingsPage,
-  })),
-)
-const ProfilePage = lazy(() =>
-  import('@/features/user-profile/profile-page').then((module) => ({
-    default: module.ProfilePage,
   })),
 )
 const RolesPage = lazy(() =>
@@ -64,32 +84,17 @@ const SessionDebugPage = lazy(() =>
     default: module.SessionDebugPage,
   })),
 )
-const ResourceListPage = lazy(() =>
-  import('@/features/resources/resource-list-page').then((module) => ({
-    default: module.ResourceListPage,
-  })),
-)
-const ResourceFormPage = lazy(() =>
-  import('@/features/resources/resource-form-page').then((module) => ({
-    default: module.ResourceFormPage,
-  })),
-)
-const ResourceDetailPage = lazy(() =>
-  import('@/features/resources/resource-detail-page').then((module) => ({
-    default: module.ResourceDetailPage,
-  })),
-)
 
 function RouteFallback() {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-20 w-full" />
+      <Skeleton className="h-20 w-full bg-brand-soft/55" />
       <div className="grid gap-4 xl:grid-cols-3">
-        <Skeleton className="h-52 w-full" />
-        <Skeleton className="h-52 w-full" />
-        <Skeleton className="h-52 w-full" />
+        <Skeleton className="h-52 w-full bg-brand-soft/45" />
+        <Skeleton className="h-52 w-full bg-brand-soft/45" />
+        <Skeleton className="h-52 w-full bg-brand-soft/45" />
       </div>
-      <Skeleton className="h-72 w-full" />
+      <Skeleton className="h-72 w-full bg-brand-soft/4" />
     </div>
   )
 }
@@ -98,18 +103,23 @@ function withRouteSuspense(element: ReactNode) {
   return <Suspense fallback={<RouteFallback />}>{element}</Suspense>
 }
 
-function LegacyAnalysisSessionRedirect({
-  target,
+function LegacySessionRedirect({
+  mode,
 }: {
-  target: 'session' | 'result'
+  mode: 'detail' | 'clarify' | 'analyzing' | 'report'
 }) {
   const { sessionId = '' } = useParams()
-  const path =
-    target === 'result'
-      ? `/analysis/session/${sessionId}/result`
-      : `/analysis/session/${sessionId}`
 
-  return <Navigate to={path} replace />
+  const target =
+    mode === 'clarify'
+      ? `/sessions/${sessionId}/clarify`
+      : mode === 'analyzing'
+        ? `/sessions/${sessionId}/analyzing`
+        : mode === 'report'
+          ? `/reports/${sessionId}`
+          : `/sessions/${sessionId}`
+
+  return <Navigate to={target} replace />
 }
 
 export const router = createBrowserRouter([
@@ -126,73 +136,62 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         errorElement: <RouteErrorBoundary />,
         children: [
-          { index: true, element: <Navigate to="/analysis/modes" replace /> },
+          { index: true, element: <Navigate to="/new-analysis" replace /> },
+          { path: '/dashboard', element: <Navigate to="/new-analysis" replace /> },
+          { path: '/new-analysis', element: withRouteSuspense(<NewAnalysisPage />) },
+          { path: '/sessions', element: withRouteSuspense(<SessionsPage />) },
+          { path: '/sessions/:sessionId', element: withRouteSuspense(<SessionDetailPage />) },
           {
-            path: '/dashboard',
-            element: <Navigate to="/analysis/modes" replace />,
+            path: '/sessions/:sessionId/clarify',
+            element: withRouteSuspense(<ClarifyPage />),
           },
           {
-            path: '/analysis/modes',
-            element: withRouteSuspense(<ModeSelectionPage />),
+            path: '/sessions/:sessionId/analyzing',
+            element: withRouteSuspense(<AnalyzingPage />),
           },
+          { path: '/reports', element: withRouteSuspense(<ReportsPage />) },
           {
-            path: '/analysis/intake',
-            element: <Navigate to="/analysis/modes" replace />,
+            path: '/reports/:reportId',
+            element: withRouteSuspense(<ReportDetailPage />),
           },
+          { path: '/evidence', element: withRouteSuspense(<EvidencePage />) },
+          {
+            path: '/calculations',
+            element: withRouteSuspense(<CalculationsPage />),
+          },
+          { path: '/settings', element: withRouteSuspense(<SettingsPage />) },
+
+          { path: '/analysis/modes', element: <Navigate to="/new-analysis" replace /> },
+          { path: '/analysis/intake', element: <Navigate to="/new-analysis" replace /> },
           {
             path: '/analysis/session/:sessionId',
-            element: withRouteSuspense(<AnalysisSessionPage />),
+            element: <LegacySessionRedirect mode="detail" />,
           },
           {
             path: '/analysis/session/:sessionId/clarify',
-            element: <LegacyAnalysisSessionRedirect target="session" />,
+            element: <LegacySessionRedirect mode="clarify" />,
           },
           {
             path: '/analysis/session/:sessionId/progress',
-            element: <LegacyAnalysisSessionRedirect target="session" />,
+            element: <LegacySessionRedirect mode="analyzing" />,
           },
           {
             path: '/analysis/session/:sessionId/report',
-            element: <LegacyAnalysisSessionRedirect target="result" />,
+            element: <LegacySessionRedirect mode="report" />,
           },
           {
             path: '/analysis/session/:sessionId/result',
-            element: withRouteSuspense(<ReportPage />),
+            element: <LegacySessionRedirect mode="report" />,
           },
           {
             path: '/analysis/session/:sessionId/execute',
-            element: withRouteSuspense(<ExecutionPage />),
+            element: <LegacySessionRedirect mode="report" />,
           },
-          { path: '/settings', element: withRouteSuspense(<SettingsPage />) },
-          { path: '/profile', element: withRouteSuspense(<ProfilePage />) },
-          {
-            path: '/notifications',
-            element: <Navigate to="/analysis/modes" replace />,
-          },
-          {
-            path: '/files',
-            element: <Navigate to="/analysis/modes" replace />,
-          },
-          {
-            path: '/dataviz',
-            element: <Navigate to="/analysis/modes" replace />,
-          },
-          {
-            path: '/resources/:resourceKey',
-            element: withRouteSuspense(<ResourceListPage />),
-          },
-          {
-            path: '/resources/:resourceKey/new',
-            element: withRouteSuspense(<ResourceFormPage />),
-          },
-          {
-            path: '/resources/:resourceKey/:recordId',
-            element: withRouteSuspense(<ResourceDetailPage />),
-          },
-          {
-            path: '/resources/:resourceKey/:recordId/edit',
-            element: withRouteSuspense(<ResourceFormPage />),
-          },
+          { path: '/resources/analyses', element: <Navigate to="/sessions" replace /> },
+          { path: '/profile', element: <Navigate to="/settings" replace /> },
+          { path: '/notifications', element: <Navigate to="/sessions" replace /> },
+          { path: '/files', element: <Navigate to="/evidence" replace /> },
+          { path: '/dataviz', element: <Navigate to="/reports" replace /> },
         ],
       },
     ],
@@ -226,7 +225,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '*',
-    element: <Navigate to="/analysis/modes" replace />,
+    element: <Navigate to="/new-analysis" replace />,
     errorElement: <RouteErrorBoundary />,
   },
 ])

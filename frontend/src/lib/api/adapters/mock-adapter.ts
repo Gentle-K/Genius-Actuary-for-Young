@@ -794,48 +794,48 @@ function buildMockTimeline(mode: AnalysisSession['mode']) {
   if (mode === 'multi-option') {
     return [
       {
-        label: '识别方案并收集证据',
+        label: 'Identify options and gather evidence',
         activityStatus: 'searching_and_synthesizing',
-        focus: '正在识别可选方案，并搜索支持或反驳每种方案的证据。',
+        focus: 'Identifying viable options and gathering evidence that supports or challenges each path.',
       },
       {
-        label: '整理平行优缺点与成本',
+        label: 'Compare trade-offs and costs',
         activityStatus: 'running_deterministic_calculations',
-        focus: '正在把方案优点、缺点、成本和门槛整理到同一比较框架。',
+        focus: 'Structuring pros, cons, cost, and access constraints inside one comparison frame.',
       },
       {
-        label: '生成对比图表与表格',
+        label: 'Generate comparison charts',
         activityStatus: 'preparing_visualizations',
-        focus: '正在生成方案评分图、成本图和对比表格。',
+        focus: 'Rendering score, cost, and comparison visuals for the current option set.',
       },
       {
-        label: '撰写最终决策建议',
+        label: 'Draft final recommendation',
         activityStatus: 'running_analysis_pipeline',
-        focus: '正在形成带有建议、图表和表格的完整决策结果。',
+        focus: 'Assembling the final decision memo with recommendations, tables, and chart references.',
       },
     ]
   }
 
   return [
     {
-      label: '搜索成本与收入证据',
+      label: 'Search evidence',
       activityStatus: 'searching_web_for_evidence',
-      focus: '正在搜索成本、收入回收、市场报价和关键风险证据。',
+      focus: 'Searching for cost references, recovery assumptions, pricing signals, and risk evidence.',
     },
     {
-      label: '估算预算区间',
+      label: 'Run calculations',
       activityStatus: 'running_deterministic_calculations',
-      focus: '正在汇总预算项，并形成低位、基准和高位预算区间。',
+      focus: 'Combining structured inputs into best, likely, and worst-case calculation ranges.',
     },
     {
-      label: '生成预算图表与表格',
+      label: 'Prepare charts',
       activityStatus: 'preparing_visualizations',
-      focus: '正在生成预算结构图、收入回收图和预算拆分表格。',
+      focus: 'Preparing chart and table views for cost, range, and uncertainty breakdowns.',
     },
     {
-      label: '撰写最终成本报告',
+      label: 'Draft final report',
       activityStatus: 'running_analysis_pipeline',
-      focus: '正在输出预算结论、风险提醒和执行建议。',
+      focus: 'Drafting the final report with costs, risks, evidence, and a bounded recommendation.',
     },
   ]
 }
@@ -950,13 +950,13 @@ export const mockApiAdapter: ApiAdapter = {
         intakeContext: structuredClone(payload.intakeContext),
         currentFocus:
           payload.mode === 'multi-option'
-            ? '等待用户补充决策目标、约束和偏好，以便识别并比较方案。'
-            : '等待用户补充预算边界、约束和回收条件，以便开始预算估算。',
+            ? 'Waiting for goals, constraints, and preference weighting before comparing options.'
+            : 'Waiting for budget boundaries and non-negotiable constraints before the analysis starts.',
         lastStopReason: 'The workflow is waiting for the user to answer clarification questions.',
         lastInsight:
           payload.mode === 'multi-option'
-            ? '先补齐目标、预算和偏好，系统再识别并比较可行方案。'
-            : '先补齐预算边界和约束，系统再估算预算区间和成本拆分。',
+            ? 'Clarify goals, budget, and preference weighting before comparing options.'
+            : 'Clarify budget and constraints before estimating costs and risk.',
         questions: bundle.questions,
         answers: [],
         searchTasks: bundle.searchTasks,
@@ -1010,8 +1010,8 @@ export const mockApiAdapter: ApiAdapter = {
       session.lastStopReason = 'The workflow moved from clarification into analysis.'
       session.lastInsight =
         session.mode === 'multi-option'
-          ? '已收到回答，系统开始识别方案并整理平行对比。'
-          : '已收到回答，系统开始搜索成本证据并估算预算区间。'
+          ? 'Answers received. The system is now comparing options and gathering evidence.'
+          : 'Answers received. The system is now gathering evidence and running calculations.'
       session.searchTasks = structuredClone(bundle.searchTasks).map((task) => ({
         ...task,
         status: 'running',
@@ -1065,7 +1065,7 @@ export const mockApiAdapter: ApiAdapter = {
       session.status = 'CLARIFYING'
       session.updatedAt = nowIso()
       session.activityStatus = 'waiting_for_user_clarification_answers'
-      session.currentFocus = '已重新打开提问窗口，等待用户继续补充关键信息。'
+      session.currentFocus = 'A new clarification round is open and waiting for additional user input.'
       session.lastStopReason = 'A new clarification window was opened by request.'
       session.chartArtifacts = []
       return structuredClone(session)
@@ -1080,55 +1080,55 @@ export const mockApiAdapter: ApiAdapter = {
           ? [
               {
                 id: 'clarify',
-                title: '澄清决策目标',
-                description: '确认目标、约束和偏好排序。',
+                title: 'Clarify the decision',
+                description: 'Confirm goals, constraints, and preference weighting.',
               },
               {
                 id: 'search',
-                title: '识别并搜索方案',
-                description: '搜索各方案的证据与约束。',
+                title: 'Search evidence',
+                description: 'Gather evidence, prerequisites, and external constraints.',
               },
               {
                 id: 'compare',
-                title: '整理平行优缺点',
-                description: '把收益、成本、门槛和风险整理到同一框架。',
+                title: 'Compare options',
+                description: 'Place benefits, costs, and risks inside one comparison frame.',
               },
               {
                 id: 'visualize',
-                title: '生成对比图表与表格',
-                description: '输出方案对比图和表格。',
+                title: 'Prepare visuals',
+                description: 'Render comparison charts and tables.',
               },
               {
                 id: 'report',
-                title: '撰写最终决策建议',
-                description: '汇总结论、建议和文字分析。',
+                title: 'Draft report',
+                description: 'Assemble conclusions, recommendation direction, and narrative summary.',
               },
             ]
           : [
               {
                 id: 'clarify',
-                title: '澄清预算边界',
-                description: '确认规模、目标、约束和预算敏感点。',
+                title: 'Clarify the decision',
+                description: 'Confirm scope, budget limits, and hard constraints.',
               },
               {
                 id: 'search',
-                title: '搜索成本与收入证据',
-                description: '收集成本、收入和风险的外部依据。',
+                title: 'Search evidence',
+                description: 'Collect external evidence for cost, downside, and timing assumptions.',
               },
               {
                 id: 'calculate',
-                title: '估算预算区间',
-                description: '形成低位、基准和高位预算区间。',
+                title: 'Run calculations',
+                description: 'Generate low, base, and high outcome ranges.',
               },
               {
                 id: 'visualize',
-                title: '生成预算图表与表格',
-                description: '绘制预算结构和回收图表。',
+                title: 'Prepare visuals',
+                description: 'Render cost, range, and comparison visuals.',
               },
               {
                 id: 'report',
-                title: '撰写最终成本报告',
-                description: '输出预算结论、建议和长文分析。',
+                title: 'Draft report',
+                description: 'Assemble the final report with evidence, calculations, and recommendation.',
               },
             ]
 
@@ -1163,9 +1163,9 @@ export const mockApiAdapter: ApiAdapter = {
           session.status = 'COMPLETED'
           session.updatedAt = nowIso()
           session.activityStatus = 'completed'
-          session.currentFocus = '报告、图表和表格已准备完毕，可以查看最终结果。'
+          session.currentFocus = 'The report, charts, and supporting calculations are now ready to review.'
           session.lastStopReason = 'The mock workflow completed successfully.'
-          session.lastInsight = '最终报告、图表和表格已准备完成。'
+          session.lastInsight = 'The final report, charts, and calculation outputs are ready.'
           session.chartArtifacts = structuredClone(bundle.charts)
           db.reports[session.id] = structuredClone(bundle.report)
 
@@ -1212,8 +1212,8 @@ export const mockApiAdapter: ApiAdapter = {
             : Math.round(((cursor + 1) / stages.length) * 100),
         currentStepLabel:
           session.status === 'COMPLETED'
-            ? '结果已就绪'
-            : (timeline[Math.min(cursor, timeline.length - 1)]?.label ?? '分析进行中'),
+            ? 'Report ready'
+            : (timeline[Math.min(cursor, timeline.length - 1)]?.label ?? 'Analysis running'),
         nextAction:
           session.status === 'CLARIFYING'
             ? 'ask_user'

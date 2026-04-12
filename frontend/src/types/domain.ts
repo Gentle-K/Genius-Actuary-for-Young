@@ -252,6 +252,12 @@ export type EvidenceFactType =
 export type EvidenceFreshnessBucket = 'fresh' | 'aging' | 'stale' | 'undated'
 
 export interface RwaIntakeContext {
+  budgetRange?: string
+  timeHorizonLabel?: string
+  riskPreferenceLabel?: string
+  mustHaveGoals?: string[]
+  mustAvoidOutcomes?: string[]
+  draftPrompt?: string
   investmentAmount: number
   baseCurrency: string
   preferredAssetIds: string[]

@@ -4,85 +4,77 @@ import { Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { ModeSelectionPage } from '@/features/analysis/pages/mode-selection-page'
-import { renderWithAppState, renderWithProviders } from '@/tests/test-utils'
+import { renderWithAppState } from '@/tests/test-utils'
 
 describe('ModeSelectionPage', () => {
   afterEach(() => {
     cleanup()
   })
 
-  it('renders both rebuilt analysis modes from the adapter', async () => {
-    renderWithProviders(<ModeSelectionPage />, '/analysis/modes')
-
-    expect(
-      await screen.findByRole('heading', { name: '单资产尽调' }),
-    ).toBeInTheDocument()
-    expect(
-      await screen.findByRole('heading', { name: '多资产配置' }),
-    ).toBeInTheDocument()
-  })
-
-  it('renders the intake mode titles in English when locale is en', async () => {
+  it('renders both rebuilt analysis modes', async () => {
     renderWithAppState(<ModeSelectionPage />, {
-      route: '/analysis/modes',
+      route: '/new-analysis',
       locale: 'en',
     })
 
     expect(
-      await screen.findAllByRole('heading', { name: 'Single-asset diligence' }),
-    ).not.toHaveLength(0)
+      await screen.findByRole('heading', { name: 'Single decision analysis' }),
+    ).toBeInTheDocument()
     expect(
-      await screen.findAllByRole('heading', { name: 'Multi-asset allocation' }),
-    ).not.toHaveLength(0)
+      await screen.findByRole('heading', { name: 'Multi-option comparison' }),
+    ).toBeInTheDocument()
   })
 
-  it('applies an official demo scenario to the intake form', async () => {
+  it('fills the problem textarea when an example chip is clicked', async () => {
     const user = userEvent.setup()
 
     renderWithAppState(<ModeSelectionPage />, {
-      route: '/analysis/modes',
+      route: '/new-analysis',
+      locale: 'en',
+    })
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Should I join a study abroad exchange?',
+      }),
+    )
+
+    expect(
+      screen.getByLabelText('What decision are you trying to make?'),
+    ).toHaveValue('Should I join a study abroad exchange?')
+  })
+
+  it('keeps the start button disabled until the user enters a question', async () => {
+    renderWithAppState(<ModeSelectionPage />, {
+      route: '/new-analysis',
       locale: 'en',
     })
 
     expect(
-      await screen.findAllByRole('heading', { name: 'Official demo scenarios' }),
-    ).not.toHaveLength(0)
-
-    await user.click(
-      await screen.findByRole('button', {
-        name: /Liquidity First: MMF vs Real Estate/i,
-      }),
-    )
-
-    expect(screen.getByLabelText('Your question')).toHaveValue(
-      'Show why liquidity-first users should compare MMF-like carry against real-estate-style lockups.',
-    )
-    expect(
-      screen.getByText('Demo: liquidity-first-mmf-vs-real-estate'),
-    ).toBeInTheDocument()
-    expect(screen.getByText('2 assets selected')).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /Including non-production assets/i }),
-    ).toBeInTheDocument()
+      await screen.findByRole('button', { name: /start analysis/i }),
+    ).toBeDisabled()
   })
 
-  it('switches modes and starts the analysis workspace flow', async () => {
+  it('starts a new analysis and navigates into the clarify route', async () => {
     const user = userEvent.setup()
 
     renderWithAppState(
       <Routes>
-        <Route path="/analysis/modes" element={<ModeSelectionPage />} />
-        <Route path="/analysis/session/:sessionId" element={<div>analysis workspace</div>} />
+        <Route path="/new-analysis" element={<ModeSelectionPage />} />
+        <Route path="/sessions/:sessionId/clarify" element={<div>clarify workspace</div>} />
       </Routes>,
       {
-        route: '/analysis/modes',
+        route: '/new-analysis',
         locale: 'en',
       },
     )
 
-    await user.click(await screen.findByTestId('mode-card-single-option'))
-    await user.click(screen.getByTestId('start-rwa-analysis'))
+    await user.type(
+      await screen.findByLabelText('What decision are you trying to make?'),
+      'Should I work abroad next year?',
+    )
+    await user.click(screen.getByRole('button', { name: /start analysis/i }))
 
-    expect(await screen.findByText('analysis workspace')).toBeInTheDocument()
+    expect(await screen.findByText('clarify workspace')).toBeInTheDocument()
   })
 })

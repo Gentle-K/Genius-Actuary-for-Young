@@ -1,176 +1,312 @@
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, Hourglass } from 'lucide-react'
+import {
+  CheckCircle2,
+  CircleAlert,
+  FileSearch,
+  LoaderCircle,
+  Sigma,
+  Sparkles,
+} from 'lucide-react'
 import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
 
-import { GoldenSandLoader } from '@/components/feedback/golden-sand-loader'
 import { PageHeader } from '@/components/layout/page-header'
-import { Badge } from '@/components/ui/badge'
+import {
+  ConclusionCard,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  MetricCard,
+  PreviewNote,
+  SectionCard,
+} from '@/components/product/decision-ui'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
+import { formatRelativeTime } from '@/features/analysis/lib/view-models'
+
+const stepLabels = ['Clarifying', 'Searching evidence', 'Running calculations', 'Drafting report']
 
 export function ProgressPage() {
-  const { i18n, t } = useTranslation()
-  const navigate = useNavigate()
   const { sessionId = '' } = useParams()
   const adapter = useApiAdapter()
-  const isZh = i18n.language.startsWith('zh')
+  const navigate = useNavigate()
+
+  const sessionQuery = useQuery({
+    queryKey: ['analysis', sessionId, 'progress-session'],
+    queryFn: () => adapter.analysis.getById(sessionId),
+  })
 
   const progressQuery = useQuery({
     queryKey: ['analysis', sessionId, 'progress'],
     queryFn: () => adapter.analysis.getProgress(sessionId),
     refetchInterval: (query) =>
-      query.state.data?.status === 'COMPLETED' || query.state.data?.status === 'FAILED' ? false : 1400,
+      query.state.data?.status === 'COMPLETED' || query.state.data?.status === 'FAILED'
+        ? false
+        : 1400,
   })
 
-  const progress = progressQuery.data
-
   useEffect(() => {
-    if (progress?.status === 'CLARIFYING') {
-      void navigate(`/analysis/session/${sessionId}/clarify`, { replace: true })
+    if (progressQuery.data?.status === 'COMPLETED') {
+      void navigate(`/reports/${sessionId}`, { replace: true })
     }
-  }, [navigate, progress?.status, sessionId])
+  }, [navigate, progressQuery.data?.status, sessionId])
 
-  const stageText = {
-    clarify: {
-      title: isZh ? '梳理决策上下文' : 'Clarify decision context',
-      description: isZh ? '补齐目标、约束与缺失的关键信息。' : 'Collect goals, constraints, and missing high-value facts.',
-    },
-    plan: {
-      title: isZh ? '规划分析轮次' : 'Plan analysis round',
-      description: isZh ? '后端正在准备搜索任务和第一版结论框架。' : 'Prepare search tasks and first-pass conclusions on the backend.',
-    },
-    evidence: {
-      title: isZh ? '汇聚证据与图表' : 'Gather evidence',
-      description: isZh ? '执行搜索、汇总证据，并生成预览图表。' : 'Execute search, gather evidence, and compose preview artifacts.',
-    },
-    report: {
-      title: isZh ? '组装最终报告' : 'Assemble report',
-      description: isZh ? '整合摘要、建议、依据与图表引用。' : 'Build the final report summary, recommendations, and chart references.',
-    },
+  if (sessionQuery.isLoading || progressQuery.isLoading) {
+    return (
+      <LoadingState
+        title="Loading analysis progress"
+        description="Preparing stage status, activity feed, and conclusion preview."
+      />
+    )
   }
 
-  const failureMessage =
-    progress?.errorMessage ??
-    (isZh ? 'LLM 连续重试后仍然失败，请检查模型配置或稍后重试。' : 'The LLM failed after all retry attempts.')
+  if (sessionQuery.isError || progressQuery.isError || !sessionQuery.data || !progressQuery.data) {
+    return (
+      <ErrorState
+        title="Could not load analysis progress"
+        description={
+          (sessionQuery.error as Error | undefined)?.message ??
+          (progressQuery.error as Error | undefined)?.message ??
+          'The session progress snapshot is unavailable.'
+        }
+        action={
+          <Button
+            variant="secondary"
+            onClick={() => {
+              void sessionQuery.refetch()
+              void progressQuery.refetch()
+            }}
+          >
+            Retry
+          </Button>
+        }
+      />
+    )
+  }
+
+  const session = sessionQuery.data
+  const progress = progressQuery.data
+  const stepIndex =
+    progress.status === 'CLARIFYING'
+      ? 0
+      : progress.activityStatus?.includes('search')
+        ? 1
+        : progress.activityStatus?.includes('calculation')
+          ? 2
+          : 3
+
+  const activityItems = [
+    progress.currentFocus ? { title: 'Current focus', detail: progress.currentFocus } : null,
+    ...(progress.pendingSearchTasks ?? []).map((item) => ({
+      title: 'Search task generated',
+      detail: item.topic,
+    })),
+    ...(progress.pendingCalculationTasks ?? []).map((item) => ({
+      title: 'Calculation queued',
+      detail: item.taskType,
+    })),
+    ...(progress.pendingChartTasks ?? []).map((item) => ({
+      title: 'Chart in progress',
+      detail: item.title,
+    })),
+  ].filter(Boolean) as Array<{ detail: string; title: string }>
 
   return (
-    <div className="space-y-6" data-testid="progress-page">
+    <div className="space-y-6">
       <PageHeader
-        eyebrow={t('common.nextStep')}
-        title={t('analysis.progressTitle')}
-        description={t('analysis.progressSubtitle')}
+        eyebrow="Analyzing"
+        title="Analysis in progress"
+        description="The system shows what it is doing, which stage is active, and what remains before the final report is ready."
         actions={
-          progress?.status === 'COMPLETED' ? (
-            <Button onClick={() => void navigate(`/analysis/session/${sessionId}/report`)}>
-              {t('analysis.generateReport')}
+          <>
+            <Button variant="secondary" onClick={() => void navigate(`/sessions/${session.id}`)}>
+              Session detail
             </Button>
-          ) : null
+            {session.status === 'FAILED' ? (
+              <Button variant="secondary" onClick={() => void navigate(`/sessions/${session.id}/clarify`)}>
+                Re-open clarifications
+              </Button>
+            ) : null}
+          </>
         }
       />
 
-      {progressQuery.isLoading && !progress ? (
-        <Card className="p-6 text-sm text-text-secondary">
-          {isZh ? '正在读取分析进度...' : 'Loading analysis progress...'}
-        </Card>
-      ) : null}
+      <SectionCard
+        title="Progress stepper"
+        description="Clarification, search, calculation, and report drafting remain separate product states."
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {stepLabels.map((label, index) => {
+            const completed = index < stepIndex || progress.status === 'COMPLETED'
+            const active = index === stepIndex && progress.status !== 'COMPLETED'
 
-      {progressQuery.error ? (
-        <Card className="space-y-3 border-[rgba(197,109,99,0.35)] bg-[rgba(197,109,99,0.08)] p-6">
-          <h2 className="text-base font-semibold text-[#f7d4cf]">
-            {isZh ? '分析进度读取失败' : 'Failed to load analysis progress'}
-          </h2>
-          <p className="text-sm leading-7 text-[#f1cbc6]">
-            {isZh
-              ? '当前无法获取后端进度快照，请稍后重试。'
-              : 'The backend progress snapshot is unavailable right now. Please retry.'}
-          </p>
-          <div>
-            <Button type="button" onClick={() => void progressQuery.refetch()}>
-              {isZh ? '重试加载' : 'Retry'}
-            </Button>
-          </div>
-        </Card>
-      ) : null}
-
-      <div className="grid gap-4 xl:grid-cols-[1fr_0.95fr]">
-        <GoldenSandLoader
-          label={
-            progress?.status === 'FAILED'
-              ? failureMessage
-              : progress?.status === 'COMPLETED'
-                ? t('analysis.progressReadyHint')
-                : progress?.currentStepLabel ?? (isZh ? '正在整理结构化分析结果' : 'Preparing structured analysis')
-          }
-        />
-
-        <div className="space-y-4">
-          <Card className="space-y-4 p-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-text-primary">{t('analysis.progressStageTitle')}</h2>
-              <Badge tone={progress?.status === 'COMPLETED' ? 'success' : progress?.status === 'FAILED' ? 'warning' : 'gold'}>
-                {progress?.overallProgress ?? 0}%
-              </Badge>
-            </div>
-
-            {progress?.status === 'FAILED' ? (
-              <div className="rounded-[20px] border border-[rgba(197,109,99,0.35)] bg-[rgba(197,109,99,0.08)] p-4 text-sm leading-7 text-[#f1cbc6]">
-                {failureMessage}
+            return (
+              <div
+                key={label}
+                className={`rounded-[22px] border px-4 py-4 ${
+                  completed
+                    ? 'border-[rgba(45,118,80,0.18)] bg-[rgba(45,118,80,0.08)]'
+                    : active
+                      ? 'border-border-strong bg-brand-soft'
+                      : 'border-border-subtle bg-app-bg-elevated'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-text-primary">{label}</p>
+                  {completed ? (
+                    <CheckCircle2 className="size-4 text-success" />
+                  ) : active ? (
+                    <LoaderCircle className="size-4 animate-spin text-gold-primary" />
+                  ) : (
+                    <Badge tone="neutral">Pending</Badge>
+                  )}
+                </div>
               </div>
-            ) : null}
+            )
+          })}
+        </div>
+      </SectionCard>
 
-            <div className="space-y-3">
-              {progress?.stages.map((stage) => {
-                const localizedStage = stageText[stage.id as keyof typeof stageText]
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              title="Questions answered"
+              value={String(session.questions.filter((item) => item.answered).length)}
+              detail="More answers usually mean fewer hidden assumptions."
+              tone="brand"
+            />
+            <MetricCard
+              title="Evidence collected"
+              value={String(session.evidence.length)}
+              detail="Source summaries already attached to this session."
+              tone="success"
+            />
+            <MetricCard
+              title="Calculations completed"
+              value={String(session.calculations.length)}
+              detail="Deterministic outputs supporting the recommendation."
+              tone="brand"
+            />
+            <MetricCard
+              title="Conclusions extracted"
+              value={String(session.conclusions.length)}
+              detail="Only surfaced conclusions are shown here."
+              tone="success"
+            />
+          </div>
 
-                return (
-                  <div key={stage.id} className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-text-primary">{localizedStage?.title ?? stage.title}</p>
-                        <p className="mt-1 text-sm text-text-secondary">
-                          {localizedStage?.description ?? stage.description}
-                        </p>
-                      </div>
-                      {stage.status === 'completed' ? (
-                        <CheckCircle2 className="size-5 text-[#ccebd7]" />
+          <SectionCard
+            title="Worklog"
+            description="A transparent timeline of what the system is doing right now."
+          >
+            {activityItems.length ? (
+              <div className="space-y-3">
+                {activityItems.map((item, index) => (
+                  <div
+                    key={`${item.title}-${index}`}
+                    className="flex items-start gap-3 rounded-[20px] bg-app-bg-elevated px-4 py-4"
+                  >
+                    <div className="mt-1 flex size-8 items-center justify-center rounded-full bg-brand-soft text-gold-primary">
+                      {item.title.includes('Search') ? (
+                        <FileSearch className="size-4" />
+                      ) : item.title.includes('Calculation') ? (
+                        <Sigma className="size-4" />
+                      ) : item.title.includes('Chart') ? (
+                        <Sparkles className="size-4" />
                       ) : (
-                        <Hourglass className="size-5 text-gold-primary" />
+                        <CircleAlert className="size-4" />
                       )}
                     </div>
+                    <div>
+                      <p className="text-sm font-semibold text-text-primary">{item.title}</p>
+                      <p className="mt-1 text-sm leading-6 text-text-secondary">
+                        {item.detail}
+                      </p>
+                    </div>
                   </div>
-                )
-              })}
-            </div>
-          </Card>
-
-          {progress ? (
-            <Card className="space-y-3 p-6">
-              <h2 className="text-lg font-semibold text-text-primary">
-                {isZh ? '当前状态摘要' : 'Current status summary'}
-              </h2>
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
-                  <p className="text-xs text-text-muted">{isZh ? '状态' : 'Status'}</p>
-                  <p className="mt-2 text-sm text-text-primary">{progress.status}</p>
-                </div>
-                <div className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4 md:col-span-2">
-                  <p className="text-xs text-text-muted">{isZh ? '当前焦点' : 'Current focus'}</p>
-                  <p className="mt-2 text-sm leading-7 text-text-primary">
-                    {progress.currentFocus ?? (isZh ? '等待后端推进下一步。' : 'Waiting for the backend to advance.')}
-                  </p>
-                </div>
+                ))}
               </div>
-              <div className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
-                <p className="text-xs text-text-muted">{isZh ? '最近停顿原因' : 'Latest pause reason'}</p>
-                <p className="mt-2 text-sm leading-7 text-text-primary">
-                  {progress.lastStopReason ?? (isZh ? '当前没有额外停顿原因。' : 'There is no extra pause reason at the moment.')}
+            ) : (
+              <EmptyState
+                title="No worklog entries yet"
+                description="The worklog will fill in as search, calculation, and chart tasks start running."
+              />
+            )}
+          </SectionCard>
+
+          {progress.status === 'FAILED' ? (
+            <ErrorState
+              title="Part of the analysis failed"
+              description={
+                progress.errorMessage ??
+                'The workflow did not complete. The UI keeps the failure visible instead of leaving an empty state.'
+              }
+              action={
+                <Button variant="secondary" onClick={() => void navigate(`/sessions/${session.id}/clarify`)}>
+                  Return to clarifications
+                </Button>
+              }
+            />
+          ) : (
+            <PreviewNote>
+              The UI is showing orchestration state only. Search, evidence synthesis, and
+              report generation still live behind the backend API.
+            </PreviewNote>
+          )}
+        </div>
+
+        <div className="space-y-6 xl:sticky xl:top-28 xl:self-start">
+          <SectionCard title="Current conclusions preview" description="Only high-value conclusions already extracted are shown here.">
+            {session.conclusions.length ? (
+              <div className="space-y-3">
+                {session.conclusions.map((item) => (
+                  <ConclusionCard
+                    key={item.id}
+                    title={item.conclusion}
+                    type={item.conclusionType}
+                    confidence={item.confidence}
+                    basisCount={item.basisRefs.length}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="No conclusions preview yet"
+                description="Conclusions appear here as soon as the analysis pipeline extracts stable findings."
+              />
+            )}
+          </SectionCard>
+
+          <SectionCard title="Current status" description="The system keeps both the active focus and the fallback reason visible.">
+            <div className="space-y-3">
+              <div className="rounded-[20px] bg-app-bg-elevated p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                  Active focus
+                </p>
+                <p className="mt-2 text-sm leading-6 text-text-primary">
+                  {progress.currentFocus ?? 'Waiting for the next orchestrated step.'}
                 </p>
               </div>
-            </Card>
-          ) : null}
+              <div className="rounded-[20px] bg-app-bg-elevated p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                  Last stop reason
+                </p>
+                <p className="mt-2 text-sm leading-6 text-text-primary">
+                  {progress.lastStopReason ?? 'No fallback reason reported.'}
+                </p>
+              </div>
+              <div className="rounded-[20px] bg-app-bg-elevated p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                  Updated
+                </p>
+                <p className="mt-2 text-sm leading-6 text-text-primary">
+                  {formatRelativeTime(session.updatedAt)}
+                </p>
+              </div>
+            </div>
+          </SectionCard>
         </div>
       </div>
     </div>

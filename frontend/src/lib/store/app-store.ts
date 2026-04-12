@@ -76,8 +76,8 @@ interface AppStoreState {
 export const useAppStore = create<AppStoreState>()(
   persist(
     (set) => ({
-      themeMode: 'dark',
-      resolvedTheme: 'dark',
+      themeMode: 'light',
+      resolvedTheme: 'light',
       locale: 'zh',
       displayDensity: 'cozy',
       apiMode: defaultApiMode,

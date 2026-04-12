@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { cleanup, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { Topbar } from '@/components/layout/topbar'
@@ -7,61 +7,41 @@ import { renderWithAppState } from '@/tests/test-utils'
 
 describe('Topbar', () => {
   afterEach(() => {
+    cleanup()
     vi.restoreAllMocks()
   })
 
-  it('shows a warning when the frontend runtime is mock', async () => {
+  it('renders the workspace title and action buttons without hitting the backend bootstrap endpoint', async () => {
     const requestSpy = vi.spyOn(apiClient, 'request')
 
-    renderWithAppState(<Topbar />, { apiMode: 'mock', locale: 'en' })
+    renderWithAppState(<Topbar />, {
+      apiMode: 'mock',
+      locale: 'en',
+      currentUser: {
+        id: 'user-1',
+        name: 'Casey Analyst',
+        email: 'casey@example.com',
+        title: 'Decision researcher',
+        locale: 'en',
+        roles: [],
+        lastActiveAt: '2026-04-12T00:00:00Z',
+      },
+    })
 
-    expect(
-      await screen.findByText(
-        'The frontend is currently using the mock adapter instead of the live backend LLM.',
-      ),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Workspace')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Help' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Profile' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
+    expect(await screen.findByText('Casey Analyst')).toBeInTheDocument()
     expect(requestSpy).not.toHaveBeenCalled()
   })
 
-  it('hides the warning when the frontend uses a real backend LLM adapter', async () => {
-    const requestSpy = vi.spyOn(apiClient, 'request').mockResolvedValue({
-      app_name: 'Genius Actuary',
-      supported_modes: [],
-      session_statuses: [],
-      next_actions: [],
-      notes: [
-        'Adapters: analysis=openai_compatible/minimax, clarification_follow_up_round_limit=2, search=brave, chart=mock, calculation_mcp_enabled=false',
-      ],
-    })
+  it('shows the default workspace copy when no current user is loaded', async () => {
+    renderWithAppState(<Topbar />, { apiMode: 'mock', locale: 'en' })
 
-    renderWithAppState(<Topbar />, { apiMode: 'rest', locale: 'en' })
-
-    await waitFor(() => expect(requestSpy).toHaveBeenCalled())
-    expect(
-      screen.queryByText(/mock adapter instead of the live backend llm/i),
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByText(/backend analysis adapter is currently mock/i),
-    ).not.toBeInTheDocument()
-  })
-
-  it('shows a warning when the backend analysis adapter itself is mock', async () => {
-    vi.spyOn(apiClient, 'request').mockResolvedValue({
-      app_name: 'Genius Actuary',
-      supported_modes: [],
-      session_statuses: [],
-      next_actions: [],
-      notes: [
-        'Adapters: analysis=mock/demo, clarification_follow_up_round_limit=2, search=brave, chart=mock, calculation_mcp_enabled=false',
-      ],
-    })
-
-    renderWithAppState(<Topbar />, { apiMode: 'rest', locale: 'en' })
-
-    expect(
-      await screen.findByText(
-        'The backend analysis adapter is currently mock, so this is not a live LLM run.',
-      ),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Genius Actuary' })).toBeInTheDocument()
+    expect(screen.getByText('AI decision analysis workspace.')).toBeInTheDocument()
+    expect(screen.getByText('Demo analyst')).toBeInTheDocument()
   })
 })

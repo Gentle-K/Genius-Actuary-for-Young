@@ -3,6 +3,8 @@ import type {
   AnalysisReport,
   AnalysisSession,
   AuditLogEntry,
+  BudgetLineItem,
+  BudgetSummary,
   CalculationTask,
   ChartArtifact,
   ClarificationQuestion,
@@ -13,6 +15,7 @@ import type {
   MetricHighlight,
   ModeDefinition,
   NotificationItem,
+  OptionProfile,
   Permission,
   Role,
   SearchTask,
@@ -21,6 +24,12 @@ import type {
 } from '@/types'
 
 const mockIntakeContext = {
+  budgetRange: '$8k - $15k',
+  timeHorizonLabel: '6-12 months',
+  riskPreferenceLabel: 'Balanced',
+  mustHaveGoals: ['Protect cash runway', 'Keep optionality'],
+  mustAvoidOutcomes: ['Irreversible commitment without evidence', 'Budget shock'],
+  draftPrompt: '',
   investmentAmount: 10000,
   baseCurrency: 'USDT',
   preferredAssetIds: ['hsk-usdc', 'cpic-estable-mmf', 'hk-regulated-silver'],
@@ -139,7 +148,7 @@ export const users: User[] = [
 ]
 
 export const defaultSettings: SettingsPayload = {
-  themeMode: 'dark',
+  themeMode: 'light',
   language: 'zh',
   apiMode: 'mock',
   displayDensity: 'cozy',
@@ -466,8 +475,8 @@ function buildQuestions(
     {
       id: `${sessionId}-risk`,
       sessionId,
-      question: '你对这次决策的风险容忍度更偏保守还是进取？',
-      purpose: '风险偏好会影响我们如何解读收益与代价，以及最终推荐的阈值。',
+      question: 'How risk-sensitive is this decision for you?',
+      purpose: 'Risk tolerance changes how aggressively the recommendation should trade upside for stability.',
       fieldType: 'slider',
       allowCustomInput: true,
       allowSkip: true,
@@ -480,16 +489,16 @@ function buildQuestions(
     {
       id: `${sessionId}-deadline`,
       sessionId,
-      question: '你希望在多长时间内做出最终决定？',
-      purpose: '时间窗口决定我们是偏向保守行动建议，还是允许等待更多外部信息。',
+      question: 'When do you need to make the decision?',
+      purpose: 'The time window determines whether the recommendation should optimize for speed or allow more waiting for evidence.',
       fieldType: 'single-choice',
       allowCustomInput: true,
       allowSkip: true,
       priority: 2,
       options: [
-        { value: '1-week', label: '1 周内' },
-        { value: '1-month', label: '1 个月内' },
-        { value: '2-months', label: '2 个月内' },
+        { value: '1-week', label: 'Within 1 week' },
+        { value: '1-month', label: 'Within 1 month' },
+        { value: '2-months', label: 'Within 2 months' },
       ],
       recommended: ['1-month'],
     },
@@ -500,8 +509,8 @@ function buildQuestions(
       {
         id: `${sessionId}-country`,
         sessionId,
-        question: '目标交换国家 / 学校已经确定了吗？',
-        purpose: '生活成本、签证、课程匹配和奖学金都强依赖于目标国家与院校。',
+        question: 'Have you already narrowed the target country or school?',
+        purpose: 'Living cost, visa timing, course fit, and scholarships all depend heavily on the destination.',
         fieldType: 'text',
         allowCustomInput: true,
         allowSkip: false,
@@ -510,16 +519,16 @@ function buildQuestions(
       {
         id: `${sessionId}-budget`,
         sessionId,
-        question: '你目前可接受的总预算区间是多少？',
-        purpose: '预算决定交换是否可持续，也影响安全冗余和替代方案推荐。',
+        question: 'What total budget range is actually acceptable to you?',
+        purpose: 'The budget floor determines whether the exchange remains sustainable or becomes financially fragile.',
         fieldType: 'single-choice',
         allowCustomInput: true,
         allowSkip: false,
         priority: 1,
         options: [
-          { value: '<8k', label: '低于 8k USD' },
+          { value: '<8k', label: 'Below 8k USD' },
           { value: '8k-15k', label: '8k - 15k USD' },
-          { value: '>15k', label: '15k USD 以上' },
+          { value: '>15k', label: 'Above 15k USD' },
         ],
         recommended: ['8k-15k'],
       },
@@ -532,8 +541,8 @@ function buildQuestions(
       {
         id: `${sessionId}-commute`,
         sessionId,
-        question: '你的典型通勤距离和频率如何？',
-        purpose: '通勤模式直接影响车的便利性价值和与公共交通的真实比较。',
+        question: 'What does your typical commute look like each week?',
+        purpose: 'Commute complexity is the main driver of whether car convenience is worth the cost premium.',
         fieldType: 'textarea',
         allowCustomInput: true,
         allowSkip: false,
@@ -542,15 +551,15 @@ function buildQuestions(
       {
         id: `${sessionId}-cash`,
         sessionId,
-        question: '你更在意月度现金流压力还是总拥有成本？',
-        purpose: '同一方案在月供压力与两年总成本上的结论可能完全不同。',
+        question: 'Which matters more: monthly cash pressure or total cost of ownership?',
+        purpose: 'The recommendation changes depending on whether liquidity or long-run cost is your main constraint.',
         fieldType: 'single-choice',
         allowCustomInput: true,
         allowSkip: false,
         priority: 1,
         options: [
-          { value: 'cashflow', label: '月度现金流压力' },
-          { value: 'total-cost', label: '总拥有成本' },
+          { value: 'cashflow', label: 'Monthly cash pressure' },
+          { value: 'total-cost', label: 'Total cost of ownership' },
         ],
         recommended: ['cashflow'],
       },
@@ -563,33 +572,33 @@ function buildQuestions(
       {
         id: `${sessionId}-goal`,
         sessionId,
-        question: '你的长期目标更偏向升学、研究、行业经验积累还是尽快提高收入？',
-        purpose: '目标不同，会显著改变“读研”和“先工作”的优先级排序。',
+        question: 'Which long-term goal matters most right now?',
+        purpose: 'Priority weighting changes the ranking between graduate school, work-first, and deferment paths.',
         fieldType: 'multi-choice',
         allowCustomInput: true,
         allowSkip: false,
         priority: 1,
         options: [
-          { value: 'research', label: '研究 / 学术积累' },
-          { value: 'income', label: '尽快提升收入' },
-          { value: 'career', label: '行业经验与简历厚度' },
-          { value: 'overseas', label: '海外申请或迁移准备' },
+          { value: 'research', label: 'Research / academic path' },
+          { value: 'income', label: 'Raise income quickly' },
+          { value: 'career', label: 'Industry experience and résumé depth' },
+          { value: 'overseas', label: 'Prepare for overseas applications or relocation' },
         ],
         recommended: ['career', 'income'],
       },
       {
         id: `${sessionId}-funding`,
         sessionId,
-        question: '读研期间的资金来源是否已有明确方案？',
-        purpose: '资金可得性会直接改变现金压力、机会成本和行动顺序。',
+        question: 'Do you already have a realistic funding plan for graduate school?',
+        purpose: 'Funding certainty materially changes the cash burden, opportunity cost, and decision order.',
         fieldType: 'single-choice',
         allowCustomInput: true,
         allowSkip: true,
         priority: 1,
         options: [
-          { value: 'self-funded', label: '主要自费' },
-          { value: 'family', label: '家庭支持' },
-          { value: 'scholarship', label: '奖学金 / 助研助教' },
+          { value: 'self-funded', label: 'Mostly self-funded' },
+          { value: 'family', label: 'Family support' },
+          { value: 'scholarship', label: 'Scholarship / assistantship' },
         ],
         recommended: ['scholarship'],
       },
@@ -601,8 +610,8 @@ function buildQuestions(
     {
       id: `${sessionId}-success`,
       sessionId,
-      question: '如果这个计划做成了，你最在意的结果是什么？',
-      purpose: '先明确胜利条件，才能判断成本与风险是否值得承担。',
+      question: 'If this decision goes well, what outcome matters most?',
+      purpose: 'Clear success criteria are necessary before cost and risk can be judged properly.',
       fieldType: 'textarea',
       allowCustomInput: true,
       allowSkip: false,
@@ -611,8 +620,8 @@ function buildQuestions(
     {
       id: `${sessionId}-constraint`,
       sessionId,
-      question: '当前最硬的约束条件是什么？',
-      purpose: '硬约束决定分析是否应以保守模式推进。',
+      question: 'What is the hardest non-negotiable constraint right now?',
+      purpose: 'Hard constraints determine whether the system should recommend a more conservative path.',
       fieldType: 'text',
       allowCustomInput: true,
       allowSkip: true,
@@ -787,7 +796,7 @@ function buildConclusions(sessionId: string, scenario: string) {
       {
         id: `${sessionId}-c1`,
         sessionId,
-        conclusion: '若预算上限低于 10.5k USD 且无额外缓冲，交换方案会显著挤压后续应急能力。',
+        conclusion: 'If the budget floor is below 10.5k USD and no extra runway exists, the exchange materially compresses financial safety margin.',
         conclusionType: 'estimate' as const,
         basisRefs: [`${sessionId}-calc-1`, `${sessionId}-e2`],
         confidence: 0.82,
@@ -796,7 +805,7 @@ function buildConclusions(sessionId: string, scenario: string) {
       {
         id: `${sessionId}-c2`,
         sessionId,
-        conclusion: '学术与国际化收益明确，但签证时序和资金缓冲是当前两大高影响未知项。',
+        conclusion: 'Academic and exposure upside are real, but visa timing and funding buffer remain the two highest-impact unknowns.',
         conclusionType: 'inference' as const,
         basisRefs: [`${sessionId}-e3`],
         confidence: 0.79,
@@ -810,7 +819,7 @@ function buildConclusions(sessionId: string, scenario: string) {
       {
         id: `${sessionId}-c1`,
         sessionId,
-        conclusion: '如果你最看重月度现金流压力，买车不是当前更稳妥的选择。',
+        conclusion: 'If monthly liquidity matters most, buying a car is not the safer default choice right now.',
         conclusionType: 'inference' as const,
         basisRefs: [`${sessionId}-calc-1`],
         confidence: 0.85,
@@ -824,7 +833,7 @@ function buildConclusions(sessionId: string, scenario: string) {
       {
         id: `${sessionId}-c1`,
         sessionId,
-        conclusion: '若核心目标是尽快建立现金流和行业经验，先工作 2 年的稳健性更高。',
+        conclusion: 'If near-term cash flow and industry experience matter most, working first for 2 years is the more stable default path.',
         conclusionType: 'inference' as const,
         basisRefs: [`${sessionId}-calc-1`],
         confidence: 0.8,
@@ -833,7 +842,7 @@ function buildConclusions(sessionId: string, scenario: string) {
       {
         id: `${sessionId}-c2`,
         sessionId,
-        conclusion: '若你明确瞄准研究型路线且能落实奖学金，读研路径的长期边际价值更高。',
+        conclusion: 'If you are clearly targeting a research-heavy path and funding is credible, graduate school carries the higher long-term upside.',
         conclusionType: 'estimate' as const,
         basisRefs: [`${sessionId}-e2`],
         confidence: 0.77,
@@ -846,7 +855,7 @@ function buildConclusions(sessionId: string, scenario: string) {
     {
       id: `${sessionId}-c1`,
       sessionId,
-      conclusion: '当前信息足以形成第一版方向，但仍需围绕硬约束验证可执行性。',
+      conclusion: 'Current information supports a first-pass direction, but hard constraints still need explicit validation.',
       conclusionType: 'inference' as const,
       basisRefs: [`${sessionId}-calc-1`],
       confidence: 0.71,
@@ -1000,7 +1009,7 @@ function buildHighlights(scenario: string): MetricHighlight[] {
 
 function buildReportMarkdown(problem: string, scenario: string, mode: AnalysisMode) {
   if (scenario === 'exchange') {
-    return `# 决策结论\n\n**问题定义**：${problem}\n\n## 一句话判断\n\n若你能把总预算稳定在 **10.5k USD 以上**，并提前锁定签证与课程文件窗口，交换方案值得推进；否则更适合延后或寻找低成本替代。\n\n## 成本清单\n\n- 直接成本：学费差额、住宿、交通、保险与应急缓冲。\n- 隐性成本：准备周期、文件协调、课程互认不确定性。\n- 机会成本：放弃本地实习与稳定现金流机会。\n\n## 风险清单\n\n- 签证时间窗口与材料返工。\n- 预算不足导致的中途策略收缩。\n- 对长期目标不匹配时，回报会明显打折。\n\n## 建议动作\n\n1. 先补齐目标国家与学校的官方费用和签证时间表。\n2. 把安全冗余单独留出，不要把全部预算视作可支配。\n3. 若目标偏就业，确认交换是否能显著增强履历与语言环境。`
+    return `# Decision summary\n\n**Problem definition**: ${problem}\n\n## Executive view\n\nIf you can keep the real budget above **10.5k USD** and protect a separate safety buffer, the exchange looks worth pursuing. If not, the recommendation weakens quickly and lower-cost alternatives become more attractive.\n\n## Cost breakdown\n\n- Direct cost: tuition differential, housing, transport, insurance, contingency.\n- Hidden cost: preparation load, document coordination, uncertainty around course transfer.\n- Opportunity cost: reduced flexibility for internships or local work experience.\n\n## Risk view\n\n- Visa timing can shift the execution path.\n- A thin budget buffer increases downside sharply.\n- If the exchange does not match the long-term goal, the upside shrinks.\n\n## Recommended next actions\n\n1. Confirm destination-specific fees and official timeline constraints.\n2. Keep a safety reserve outside the visible budget.\n3. Re-check whether the exchange materially improves the path you actually care about.`
   }
 
   if (scenario === 'car') {
@@ -1008,7 +1017,7 @@ function buildReportMarkdown(problem: string, scenario: string, mode: AnalysisMo
   }
 
   if (scenario === 'graduate') {
-    return `# 综合建议\n\n**决策目标**：${problem}\n\n## 综合判断\n\n当前更稳妥的默认路径是 **先工作 2 年**，同时保留读研选项；如果你能够拿到明确的奖学金或助研支持，并且目标强烈偏研究型发展，那么读研的长期价值会上升。\n\n## 对比维度\n\n- 现金流压力\n- 职业试错空间\n- 长期学历与研究资产\n- 执行复杂度\n\n## 建议动作\n\n1. 在 3 个月内验证读研资金方案的可实现性。\n2. 同步整理工作路径下的成长节奏与目标岗位要求。\n3. 在明确资助与目标项目匹配前，不建议把读研设为唯一方案。`
+    return `# Decision summary\n\n**Decision goal**: ${problem}\n\n## Executive view\n\nThe safer default path is **work for 2 years first** while keeping the graduate-school option open. If funding becomes credible and the goal weighting shifts toward research, the recommendation may change.\n\n## Comparison lens\n\n- Cash-flow pressure\n- Career experimentation and option value\n- Long-term academic upside\n- Execution complexity\n\n## Recommended next actions\n\n1. Test whether a realistic funding path exists within the next 3 months.\n2. Compare the work-first path against the actual target role requirements.\n3. Do not treat graduate school as the only path until funding and fit both turn green.`
   }
 
   if (mode === 'multi-option') {
@@ -1055,6 +1064,231 @@ export function buildScenarioBundle(
         : scenario === 'graduate'
           ? buildGraduateCharts(sessionId)
           : buildGenericCharts(sessionId)
+  const budgetItems: BudgetLineItem[] | undefined =
+    scenario === 'exchange'
+      ? [
+          {
+            id: `${sessionId}-budget-1`,
+            name: 'Tuition and program fees',
+            category: 'Direct cost',
+            itemType: 'cost',
+            low: 3600,
+            base: 4200,
+            high: 4800,
+            currency: 'USD',
+            basisRefs: [`${sessionId}-e2`],
+            confidence: 0.84,
+            rationale: 'Program fee differential and admin costs.',
+          },
+          {
+            id: `${sessionId}-budget-2`,
+            name: 'Housing',
+            category: 'Direct cost',
+            itemType: 'cost',
+            low: 3000,
+            base: 3600,
+            high: 4500,
+            currency: 'USD',
+            basisRefs: [`${sessionId}-e2`],
+            confidence: 0.82,
+            rationale: 'Urban housing remains the biggest living-cost swing factor.',
+          },
+          {
+            id: `${sessionId}-budget-3`,
+            name: 'Transport and local mobility',
+            category: 'Direct cost',
+            itemType: 'cost',
+            low: 650,
+            base: 850,
+            high: 1100,
+            currency: 'USD',
+            basisRefs: [`${sessionId}-e2`],
+            confidence: 0.74,
+            rationale: 'Depends on city layout and commute pattern.',
+          },
+          {
+            id: `${sessionId}-budget-4`,
+            name: 'Insurance and admin',
+            category: 'Direct cost',
+            itemType: 'cost',
+            low: 500,
+            base: 600,
+            high: 760,
+            currency: 'USD',
+            basisRefs: [`${sessionId}-e3`],
+            confidence: 0.77,
+            rationale: 'Mandatory coverage and document handling costs.',
+          },
+          {
+            id: `${sessionId}-budget-5`,
+            name: 'Safety buffer',
+            category: 'Risk buffer',
+            itemType: 'cost',
+            low: 900,
+            base: 1200,
+            high: 1800,
+            currency: 'USD',
+            basisRefs: [`${sessionId}-calc-2`],
+            confidence: 0.72,
+            rationale: 'Recommended buffer for timing slip and unexpected costs.',
+          },
+        ]
+      : scenario === 'car'
+        ? [
+            {
+              id: `${sessionId}-budget-1`,
+              name: 'Upfront down payment',
+              category: 'Direct cost',
+              itemType: 'cost',
+              low: 2600,
+              base: 3200,
+              high: 4000,
+              currency: 'USD',
+              basisRefs: [`${sessionId}-calc-1`],
+              confidence: 0.79,
+              rationale: 'Immediate capital lock-up before ownership benefits show up.',
+            },
+            {
+              id: `${sessionId}-budget-2`,
+              name: 'Fuel and parking',
+              category: 'Recurring cost',
+              itemType: 'cost',
+              low: 2800,
+              base: 3400,
+              high: 4500,
+              currency: 'USD',
+              basisRefs: [`${sessionId}-e2`],
+              confidence: 0.8,
+              rationale: 'Parking variability is the most unstable component.',
+            },
+            {
+              id: `${sessionId}-budget-3`,
+              name: 'Transit and ridehail alternative',
+              category: 'Alternative path',
+              itemType: 'opportunity_cost',
+              low: 3500,
+              base: 4100,
+              high: 5800,
+              currency: 'USD',
+              basisRefs: [`${sessionId}-e2`],
+              confidence: 0.83,
+              rationale: 'Represents the non-car baseline used for comparison.',
+            },
+          ]
+        : undefined
+  const budgetSummary: BudgetSummary | undefined =
+    scenario === 'exchange'
+      ? {
+          currency: 'USD',
+          totalCostLow: 8650,
+          totalCostBase: 10450,
+          totalCostHigh: 12960,
+          totalIncomeLow: 0,
+          totalIncomeBase: 0,
+          totalIncomeHigh: 0,
+          netLow: 8650,
+          netBase: 10450,
+          netHigh: 12960,
+          reserveNote: 'Keep at least two months of runway outside the exchange budget.',
+        }
+      : scenario === 'car'
+        ? {
+            currency: 'USD',
+            totalCostLow: 7300,
+            totalCostBase: 9600,
+            totalCostHigh: 12500,
+            totalIncomeLow: 0,
+            totalIncomeBase: 0,
+            totalIncomeHigh: 0,
+            netLow: 7300,
+            netBase: 9600,
+            netHigh: 12500,
+            reserveNote: 'Ownership becomes much less attractive if cash buffer matters month to month.',
+          }
+        : undefined
+  const optionProfiles: OptionProfile[] | undefined =
+    scenario === 'graduate'
+      ? [
+          {
+            id: `${sessionId}-option-grad`,
+            name: 'Apply to graduate school now',
+            summary: 'Higher long-term academic upside, but greater funding and execution risk.',
+            pros: ['Faster skill acceleration', 'Potential signal boost for research-oriented roles'],
+            cons: ['Funding uncertainty', 'Immediate cash pressure'],
+            conditions: ['Clear program fit', 'Funding plan before commitment'],
+            fitFor: ['Research-heavy path', 'Users willing to absorb short-term cost'],
+            cautionFlags: ['Scholarship uncertainty changes the recommendation materially'],
+            estimatedCostLow: 180000,
+            estimatedCostBase: 260000,
+            estimatedCostHigh: 380000,
+            currency: 'CNY',
+            score: 7.4,
+            confidence: 0.77,
+            basisRefs: [`${sessionId}-e2`],
+          },
+          {
+            id: `${sessionId}-option-work`,
+            name: 'Work for 2 years first',
+            summary: 'Stronger cash flow and optionality with slower academic acceleration.',
+            pros: ['Better runway', 'Keeps future options open'],
+            cons: ['Delays the graduate path', 'Requires deliberate self-preparation'],
+            conditions: ['Role should compound relevant skills', 'Savings discipline matters'],
+            fitFor: ['Users prioritizing stability and learning-by-doing'],
+            cautionFlags: ['Comfort with the job path can reduce follow-through later'],
+            estimatedCostLow: 60000,
+            estimatedCostBase: 100000,
+            estimatedCostHigh: 180000,
+            currency: 'CNY',
+            score: 8.1,
+            confidence: 0.81,
+            basisRefs: [`${sessionId}-calc-1`],
+          },
+          {
+            id: `${sessionId}-option-defer`,
+            name: 'Prepare applications while staying flexible',
+            summary: 'Keeps momentum without making a full immediate commitment.',
+            pros: ['Preserves optionality', 'Allows more evidence to arrive'],
+            cons: ['Can prolong uncertainty', 'Needs disciplined timeline management'],
+            conditions: ['Decision checkpoint in 3-6 months', 'Evidence plan for funding and fit'],
+            fitFor: ['Users not ready for an irreversible choice today'],
+            cautionFlags: ['Without a deadline, deferment can become drift'],
+            estimatedCostLow: 30000,
+            estimatedCostBase: 70000,
+            estimatedCostHigh: 120000,
+            currency: 'CNY',
+            score: 7.7,
+            confidence: 0.75,
+            basisRefs: [`${sessionId}-calc-1`],
+          },
+        ]
+      : undefined
+  const unknowns =
+    scenario === 'exchange'
+      ? [
+          'Visa timing can still change the execution window.',
+          'Housing and insurance variance may move the budget band.',
+        ]
+      : scenario === 'car'
+        ? [
+            'Parking costs may be materially above the current estimate.',
+            'Real convenience value depends on weekly commute complexity, not a one-time impression.',
+          ]
+        : scenario === 'graduate'
+          ? [
+              'Funding certainty is still unresolved.',
+              'The recommendation changes if long-term goal weighting shifts toward research.',
+            ]
+          : ['One or more hard constraints remain unresolved.']
+  const warnings =
+    scenario === 'exchange'
+      ? [
+          'This recommendation weakens quickly if the budget floor is not actually available.',
+        ]
+      : scenario === 'car'
+        ? ['Buying a car increases irreversible monthly burden before convenience is proven.']
+        : scenario === 'graduate'
+          ? ['Do not treat grad-school upside as guaranteed without funded fit.']
+          : ['Confidence remains conditional on unresolved assumptions.']
 
   const report: AnalysisReport = {
     id: `report-${sessionId}`,
@@ -1071,10 +1305,15 @@ export function buildScenarioBundle(
       'External sources are treated as evidence, not final truth.',
       'Ranges separate confirmed facts from inferred values where possible.',
     ],
+    unknowns,
+    warnings,
     disclaimers: [
       'This product supports decisions and does not replace legal, medical, tax, or visa professionals.',
       'High-impact unknowns remain visible and should be resolved before irreversible action.',
     ],
+    budgetSummary,
+    budgetItems,
+    optionProfiles,
     assetCards: [],
     simulations: [],
     recommendedAllocations: [],
@@ -1126,31 +1365,31 @@ function buildSession(
 const exchangeSeed = buildSession(
   'sess-exchange',
   'single-option',
-  '我是否应该参加大三的海外交换？',
+  'Should I join a study abroad exchange in year 3?',
   'COMPLETED',
   iso('2026-03-28T10:00:00+08:00'),
   iso('2026-03-28T14:42:00+08:00'),
-  '预算缓冲和签证时序是当前两大关键变量。',
+  'Budget runway and visa timing are the two most important remaining variables.',
 )
 
 const carSeed = buildSession(
   'sess-car',
   'single-option',
-  '我是否应该买车而不是继续公共交通？',
+  'Should I buy a car instead of continuing with public transport?',
   'COMPLETED',
   iso('2026-03-27T11:20:00+08:00'),
   iso('2026-03-27T16:35:00+08:00'),
-  '若现金流优先，公共交通仍是更稳健的默认解。',
+  'If liquidity matters most, public transport remains the safer default.',
 )
 
 const gradSeed = buildSession(
   'sess-graduate',
   'multi-option',
-  '我现在是否应该申请研究生，还是先工作 2 年？',
+  'Should I apply to graduate school now, work for 2 years first, or defer?',
   'CLARIFYING',
   iso('2026-03-26T08:20:00+08:00'),
   iso('2026-03-26T09:10:00+08:00'),
-  '资金可得性会显著改变建议方向。',
+  'Funding certainty would materially change the recommendation direction.',
 )
 
 export interface MockDatabase {

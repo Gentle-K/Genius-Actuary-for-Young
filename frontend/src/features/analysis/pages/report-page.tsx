@@ -1,432 +1,652 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Blocks, Cable, ExternalLink, Radio, ScrollText, ShieldCheck, WalletCards } from 'lucide-react'
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import {
+  Copy,
+  ExternalLink,
+  FileDown,
+  RefreshCw,
+  Share2,
+  TriangleAlert,
+} from 'lucide-react'
+import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 
+import { ChartCard } from '@/components/charts/chart-card'
 import { PageHeader } from '@/components/layout/page-header'
-import { Badge } from '@/components/ui/badge'
+import {
+  CalculationCard,
+  ConfidenceBadge,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  PreviewNote,
+  ReportSection,
+  SourceCard,
+  StatusBadge,
+} from '@/components/product/decision-ui'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
-import { ReportTableCard } from '@/features/analysis/components/report-table-card'
-import { EvidencePanelEnhanced, KycSnapshotSection, OracleSnapshotSection, TxReceiptSection } from '@/features/analysis/components/result-sections'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
-import { exportToCsv } from '@/lib/export/csv'
 import { exportToPdf } from '@/lib/export/pdf'
-import { useAppStore } from '@/lib/store/app-store'
-import { formatDateTime, formatMoney } from '@/lib/utils/format'
-import { errorMessage } from '@/lib/web3/transaction-errors'
-import { useHashKeyWallet, useLiveMarketSnapshots } from '@/lib/web3/use-hashkey-wallet'
-import type { AnalysisReport, AssetAnalysisCard, LanguageCode, TxReceipt } from '@/types'
+import {
+  extractExecutiveSummary,
+  modeLabel,
+  reportState,
+  sessionConfidence,
+} from '@/features/analysis/lib/view-models'
 
-const ChartCard = lazy(() =>
-  import('@/components/charts/chart-card').then((module) => ({
-    default: module.ChartCard,
-  })),
-)
-
-const ReportMarkdown = lazy(() =>
-  import('@/components/markdown/report-markdown').then((module) => ({
-    default: module.ReportMarkdown,
-  })),
-)
-
-const AssumptionsAndUnknownsPanel = lazy(() =>
-  import('@/features/analysis/components/AssumptionsAndUnknownsPanel').then((module) => ({
-    default: module.AssumptionsAndUnknownsPanel,
-  })),
-)
-
-const ComparisonMatrix = lazy(() =>
-  import('@/features/analysis/components/ComparisonMatrix').then((module) => ({
-    default: module.ComparisonMatrix,
-  })),
-)
-
-const NextStepPanel = lazy(() =>
-  import('@/features/analysis/components/NextStepPanel').then((module) => ({
-    default: module.NextStepPanel,
-  })),
-)
-
-const RecommendationDrivers = lazy(() =>
-  import('@/features/analysis/components/RecommendationDrivers').then((module) => ({
-    default: module.RecommendationDrivers,
-  })),
-)
-
-const ReanalysisDiffCard = lazy(() =>
-  import('@/features/analysis/components/ReanalysisDiffCard').then((module) => ({
-    default: module.ReanalysisDiffCard,
-  })),
-)
-
-function money(value: number | undefined, currency = 'USD', locale: LanguageCode = 'zh') {
-  return formatMoney(value, currency, locale, { maximumFractionDigits: 2 })
-}
-
-function pct(value: number | undefined, locale: LanguageCode = 'zh') {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '--'
-  }
-  return new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'zh-CN', {
-    maximumFractionDigits: 2,
-  }).format(value)
-}
-
-function assetTypeLabel(value: AssetAnalysisCard['assetType'], isZh: boolean) {
-  const labels: Record<AssetAnalysisCard['assetType'], string> = {
-    stablecoin: isZh ? '稳定币' : 'Stablecoin',
-    mmf: 'MMF',
-    precious_metal: isZh ? '贵金属' : 'Precious metal',
-    real_estate: isZh ? '房地产' : 'Real estate',
-    stocks: isZh ? '股票' : 'Stocks',
-    benchmark: isZh ? '基准资产' : 'Benchmark',
-  }
-  return labels[value]
-}
-
-function stressTone(severity: string): 'gold' | 'neutral' | 'warning' {
-  if (severity === 'severe') {
-    return 'warning'
-  }
-  if (severity === 'baseline') {
-    return 'gold'
-  }
-  return 'neutral'
-}
-
-function txReceiptFromReport(report: AnalysisReport): TxReceipt | undefined {
-  if (!report.attestationDraft?.transactionHash || !report.attestationDraft.transactionUrl) {
-    return undefined
-  }
-  return {
-    transactionHash: report.attestationDraft.transactionHash,
-    transactionUrl: report.attestationDraft.transactionUrl,
-    blockNumber: report.attestationDraft.blockNumber,
-    submittedBy: report.attestationDraft.submittedBy,
-    submittedAt: report.attestationDraft.submittedAt,
-    network: report.attestationDraft.network ?? 'testnet',
-  }
-}
-
-function InlineSectionFallback({ lines = 3 }: { lines?: number }) {
-  return (
-    <Card className="space-y-3 p-6">
-      {Array.from({ length: lines }).map((_, index) => (
-        <div
-          key={index}
-          className="h-5 animate-pulse rounded-full bg-white/6"
-        />
-      ))}
-    </Card>
-  )
-}
+const reportSections = [
+  { id: 'summary', label: 'Executive summary' },
+  { id: 'goal', label: 'Decision goal' },
+  { id: 'assumptions', label: 'Key assumptions' },
+  { id: 'facts', label: 'Confirmed facts' },
+  { id: 'costs', label: 'Cost breakdown' },
+  { id: 'risks', label: 'Risk breakdown' },
+  { id: 'options', label: 'Option comparison' },
+  { id: 'scenarios', label: 'Best / likely / worst case' },
+  { id: 'calculations', label: 'Key calculations' },
+  { id: 'charts', label: 'Charts' },
+  { id: 'evidence', label: 'Evidence references' },
+  { id: 'unknowns', label: 'Unknowns' },
+  { id: 'recommendation', label: 'Recommendation' },
+  { id: 'boundary', label: 'Boundary note' },
+] as const
 
 export function ReportPage() {
-  const navigate = useNavigate()
-  const { sessionId = '' } = useParams()
+  const { reportId = '', sessionId = '' } = useParams()
+  const resolvedId = reportId || sessionId
   const adapter = useApiAdapter()
-  const locale = useAppStore((state) => state.locale)
-  const isZh = locale === 'zh'
-  const [exporting, setExporting] = useState<'csv' | 'pdf' | null>(null)
+  const navigate = useNavigate()
 
-  const sessionQuery = useQuery({ queryKey: ['analysis', sessionId], queryFn: () => adapter.analysis.getById(sessionId) })
-  const reportQuery = useQuery({ queryKey: ['analysis', sessionId, 'report'], queryFn: () => adapter.analysis.getReport(sessionId) })
-  const reanalysisMutation = useMutation({
-    mutationFn: () => adapter.analysis.requestMoreFollowUp(sessionId),
+  const sessionQuery = useQuery({
+    queryKey: ['analysis', resolvedId, 'report-session'],
+    queryFn: () => adapter.analysis.getById(resolvedId),
+  })
+
+  const reportQuery = useQuery({
+    queryKey: ['analysis', resolvedId, 'report'],
+    queryFn: () => adapter.analysis.getReport(resolvedId),
+  })
+
+  const reanalyzeMutation = useMutation({
+    mutationFn: () => adapter.analysis.requestMoreFollowUp(resolvedId),
     onSuccess: async () => {
-      await navigate(`/analysis/session/${sessionId}`)
+      toast.success('Clarification window reopened')
+      await navigate(`/sessions/${resolvedId}/clarify`)
     },
   })
 
-  const session = sessionQuery.data
-  const report = reportQuery.data
-  const wallet = useHashKeyWallet(report?.chainConfig)
-  const marketQuery = useLiveMarketSnapshots(report?.chainConfig, report?.attestationDraft?.network === 'mainnet' ? 'mainnet' : 'testnet')
-
   useEffect(() => {
-    if (session && session.status !== 'COMPLETED' && session.status !== 'FAILED') {
-      void navigate(`/analysis/session/${sessionId}`, { replace: true })
+    if (!sessionQuery.data) return
+    if (sessionQuery.data.status === 'CLARIFYING') {
+      void navigate(`/sessions/${resolvedId}/clarify`, { replace: true })
     }
-  }, [navigate, session, sessionId])
-
-  const latestSnapshots = useMemo(() => (marketQuery.data?.length ? marketQuery.data : report?.marketSnapshots ?? []), [marketQuery.data, report?.marketSnapshots])
-  const txReceipt = useMemo(() => (report ? txReceiptFromReport(report) : undefined), [report])
-  const hiddenCalculations = useMemo(() => (session?.calculations ?? []).filter((task) => task.userVisible === false || task.status === 'failed' || task.status === 'rejected'), [session?.calculations])
-
-  const handleExport = async (kind: 'csv' | 'pdf') => {
-    if (!session || !report) return
-    setExporting(kind)
-    try {
-      const payload = {
-        title: `hashkey-rwa-report-${session.id}-${locale}`,
-        headers: ['Section', 'Item', 'Value', 'Details'],
-        rows: [
-          ['overview', 'session_id', session.id, session.status],
-          ['overview', 'problem', report.summaryTitle, report.mode],
-          ['wallet', 'address', session.intakeContext.walletAddress || '--', session.intakeContext.walletNetwork || '--'],
-          ...report.recommendedAllocations.map((allocation) => ['allocation', allocation.assetName, allocation.targetWeightPct.toFixed(2), allocation.blockedReason || allocation.rationale] as Array<string | number>),
-          ...(report.methodologyReferences ?? []).map((item) => ['methodology', item.title, item.url, item.summary] as Array<string | number>),
-        ],
-      }
-      if (kind === 'csv') await exportToCsv(payload)
-      else await exportToPdf(payload)
-    } finally {
-      setExporting(null)
+    if (sessionQuery.data.status === 'ANALYZING') {
+      void navigate(`/sessions/${resolvedId}/analyzing`, { replace: true })
     }
+  }, [navigate, resolvedId, sessionQuery.data])
+
+  const handleCopyLink = async () => {
+    const url = `${window.location.origin}/reports/${resolvedId}`
+    await navigator.clipboard.writeText(url)
+    toast.success('Report link copied')
   }
 
-  if (sessionQuery.error || reportQuery.error) {
+  const handleShare = async () => {
+    const url = `${window.location.origin}/reports/${resolvedId}`
+    if (navigator.share) {
+      await navigator.share({ title: 'Genius Actuary report', url })
+      return
+    }
+    await navigator.clipboard.writeText(url)
+    toast.success('Share is unavailable here, so the link was copied instead')
+  }
+
+  const handleExport = async () => {
+    if (!sessionQuery.data || !reportQuery.data) return
+    await exportToPdf({
+      title: `genius-actuary-report-${resolvedId}`,
+      headers: ['Section', 'Item', 'Value', 'Detail'],
+      rows: [
+        ['overview', 'problem', reportQuery.data.summaryTitle, modeLabel(reportQuery.data.mode)],
+        ['overview', 'status', sessionQuery.data.status, reportState(sessionQuery.data, reportQuery.data).label],
+        ...reportQuery.data.highlights.map((item) => [
+          'highlight',
+          item.label,
+          item.value,
+          item.detail,
+        ]),
+        ...reportQuery.data.calculations.map((item) => [
+          'calculation',
+          item.taskType,
+          item.result,
+          item.formulaExpression,
+        ]),
+      ],
+    })
+  }
+
+  if (sessionQuery.isError || reportQuery.isError) {
     return (
-      <Card className="space-y-3 p-6 text-sm text-text-secondary">
-        <p className="text-base font-semibold text-text-primary">{isZh ? '结果页暂时无法读取' : 'The result page is temporarily unavailable'}</p>
-        <p>{isZh ? '报告可能包含旧格式数据，或后端返回了错误；现在会展示可恢复状态，而不是整页崩溃。' : 'The report may contain older payloads or the backend returned an error, so a recoverable state is shown instead of crashing.'}</p>
-        <p className="text-xs text-text-muted">{errorMessage(sessionQuery.error ?? reportQuery.error)}</p>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => void sessionQuery.refetch()}>{isZh ? '重试会话' : 'Retry session'}</Button>
-          <Button variant="secondary" onClick={() => void reportQuery.refetch()}>{isZh ? '重试报告' : 'Retry report'}</Button>
-          <Button onClick={() => void navigate('/resources/analyses')}>{isZh ? '返回历史记录' : 'Back to history'}</Button>
-        </div>
-      </Card>
+      <ErrorState
+        title="Could not load the report"
+        description={
+          (sessionQuery.error as Error | undefined)?.message ??
+          (reportQuery.error as Error | undefined)?.message ??
+          'The report view is unavailable.'
+        }
+        action={
+          <Button
+            variant="secondary"
+            onClick={() => {
+              void sessionQuery.refetch()
+              void reportQuery.refetch()
+            }}
+          >
+            Retry
+          </Button>
+        }
+      />
     )
   }
 
-  if (!session || !report) {
-    return <Card className="p-6 text-sm text-text-secondary">{isZh ? '正在准备结果页...' : 'Preparing the result page...'}</Card>
+  if (sessionQuery.isLoading || reportQuery.isLoading || !sessionQuery.data || !reportQuery.data) {
+    return (
+      <LoadingState
+        title="Loading report"
+        description="Preparing the structured recommendation, calculations, charts, and evidence references."
+      />
+    )
   }
 
+  const session = sessionQuery.data
+  const report = reportQuery.data
+  const confidence = sessionConfidence(session, report)
+  const state = reportState(session, report)
+  const evidenceStale = report.evidence.some(
+    (item) => item.freshness?.bucket === 'stale',
+  )
+  const executiveSummary = extractExecutiveSummary(report.markdown)
+  const recommendationLine =
+    report.highlights[0]?.detail ?? session.lastInsight ?? executiveSummary
+
+  const costRows =
+    report.budgetItems?.map((item) => ({
+      label: item.name,
+      range: `${item.low} - ${item.high} ${item.currency}`,
+      base: `${item.base} ${item.currency}`,
+      note: item.rationale ?? 'No note provided.',
+      confidence: item.confidence,
+      type: item.itemType,
+    })) ?? []
+
+  const scenarioRows =
+    report.budgetSummary != null
+      ? [
+          {
+            label: 'Best case',
+            value: `${report.budgetSummary.netLow} ${report.budgetSummary.currency}`,
+            detail: 'Lower end of the estimated range if key assumptions land favorably.',
+          },
+          {
+            label: 'Likely case',
+            value: `${report.budgetSummary.netBase} ${report.budgetSummary.currency}`,
+            detail: 'Base-case range used for the default recommendation.',
+          },
+          {
+            label: 'Worst case',
+            value: `${report.budgetSummary.netHigh} ${report.budgetSummary.currency}`,
+            detail: 'Upper-cost range when adverse assumptions show up together.',
+          },
+        ]
+      : report.optionProfiles?.slice(0, 3).map((option) => ({
+          label: option.name,
+          value: option.estimatedCostBase
+            ? `${option.estimatedCostBase} ${option.currency}`
+            : 'Range unavailable',
+          detail: option.summary,
+        })) ?? []
+
   return (
-    <div className="space-y-6" data-testid="report-page">
-      <PageHeader
-        eyebrow={isZh ? '页面 3 / RWA 报告' : 'Page 3 / RWA Report'}
-        title={report.summaryTitle}
-        description={isZh ? '汇总分析、证据、链上上下文与执行路径，并把无效计算隔离展示。' : 'Analysis, evidence, on-chain context, execution path, and isolated invalid calculations.'}
-        actions={
-          <>
-            <Button variant="secondary" onClick={() => void navigate(`/analysis/session/${sessionId}`)}>{isZh ? '返回分析页' : 'Back to Analysis'}</Button>
-            <Button variant="secondary" onClick={() => void reanalysisMutation.mutateAsync()} disabled={reanalysisMutation.isPending}>
-              {isZh ? '重新分析并看差异' : 'Re-analyze and diff'}
-            </Button>
-            <Button variant="secondary" onClick={() => void handleExport('csv')} disabled={exporting !== null}>{isZh ? '导出 CSV' : 'Export CSV'}</Button>
-            <Button variant="secondary" onClick={() => void handleExport('pdf')} disabled={exporting !== null}>{isZh ? '导出 PDF' : 'Export PDF'}</Button>
-            {report.attestationDraft ? <Button onClick={() => void navigate(`/analysis/session/${sessionId}/execute`)}>{isZh ? '打开执行控制台' : 'Open Execution Console'}</Button> : null}
-          </>
-        }
-      />
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_260px]">
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow="Report detail"
+          title={report.summaryTitle}
+          description="This report is designed as decision support. Facts, estimates, inferences, and unknowns remain visibly separated."
+          actions={
+            <>
+              <Button variant="secondary" onClick={() => void navigate(`/sessions/${resolvedId}`)}>
+                Open session
+              </Button>
+              <Button variant="secondary" onClick={() => void reanalyzeMutation.mutateAsync()}>
+                <RefreshCw className="size-4" />
+                Re-open clarification
+              </Button>
+              <Button variant="secondary" onClick={() => void handleExport()}>
+                <FileDown className="size-4" />
+                Export
+              </Button>
+              <Button variant="secondary" onClick={() => void handleCopyLink()}>
+                <Copy className="size-4" />
+                Copy link
+              </Button>
+              <Button onClick={() => void handleShare()}>
+                <Share2 className="size-4" />
+                Share report
+              </Button>
+            </>
+          }
+        />
 
-      {reanalysisMutation.isError ? (
-        <Card className="p-4 text-sm text-[#f7d4cf]">
-          {errorMessage(reanalysisMutation.error)}
-        </Card>
-      ) : null}
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {report.highlights.map((highlight) => (
-          <Card key={highlight.id} className="p-5">
-            <p className="text-sm text-text-secondary">{highlight.label}</p>
-            <p className="mt-3 text-3xl font-semibold text-text-primary">{highlight.value}</p>
-            <p className="mt-3 text-sm leading-7 text-text-secondary">{highlight.detail}</p>
-          </Card>
-        ))}
-      </div>
-
-      <Suspense fallback={<InlineSectionFallback lines={3} />}>
-        <ReanalysisDiffCard diff={report.reanalysisDiff} locale={locale} />
-      </Suspense>
-
-      {report.confidenceBand || report.reserveBackingSummary || typeof report.oracleStressScore === 'number' || (report.sourceProvenanceRefs ?? []).length ? (
-        <div className="grid gap-4 xl:grid-cols-[1.02fr_0.98fr]">
-          <Card className="space-y-4 p-6">
-            <div className="flex items-center gap-3">
-              <ShieldCheck className="size-5 text-gold-primary" />
-              <h2 className="text-lg font-semibold text-text-primary">{isZh ? '精算信号' : 'Actuarial Signals'}</h2>
+        <Card className="space-y-5 overflow-hidden p-6 md:p-7">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={state.tone}>{state.label}</Badge>
+                <Badge tone="neutral">{modeLabel(report.mode)}</Badge>
+                <StatusBadge status={session.status} />
+                <ConfidenceBadge confidence={confidence} />
+              </div>
+              <h2 className="max-w-4xl text-[2rem] font-semibold leading-[0.96] tracking-[-0.05em] text-text-primary">
+                {executiveSummary}
+              </h2>
+              <p className="max-w-3xl text-sm leading-7 text-text-secondary">
+                {recommendationLine}
+              </p>
             </div>
-
-            {report.confidenceBand ? (
-              <div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-medium text-text-primary">{report.confidenceBand.label}</p>
-                  <Badge tone="gold">{Math.round(report.confidenceBand.confidenceLevel * 100)}%</Badge>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {report.highlights.slice(0, 4).map((item) => (
+                <div key={item.id} className="rounded-[20px] bg-app-bg-elevated p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                    {item.label}
+                  </p>
+                  <p className="mt-2 text-base font-semibold text-text-primary">{item.value}</p>
+                  <p className="mt-2 text-sm leading-6 text-text-secondary">{item.detail}</p>
                 </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  <div>
-                    <p className="text-xs text-text-muted">{isZh ? '低位' : 'Low'}</p>
-                    <p className="mt-1 text-lg font-semibold text-text-primary">{pct(report.confidenceBand.low, locale)}{report.confidenceBand.unit}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-text-muted">{isZh ? '基准' : 'Base'}</p>
-                    <p className="mt-1 text-lg font-semibold text-text-primary">{pct(report.confidenceBand.base, locale)}{report.confidenceBand.unit}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-text-muted">{isZh ? '高位' : 'High'}</p>
-                    <p className="mt-1 text-lg font-semibold text-text-primary">{pct(report.confidenceBand.high, locale)}{report.confidenceBand.unit}</p>
-                  </div>
-                </div>
-                {report.confidenceBand.note ? <p className="mt-3 text-sm leading-7 text-text-secondary">{report.confidenceBand.note}</p> : null}
-              </div>
-            ) : null}
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4">
-                <p className="text-xs text-text-muted">{isZh ? '预言机压力分' : 'Oracle stress score'}</p>
-                <p className="mt-2 text-lg font-semibold text-text-primary">
-                  {typeof report.oracleStressScore === 'number' ? `${report.oracleStressScore.toFixed(1)} / 100` : '--'}
-                </p>
-              </div>
-              <div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4">
-                <p className="text-xs text-text-muted">{isZh ? '来源引用数' : 'Provenance refs'}</p>
-                <p className="mt-2 text-lg font-semibold text-text-primary">{(report.sourceProvenanceRefs ?? []).length}</p>
-              </div>
+              ))}
             </div>
-
-            {report.reserveBackingSummary ? (
-              <div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-text-primary">{report.reserveBackingSummary.title}</p>
-                    <p className="mt-2 text-sm leading-7 text-text-secondary">{report.reserveBackingSummary.summary}</p>
-                  </div>
-                  <Badge tone="neutral">{report.reserveBackingSummary.attestationStatus}</Badge>
-                </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <div>
-                    <p className="text-xs text-text-muted">{isZh ? '储备质量分' : 'Reserve quality'}</p>
-                    <p className="mt-1 text-text-primary">{report.reserveBackingSummary.reserveQualityScore.toFixed(1)} / 100</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-text-muted">{isZh ? '覆盖资产' : 'Covered assets'}</p>
-                    <p className="mt-1 text-text-primary">{report.reserveBackingSummary.assetSymbols.join(', ') || '--'}</p>
-                  </div>
-                </div>
-                {report.reserveBackingSummary.liquidityNotice ? <p className="mt-3 text-xs text-text-muted">{report.reserveBackingSummary.liquidityNotice}</p> : null}
-                {report.reserveBackingSummary.sourceProvenanceRefs.length ? <p className="mt-2 text-xs text-text-muted">{isZh ? '引用' : 'References'}: {report.reserveBackingSummary.sourceProvenanceRefs.join(', ')}</p> : null}
-              </div>
-            ) : null}
-          </Card>
-
-          <Card className="space-y-4 p-6">
-            <div className="flex items-center gap-3">
-              <ScrollText className="size-5 text-gold-primary" />
-              <h2 className="text-lg font-semibold text-text-primary">{isZh ? '来源锚点' : 'Source Provenance'}</h2>
-            </div>
-            {(report.sourceProvenanceRefs ?? []).length ? (
-              (report.sourceProvenanceRefs ?? []).map((source) => (
-                <div key={source.refId} className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium text-text-primary">{source.title}</p>
-                      <p className="mt-1 text-xs text-text-muted">{source.sourceName} · {source.sourceTier} · {source.sourceKind}</p>
-                    </div>
-                    <a href={source.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 text-xs text-gold-ink underline-offset-4 hover:underline">
-                      <ExternalLink className="size-3.5" />
-                      {isZh ? '打开' : 'Open'}
-                    </a>
-                  </div>
-                  <p className="mt-3 text-sm leading-7 text-text-secondary">{source.verifiedSummary}</p>
-                  {source.freshnessDate ? <p className="mt-2 text-xs text-text-muted">{isZh ? '日期' : 'Date'}: {source.freshnessDate}</p> : null}
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-text-secondary">{isZh ? '当前报告还没有结构化来源锚点。' : 'No structured provenance references are attached to this report yet.'}</p>
-            )}
-          </Card>
-        </div>
-      ) : null}
-
-      {(report.stressScenarios ?? []).length ? (
-        <Card className="space-y-4 p-6">
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="size-5 text-gold-primary" />
-            <h2 className="text-lg font-semibold text-text-primary">{isZh ? '压力情景' : 'Stress Scenarios'}</h2>
           </div>
-          <div className="grid gap-4 xl:grid-cols-2">
-            {(report.stressScenarios ?? []).map((scenario) => (
-              <div key={scenario.scenarioKey} className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-medium text-text-primary">{scenario.title}</p>
-                  <Badge tone={stressTone(scenario.severity)}>{scenario.severity}</Badge>
-                </div>
-                <p className="mt-3 text-sm leading-7 text-text-secondary">{scenario.narrative}</p>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <div>
-                    <p className="text-xs text-text-muted">{isZh ? '组合影响' : 'Portfolio impact'}</p>
-                    <p className="mt-1 text-text-primary">{pct(scenario.portfolioImpactPct, locale)}%</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-text-muted">{isZh ? '流动性拖延' : 'Liquidity delay'}</p>
-                    <p className="mt-1 text-text-primary">{pct(scenario.liquidityImpactDays, locale)} {isZh ? '天' : 'days'}</p>
-                  </div>
-                </div>
-                {scenario.affectedAssetIds.length ? <p className="mt-3 text-xs text-text-muted">{isZh ? '影响资产' : 'Affected assets'}: {scenario.affectedAssetIds.join(', ')}</p> : null}
-                {scenario.sourceProvenanceRefs.length ? <p className="mt-2 text-xs text-text-muted">{isZh ? '引用' : 'References'}: {scenario.sourceProvenanceRefs.join(', ')}</p> : null}
+
+          {evidenceStale ? (
+            <div className="flex items-start gap-2 rounded-[20px] border border-[rgba(185,115,44,0.2)] bg-[rgba(185,115,44,0.08)] px-4 py-3 text-sm leading-6 text-warning">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              <span>
+                Some evidence may be out of date. Review freshness before treating the
+                recommendation as current.
+              </span>
+            </div>
+          ) : null}
+        </Card>
+
+        <ReportSection
+          id="summary"
+          title="Executive summary"
+          description="A concise view of what the system currently recommends and why."
+        >
+          <p className="text-sm leading-7 text-text-secondary">{executiveSummary}</p>
+          <PreviewNote>
+            This report supports a decision. It does not claim certainty, and it does not replace professional advice.
+          </PreviewNote>
+        </ReportSection>
+
+        <ReportSection
+          id="goal"
+          title="Decision goal"
+          description="The problem definition remains explicit so the recommendation can be audited against the original question."
+        >
+          <div className="space-y-3">
+            <div className="rounded-[20px] bg-app-bg-elevated p-4 text-sm leading-7 text-text-primary">
+              {session.problemStatement}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge tone="neutral">{modeLabel(report.mode)}</Badge>
+              <Badge tone="info">Last updated {new Date(session.updatedAt).toLocaleDateString()}</Badge>
+            </div>
+          </div>
+        </ReportSection>
+
+        <ReportSection
+          id="assumptions"
+          title="Key assumptions"
+          description="Assumptions remain visible because they are not confirmed facts."
+        >
+          <div className="space-y-3">
+            {report.assumptions.map((item) => (
+              <div key={item} className="rounded-[20px] bg-app-bg-elevated px-4 py-3 text-sm leading-6 text-text-secondary">
+                {item}
               </div>
             ))}
           </div>
-        </Card>
-      ) : null}
+        </ReportSection>
 
-      <div className="grid gap-4 xl:grid-cols-[1.02fr_0.98fr]">
-        <div className="space-y-4">
-          {report.chainConfig ? <Card className="space-y-4 p-5"><div className="flex items-center gap-3"><Blocks className="size-5 text-gold-primary" /><h2 className="text-lg font-semibold text-text-primary">{isZh ? 'HashKey 链配置' : 'HashKey Chain Config'}</h2></div><div className="grid gap-3 md:grid-cols-2"><div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4"><p className="text-xs text-text-muted">Mainnet</p><p className="mt-2 text-text-primary">{report.chainConfig.mainnetChainId}</p></div><div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4"><p className="text-xs text-text-muted">Testnet</p><p className="mt-2 text-text-primary">{report.chainConfig.testnetChainId}</p></div><div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4"><p className="text-xs text-text-muted">Plan Registry</p><p className="mt-2 break-all text-sm text-text-primary">{report.attestationDraft?.contractAddress || report.chainConfig.planRegistryAddress || '--'}</p></div><div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4"><p className="text-xs text-text-muted">Created</p><p className="mt-2 text-sm text-text-primary">{report.attestationDraft ? formatDateTime(report.attestationDraft.createdAt, locale) : '--'}</p></div></div></Card> : null}
-
-          <Card className="space-y-4 p-5">
-            <div className="flex items-center gap-3"><WalletCards className="size-5 text-gold-primary" /><h2 className="text-lg font-semibold text-text-primary">{isZh ? '钱包与执行入口' : 'Wallet and Execution'}</h2></div>
-            <div className="flex flex-wrap gap-2">
-              {wallet.isConnected ? <Button variant="secondary" onClick={() => wallet.disconnectWallet()} disabled={wallet.isWalletBusy}>{isZh ? '断开连接' : 'Disconnect'}</Button> : <Button onClick={() => void wallet.connectWallet()} disabled={!wallet.hasProvider || wallet.isWalletBusy}><Cable className="size-4" />{isZh ? '连接钱包' : 'Connect Wallet'}</Button>}
-              <Button variant="secondary" onClick={() => void wallet.switchNetwork('testnet')} disabled={!wallet.hasProvider || wallet.isWalletBusy}>{isZh ? '切到 Testnet' : 'Switch Testnet'}</Button>
-              <Button variant="secondary" onClick={() => void wallet.switchNetwork('mainnet')} disabled={!wallet.hasProvider || wallet.isWalletBusy}>{isZh ? '切到 Mainnet' : 'Switch Mainnet'}</Button>
-              {report.attestationDraft ? <Button onClick={() => void navigate(`/analysis/session/${sessionId}/execute`)}><Radio className="size-4" />{isZh ? '执行存证' : 'Execute Attestation'}</Button> : null}
-            </div>
-            <div className="grid gap-3 md:grid-cols-3"><div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4"><p className="text-xs text-text-muted">{isZh ? '钱包' : 'Wallet'}</p><p className="mt-2 break-all text-sm text-text-primary">{wallet.walletAddress || (isZh ? '未连接' : 'Not connected')}</p></div><div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4"><p className="text-xs text-text-muted">{isZh ? '网络' : 'Network'}</p><p className="mt-2 text-sm text-text-primary">{wallet.networkLabel}</p></div><div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4"><p className="text-xs text-text-muted">{isZh ? '实时 KYC' : 'Live KYC'}</p><p className="mt-2 text-sm text-text-primary">{wallet.kycSnapshot ? `${wallet.kycSnapshot.status} / L${wallet.kycSnapshot.level}` : (isZh ? '未连接' : 'Unavailable')}</p><p className="mt-2 text-xs text-text-muted">{wallet.kycSnapshot?.note || (wallet.kycError ? errorMessage(wallet.kycError) : '')}</p></div></div>
-          </Card>
-
-          {report.kycSnapshot ? <KycSnapshotSection kyc={report.kycSnapshot} locale={locale} /> : null}
-          {txReceipt ? <TxReceiptSection receipt={txReceipt} locale={locale} /> : null}
-        </div>
-
-        <div className="space-y-4">
-          <OracleSnapshotSection snapshots={latestSnapshots} locale={locale} />
-          {marketQuery.error ? <Card className="p-4 text-sm text-[#f3ddbb]">{isZh ? '实时刷新失败，当前展示报告快照。' : 'Live refresh failed, showing the report snapshot.'}<span className="ml-2 text-text-muted">{errorMessage(marketQuery.error)}</span></Card> : null}
-        </div>
-      </div>
-
-      {report.assetCards.length ? <div className="space-y-4"><div className="flex items-center gap-3"><ShieldCheck className="size-5 text-gold-primary" /><h2 className="text-xl font-semibold text-text-primary">{isZh ? '资产卡片' : 'Asset Cards'}</h2></div><div className="grid gap-4 xl:grid-cols-3">{report.assetCards.map((asset) => { const topRisk = [...asset.riskBreakdown].sort((left, right) => right.normalizedScore * right.weight - left.normalizedScore * left.weight)[0]; return <Card key={asset.assetId} className="space-y-4 p-5"><div className="flex items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold text-text-primary">{asset.name}</h3><Badge tone="neutral">{asset.symbol}</Badge>{(asset.statuses ?? []).map((status) => <Badge key={`${asset.assetId}-${status}`} tone={status === 'verified' ? 'success' : status === 'demo' ? 'warning' : 'neutral'}>{status}</Badge>)}</div><p className="mt-2 text-sm leading-7 text-text-secondary">{asset.fitSummary}</p>{asset.statusExplanation ? <p className="mt-2 text-xs leading-6 text-text-muted">{asset.statusExplanation}</p> : null}</div><div className="flex flex-col items-end gap-2"><Badge tone="gold">{assetTypeLabel(asset.assetType, isZh)}</Badge>{asset.truthLevel ? <Badge tone={asset.truthLevel === 'onchain_verified' ? 'success' : asset.truthLevel === 'demo_only' ? 'warning' : 'neutral'}>{asset.truthLevel}</Badge> : null}{asset.liveReadiness ? <Badge tone={asset.liveReadiness === 'ready' ? 'success' : asset.liveReadiness === 'partial' ? 'warning' : 'danger'}>{asset.liveReadiness}</Badge> : null}</div></div><div className="grid gap-3 md:grid-cols-2"><div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4"><p className="text-xs text-text-muted">{isZh ? '基准年化' : 'Base annualized'}</p><p className="mt-2 text-text-primary">{pct(asset.expectedReturnBase * 100, locale)}%</p></div><div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4"><p className="text-xs text-text-muted">{isZh ? '综合风险' : 'Overall risk'}</p><p className="mt-2 text-text-primary">{asset.riskVector.overall.toFixed(1)} / 100</p></div><div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4"><p className="text-xs text-text-muted">{isZh ? '最早退出' : 'Earliest exit'}</p><p className="mt-2 text-text-primary">{asset.exitDays === 0 ? 'T+0' : `T+${asset.exitDays}`}</p></div><div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4"><p className="text-xs text-text-muted">{isZh ? '数据质量' : 'Data quality'}</p><p className="mt-2 text-text-primary">{asset.riskDataQuality.toFixed(2)}</p></div></div>{topRisk ? <div className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4 text-sm text-text-secondary"><div className="flex items-center justify-between gap-3 text-text-primary"><span>{topRisk.dimension}</span><span>{topRisk.normalizedScore.toFixed(1)} / 100</span></div><p className="mt-2 text-xs text-text-muted">{isZh ? '权重' : 'Weight'} {(topRisk.weight * 100).toFixed(1)}%{topRisk.note ? ` · ${topRisk.note}` : ''}</p></div> : null}</Card> })}</div></div> : null}
-
-      <Suspense fallback={<InlineSectionFallback lines={3} />}>
-        <ComparisonMatrix matrix={report.comparisonMatrix} locale={locale} />
-      </Suspense>
-
-      {report.tables?.map((table) => <ReportTableCard key={table.id} table={table} />)}
-      {report.charts.length ? (
-        <Suspense fallback={<InlineSectionFallback lines={4} />}>
-          {report.charts.map((chart) => <ChartCard key={chart.id} chart={chart} />)}
-        </Suspense>
-      ) : null}
-
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-4">
-          <Card className="space-y-4 p-6"><div className="flex items-center gap-3"><ScrollText className="size-5 text-gold-primary" /><h2 className="text-xl font-semibold text-text-primary">{isZh ? '完整分析' : 'Full Analysis'}</h2></div><Suspense fallback={<InlineSectionFallback lines={6} />}><ReportMarkdown markdown={report.markdown} /></Suspense></Card>
-          <Suspense fallback={<InlineSectionFallback lines={4} />}>
-            <AssumptionsAndUnknownsPanel assumptions={[...(report.assumptions ?? []), ...(report.disclaimers ?? [])]} unknowns={report.unknowns ?? []} warnings={report.warnings ?? []} locale={locale} />
-          </Suspense>
-          {(report.methodologyReferences ?? []).length ? <Card className="space-y-4 p-6"><h2 className="text-lg font-semibold text-text-primary">{isZh ? '风险方法学' : 'Risk Methodology'}</h2>{(report.methodologyReferences ?? []).map((item) => <div key={item.key} className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-medium text-text-primary">{item.title}</p><p className="mt-2 text-sm leading-7 text-text-secondary">{item.summary}</p></div><a href={item.url} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 text-xs text-gold-ink underline-offset-4 hover:underline"><ExternalLink className="size-3.5" />{isZh ? '文献' : 'Source'}</a></div></div>)}</Card> : null}
-        </div>
-
-        <div className="space-y-4">
-          {report.recommendedAllocations.length ? <Card className="space-y-4 p-6"><div className="flex items-center gap-3"><WalletCards className="size-5 text-gold-primary" /><h2 className="text-lg font-semibold text-text-primary">{isZh ? '建议权重' : 'Suggested Weights'}</h2></div>{report.recommendedAllocations.map((allocation) => <div key={allocation.assetId} className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4"><div className="flex items-center justify-between gap-3"><p className="font-medium text-text-primary">{allocation.assetName}</p><Badge tone={allocation.blockedReason ? 'warning' : 'gold'}>{allocation.targetWeightPct.toFixed(1)}%</Badge></div><p className="mt-2 text-sm leading-7 text-text-secondary">{allocation.rationale}</p><p className="mt-2 text-xs text-text-muted">{isZh ? '建议金额' : 'Suggested amount'}: {money(allocation.suggestedAmount, session.intakeContext.baseCurrency, locale)}</p>{allocation.blockedReason ? <p className="mt-2 text-xs text-[#f3ddbb]">{allocation.blockedReason}</p> : null}</div>)}</Card> : null}
-          <Suspense fallback={<InlineSectionFallback lines={3} />}>
-            <RecommendationDrivers reason={report.recommendationReason} locale={locale} />
-          </Suspense>
-          <Suspense fallback={<InlineSectionFallback lines={3} />}>
-            <NextStepPanel intents={report.actionIntents ?? []} locale={locale} />
-          </Suspense>
-          <Card className="space-y-4 p-6"><h2 className="text-lg font-semibold text-text-primary">{isZh ? '证据面板' : 'Evidence Panel'}</h2><EvidencePanelEnhanced evidence={report.evidence} governance={report.evidenceGovernance} locale={locale} /></Card>
-          <div className="grid gap-4 xl:grid-cols-2">
-            <Card className="space-y-4 p-6"><h2 className="text-lg font-semibold text-text-primary">{isZh ? '有效计算' : 'Validated Calculations'}</h2>{report.calculations.length ? report.calculations.map((calculation) => <div key={calculation.id} className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4"><div className="flex items-center justify-between gap-3"><p className="font-medium text-text-primary">{calculation.taskType}</p><Badge tone="neutral">{calculation.validationState || 'validated'}</Badge></div><p className="mt-2 text-sm text-gold-ink">{calculation.result} {calculation.units}</p><p className="mt-2 break-all text-sm leading-7 text-text-secondary">{calculation.formulaExpression}</p></div>) : <p className="text-sm text-text-secondary">{isZh ? '当前报告没有可展示的有效计算。' : 'No validated calculations are visible for this report.'}</p>}</Card>
-            <Card className="space-y-4 p-6"><h2 className="text-lg font-semibold text-text-primary">{isZh ? '失败 / 拒绝计算' : 'Failed / Rejected Calculations'}</h2>{hiddenCalculations.length ? <details className="rounded-xl border border-border-subtle bg-app-bg-elevated p-4"><summary className="cursor-pointer text-sm text-text-primary">{isZh ? `展开查看 ${hiddenCalculations.length} 条被隔离的旧任务` : `Show ${hiddenCalculations.length} isolated legacy tasks`}</summary><div className="mt-4 space-y-3">{hiddenCalculations.map((calculation) => <div key={calculation.id} className="rounded-xl border border-border-subtle bg-app-bg p-4"><div className="flex items-center justify-between gap-3"><p className="font-medium text-text-primary">{calculation.taskType}</p><Badge tone="warning">{calculation.status || calculation.validationState || 'failed'}</Badge></div><p className="mt-2 break-all text-sm text-text-secondary">{calculation.formulaExpression}</p><p className="mt-2 text-xs leading-6 text-[#f3ddbb]">{calculation.failureReason || calculation.notes || (isZh ? '该任务未通过校验。' : 'This task did not pass validation.')}</p></div>)}</div></details> : <p className="text-sm text-text-secondary">{isZh ? '当前没有需要隔离展示的失败计算。' : 'There are no isolated failed calculations in this session.'}</p>}</Card>
+        <ReportSection
+          id="facts"
+          title="Confirmed facts"
+          description="These facts come from source summaries and stay separate from estimates or inferences."
+        >
+          <div className="space-y-3">
+            {report.evidence.flatMap((item) =>
+              item.extractedFacts.slice(0, 2).map((fact) => (
+                <div key={`${item.id}-${fact}`} className="rounded-[20px] bg-app-bg-elevated px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone="info">Fact</Badge>
+                    <Badge tone="neutral">{item.sourceName}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-text-primary">{fact}</p>
+                </div>
+              )),
+            )}
           </div>
-        </div>
+        </ReportSection>
+
+        <ReportSection
+          id="costs"
+          title="Cost breakdown"
+          description="Direct costs, hidden costs, and buffers should be readable without digging through prose."
+        >
+          {costRows.length ? (
+            <div className="space-y-3">
+              {costRows.map((row) => (
+                <div key={row.label} className="rounded-[20px] bg-app-bg-elevated p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone="neutral">{row.type.replace(/_/g, ' ')}</Badge>
+                        <ConfidenceBadge confidence={row.confidence} />
+                      </div>
+                      <p className="mt-2 font-semibold text-text-primary">{row.label}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="mono text-base font-semibold text-text-primary">{row.base}</p>
+                      <p className="text-sm text-text-secondary">{row.range}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-text-secondary">{row.note}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="No explicit cost breakdown"
+              description="This report does not currently expose structured cost items."
+            />
+          )}
+        </ReportSection>
+
+        <ReportSection
+          id="risks"
+          title="Risk breakdown"
+          description="Warnings and conclusion-level inferences remain visible instead of being hidden inside summary text."
+        >
+          <div className="space-y-3">
+            {(report.warnings ?? []).map((warning) => (
+              <div key={warning} className="rounded-[20px] border border-[rgba(185,115,44,0.2)] bg-[rgba(185,115,44,0.08)] px-4 py-3 text-sm leading-6 text-warning">
+                {warning}
+              </div>
+            ))}
+            {session.conclusions.map((item) => (
+              <div key={item.id} className="rounded-[20px] bg-app-bg-elevated p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={item.conclusionType === 'fact' ? 'info' : 'warning'}>
+                    {item.conclusionType}
+                  </Badge>
+                  <ConfidenceBadge confidence={item.confidence} />
+                </div>
+                <p className="mt-2 text-sm leading-6 text-text-primary">{item.conclusion}</p>
+              </div>
+            ))}
+          </div>
+        </ReportSection>
+
+        <ReportSection
+          id="options"
+          title="Option comparison"
+          description="Only shown when the report includes more than one viable path."
+        >
+          {report.optionProfiles?.length ? (
+            <div className="space-y-4">
+              {report.optionProfiles.map((option) => (
+                <div key={option.id} className="rounded-[22px] bg-app-bg-elevated p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-base font-semibold text-text-primary">{option.name}</p>
+                      <p className="mt-1 text-sm leading-6 text-text-secondary">
+                        {option.summary}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <ConfidenceBadge confidence={option.confidence} />
+                      <p className="mono mt-2 text-sm text-text-secondary">
+                        {option.estimatedCostBase} {option.currency}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                        Pros
+                      </p>
+                      <ul className="mt-2 space-y-1.5 text-sm leading-6 text-text-secondary">
+                        {option.pros.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                        Cons
+                      </p>
+                      <ul className="mt-2 space-y-1.5 text-sm leading-6 text-text-secondary">
+                        {option.cons.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                        Conditions
+                      </p>
+                      <ul className="mt-2 space-y-1.5 text-sm leading-6 text-text-secondary">
+                        {option.conditions.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                        Caution flags
+                      </p>
+                      <ul className="mt-2 space-y-1.5 text-sm leading-6 text-text-secondary">
+                        {option.cautionFlags.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="Single-path report"
+              description="This report analyzes one main decision path rather than comparing several options."
+            />
+          )}
+        </ReportSection>
+
+        <ReportSection
+          id="scenarios"
+          title="Best / likely / worst case"
+          description="Scenario framing prevents a single base-case number from looking more certain than it is."
+        >
+          <div className="grid gap-4 md:grid-cols-3">
+            {scenarioRows.map((item) => (
+              <div key={item.label} className="rounded-[22px] bg-app-bg-elevated p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                  {item.label}
+                </p>
+                <p className="mono mt-2 text-lg font-semibold text-text-primary">
+                  {item.value}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-text-secondary">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        </ReportSection>
+
+        <ReportSection
+          id="calculations"
+          title="Key calculations"
+          description="Calculations stay separate from narrative so users can inspect formulas and parameters directly."
+        >
+          {report.calculations.length ? (
+            <div className="space-y-4">
+              {report.calculations.map((item) => (
+                <CalculationCard
+                  key={item.id}
+                  task={item}
+                  sessionTitle={report.summaryTitle}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="No calculations available"
+              description="This report does not currently expose deterministic calculations."
+            />
+          )}
+        </ReportSection>
+
+        <ReportSection
+          id="charts"
+          title="Charts"
+          description="Charts require titles, units, and source or estimate context. If data is incomplete, the empty state stays visible."
+        >
+          {report.charts.length ? (
+            <div className="space-y-4">
+              {report.charts.map((chart) => (
+                <ChartCard key={chart.id} chart={chart} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="No charts available"
+              description="There was not enough data to render a reliable chart for this report."
+            />
+          )}
+        </ReportSection>
+
+        <ReportSection
+          id="evidence"
+          title="Evidence references"
+          description="Sources and freshness stay visible near the final recommendation."
+        >
+          {report.evidence.length ? (
+            <div className="space-y-4">
+              {report.evidence.map((item) => (
+                <SourceCard
+                  key={item.id}
+                  item={item}
+                  linkedConclusionCount={session.conclusions.filter((conclusion) =>
+                    conclusion.basisRefs.includes(item.id),
+                  ).length}
+                  sessionTitle={session.problemStatement}
+                  onOpen={() => window.open(item.sourceUrl, '_blank', 'noopener,noreferrer')}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="No evidence references"
+              description="This report does not currently expose source references."
+            />
+          )}
+        </ReportSection>
+
+        <ReportSection
+          id="unknowns"
+          title="Unknowns and unresolved uncertainties"
+          description="Unknowns should be readable before the user acts on the recommendation."
+        >
+          {(report.unknowns ?? []).length ? (
+            <div className="space-y-3">
+              {(report.unknowns ?? []).map((item) => (
+                <div key={item} className="rounded-[20px] bg-app-bg-elevated px-4 py-3 text-sm leading-6 text-text-secondary">
+                  {item}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="No unknowns listed"
+              description="This report does not currently expose an explicit unknowns section."
+            />
+          )}
+        </ReportSection>
+
+        <ReportSection
+          id="recommendation"
+          title="Recommendation"
+          description="Recommendation direction is structured, bounded, and tied back to visible assumptions and uncertainty."
+        >
+          <div className="space-y-4">
+            <div className="rounded-[22px] bg-brand-soft p-5">
+              <p className="text-base font-semibold text-text-primary">{recommendationLine}</p>
+              <p className="mt-2 text-sm leading-6 text-text-secondary">
+                Recommendation confidence: {typeof confidence === 'number' ? `${Math.round(confidence * 100)}%` : 'not available yet'}
+              </p>
+            </div>
+            <div className="rounded-[20px] bg-app-bg-elevated p-4 text-sm leading-7 text-text-secondary">
+              {report.markdown.replace(/^#.*$/gm, '').trim()}
+            </div>
+          </div>
+        </ReportSection>
+
+        <ReportSection
+          id="boundary"
+          title="Boundary note"
+          description="This section makes the product boundary explicit."
+        >
+          <div className="space-y-3">
+            {report.disclaimers.map((item) => (
+              <div key={item} className="rounded-[20px] border border-border-subtle bg-app-bg-elevated px-4 py-3 text-sm leading-6 text-text-secondary">
+                {item}
+              </div>
+            ))}
+            <PreviewNote>
+              This is decision support, not professional advice. Use it to structure a choice, not to outsource responsibility for the choice.
+            </PreviewNote>
+          </div>
+        </ReportSection>
       </div>
+
+      <aside className="hidden xl:block">
+        <div className="panel-card sticky top-6 space-y-4 p-4">
+          <p className="text-sm font-semibold text-text-primary">Report outline</p>
+          <nav className="space-y-1">
+            {reportSections.map((item) => (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                className="interactive-lift block rounded-2xl px-3 py-2 text-sm text-text-secondary hover:bg-app-bg-elevated hover:text-text-primary"
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
+          <a
+            href={report.evidence[0]?.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-gold-primary"
+          >
+            Open first source
+            <ExternalLink className="size-4" />
+          </a>
+        </div>
+      </aside>
     </div>
   )
 }
