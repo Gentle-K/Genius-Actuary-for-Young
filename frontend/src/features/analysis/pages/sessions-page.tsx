@@ -1,6 +1,6 @@
 import { useDeferredValue, useMemo, useState, useTransition } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Trash2, Copy, ArrowRight, FileText } from 'lucide-react'
+import { Copy, ArrowRight, FileText, MoreHorizontal, Sigma, ShieldCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -23,6 +23,29 @@ import {
   sessionConfidence,
   sessionPath,
 } from '@/features/analysis/lib/view-models'
+
+function SessionOverflow({
+  onDelete,
+}: {
+  onDelete: () => void
+}) {
+  return (
+    <details className="relative">
+      <summary className="interactive-lift flex size-9 cursor-pointer list-none items-center justify-center rounded-[14px] border border-border-subtle bg-app-bg-elevated text-text-secondary">
+        <MoreHorizontal className="size-4" />
+      </summary>
+      <div className="absolute right-0 top-11 z-20 min-w-[168px] rounded-[18px] border border-border-subtle bg-panel p-2 shadow-[0_18px_40px_rgba(2,10,24,0.4)]">
+        <button
+          type="button"
+          className="interactive-lift flex w-full items-center rounded-[14px] px-3 py-2 text-left text-sm text-danger hover:bg-[rgba(244,63,94,0.12)]"
+          onClick={onDelete}
+        >
+          Delete session
+        </button>
+      </div>
+    </details>
+  )
+}
 
 export function SessionsPage() {
   const adapter = useApiAdapter()
@@ -119,12 +142,17 @@ export function SessionsPage() {
     toast.success('Session removed from this demo view')
   }
 
+  const calculationCount = (sessionId: string) =>
+    catalogQuery.data?.reportsBySession[sessionId]?.calculations.length ??
+    catalogQuery.data?.sessions.find((item) => item.id === sessionId)?.calculations.length ??
+    0
+
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Sessions"
         title="Analysis sessions"
-        description="Review every decision analysis in one place, continue unfinished work, and compare the recommendation quality across sessions."
+        description="Review every active or completed decision analysis in one place, continue unfinished work, and scan confidence, evidence, and calculation coverage quickly."
         actions={
           <Button onClick={() => void navigate('/new-analysis')}>Start new analysis</Button>
         }
@@ -196,7 +224,7 @@ export function SessionsPage() {
       ) : (
         <>
           <div className="hidden xl:block">
-            <div className="mb-3 grid gap-4 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-text-muted xl:grid-cols-[2.5fr_1.1fr_1.1fr_1fr_2fr_1.4fr_1fr_auto]">
+            <div className="mb-3 grid gap-4 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-text-muted xl:grid-cols-[2.4fr_1fr_1fr_1fr_1.8fr_1.3fr_0.8fr_0.8fr_auto]">
               <span>Session</span>
               <span>Mode</span>
               <span>Status</span>
@@ -204,6 +232,7 @@ export function SessionsPage() {
               <span>Key conclusion</span>
               <span>Confidence</span>
               <span>Evidence</span>
+              <span>Calcs</span>
               <span>Actions</span>
             </div>
             <div className="space-y-3">
@@ -219,27 +248,33 @@ export function SessionsPage() {
                     session,
                     catalogQuery.data?.reportsBySession[session.id],
                   )}
+                  calculationCount={calculationCount(session.id)}
                   onOpen={() => void navigate(sessionPath(session.id))}
                   actions={
                     <>
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => void navigate(continuePath(session))}
+                        onClick={() =>
+                          void navigate(
+                            catalogQuery.data?.reportsBySession[session.id]
+                              ? `/reports/${session.id}`
+                              : continuePath(session),
+                          )
+                        }
                       >
-                        <ArrowRight className="size-4" />
-                        Continue
+                        {catalogQuery.data?.reportsBySession[session.id] ? (
+                          <>
+                            <FileText className="size-4" />
+                            View report
+                          </>
+                        ) : (
+                          <>
+                            <ArrowRight className="size-4" />
+                            Continue
+                          </>
+                        )}
                       </Button>
-                      {catalogQuery.data?.reportsBySession[session.id] ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => void navigate(`/reports/${session.id}`)}
-                        >
-                          <FileText className="size-4" />
-                          View report
-                        </Button>
-                      ) : null}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -253,14 +288,7 @@ export function SessionsPage() {
                         <Copy className="size-4" />
                         Duplicate
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(session.id)}
-                      >
-                        <Trash2 className="size-4" />
-                        Delete
-                      </Button>
+                      <SessionOverflow onDelete={() => handleDelete(session.id)} />
                     </>
                   }
                 />
@@ -277,25 +305,27 @@ export function SessionsPage() {
                   session,
                   catalogQuery.data?.reportsBySession[session.id],
                 )}
+                evidenceCount={uniqueEvidenceCount(
+                  session,
+                  catalogQuery.data?.reportsBySession[session.id],
+                )}
+                calculationCount={calculationCount(session.id)}
                 onOpen={() => void navigate(sessionPath(session.id))}
                 actions={
                   <>
                     <Button
                       size="sm"
                       variant="secondary"
-                      onClick={() => void navigate(continuePath(session))}
+                      onClick={() =>
+                        void navigate(
+                          catalogQuery.data?.reportsBySession[session.id]
+                            ? `/reports/${session.id}`
+                            : continuePath(session),
+                        )
+                      }
                     >
-                      Continue
+                      {catalogQuery.data?.reportsBySession[session.id] ? 'View report' : 'Continue'}
                     </Button>
-                    {catalogQuery.data?.reportsBySession[session.id] ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => void navigate(`/reports/${session.id}`)}
-                      >
-                        View report
-                      </Button>
-                    ) : null}
                     <Button
                       size="sm"
                       variant="ghost"
@@ -308,17 +338,40 @@ export function SessionsPage() {
                     >
                       Duplicate
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDelete(session.id)}
-                    >
-                      Delete
-                    </Button>
+                    <SessionOverflow onDelete={() => handleDelete(session.id)} />
                   </>
                 }
               />
             ))}
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="panel-card rounded-[24px] p-5">
+              <div className="flex items-start gap-3">
+                <div className="rounded-full bg-primary-soft p-3 text-primary">
+                  <ShieldCheck className="size-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-text-primary">Decision signal density</p>
+                  <p className="mt-1 text-sm leading-6 text-text-secondary">
+                    Each session keeps conclusion preview, evidence count, confidence, and calculation coverage in the same scan line.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="panel-card rounded-[24px] p-5">
+              <div className="flex items-start gap-3">
+                <div className="rounded-full bg-[rgba(139,92,246,0.14)] p-3 text-accent-violet">
+                  <Sigma className="size-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-text-primary">Dense catalog, not stacked cards</p>
+                  <p className="mt-1 text-sm leading-6 text-text-secondary">
+                    The table hybrid is tuned for ongoing session management rather than decorative dashboard blocks.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </>
       )}

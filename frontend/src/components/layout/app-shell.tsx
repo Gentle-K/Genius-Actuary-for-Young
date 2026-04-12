@@ -12,14 +12,14 @@ export function AppShell() {
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen)
 
   return (
-    <div className="bg-app-bg text-text-primary min-h-screen">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(164,198,177,0.22),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(143,183,195,0.12),transparent_24%)]" />
+    <div className="min-h-screen bg-bg-page text-text-primary">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.08),transparent_24%),radial-gradient(circle_at_top_right,rgba(79,124,255,0.12),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(139,92,246,0.1),transparent_28%)]" />
 
       {sidebarOpen ? (
         <button
           type="button"
           aria-label="Close navigation"
-          className="fixed inset-0 z-40 bg-[rgba(18,27,21,0.26)] lg:hidden"
+          className="fixed inset-0 z-40 bg-[rgba(2,8,20,0.7)] lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       ) : null}
@@ -36,7 +36,7 @@ export function AppShell() {
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
               className="page-padding relative min-w-0 pb-10"
             >
-              <div className="mx-auto min-w-0 max-w-[1480px]">
+              <div className="mx-auto min-w-0 max-w-[1440px]">
                 <Outlet />
               </div>
             </motion.main>

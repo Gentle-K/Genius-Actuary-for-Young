@@ -16,7 +16,7 @@ import { Check, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
 const baseFieldClassName =
-  'w-full rounded-[18px] border border-border-subtle bg-[rgba(255,255,255,0.74)] px-4 py-3 text-sm text-text-primary outline-none transition placeholder:text-text-muted focus:border-border-strong focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(70,106,84,0.12)] disabled:cursor-not-allowed disabled:opacity-60'
+  'w-full rounded-[18px] border border-border-subtle bg-[rgba(19,34,58,0.92)] px-4 py-3 text-sm text-text-primary outline-none transition placeholder:text-text-muted focus:border-[rgba(107,146,255,0.68)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(79,124,255,0.18)] disabled:cursor-not-allowed disabled:opacity-60'
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   function Input({ className, ...props }, ref) {
@@ -141,7 +141,7 @@ export const Select = forwardRef<HTMLSelectElement, CustomSelectProps>(
           <ChevronDown
             className={cn(
               'pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-text-muted transition-transform',
-              open ? 'rotate-180 text-gold-primary' : '',
+              open ? 'rotate-180 text-primary' : '',
             )}
           />
         </button>
@@ -162,7 +162,7 @@ export const Select = forwardRef<HTMLSelectElement, CustomSelectProps>(
         </select>
 
         {open ? (
-          <div className="absolute z-50 mt-2 w-full rounded-[22px] border border-border-subtle bg-panel p-2 shadow-[0_18px_42px_rgba(27,44,34,0.12)]">
+          <div className="absolute z-50 mt-2 w-full rounded-[22px] border border-border-subtle bg-panel p-2 shadow-[0_18px_42px_rgba(2,10,24,0.36)]">
             <div className="space-y-1" role="listbox" aria-labelledby={id}>
               {options.map((option) => {
                 const isActive = option.value === String(value ?? '')
@@ -180,12 +180,12 @@ export const Select = forwardRef<HTMLSelectElement, CustomSelectProps>(
                       option.disabled
                         ? 'cursor-not-allowed opacity-50'
                         : isActive
-                          ? 'bg-brand-soft text-text-primary shadow-[0_0_0_1px_rgba(70,106,84,0.12)]'
+                          ? 'bg-primary-soft text-text-primary shadow-[0_0_0_1px_rgba(79,124,255,0.18)]'
                           : 'text-text-secondary hover:bg-app-bg-elevated hover:text-text-primary',
                     )}
                   >
                     <span className="truncate">{option.label}</span>
-                    {isActive ? <Check className="ml-3 size-4 shrink-0 text-gold-primary" /> : null}
+                    {isActive ? <Check className="ml-3 size-4 shrink-0 text-primary" /> : null}
                   </button>
                 )
               })}

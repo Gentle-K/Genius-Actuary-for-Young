@@ -5,26 +5,26 @@ const localeMap: Record<LanguageCode, string> = {
   zh: 'zh-CN',
 }
 
-export function formatDateTime(value: string, language: LanguageCode = 'zh') {
+export function formatDateTime(value: string, language: LanguageCode = 'en') {
   return new Intl.DateTimeFormat(localeMap[language], {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
 }
 
-export function formatDate(value: string, language: LanguageCode = 'zh') {
+export function formatDate(value: string, language: LanguageCode = 'en') {
   return new Intl.DateTimeFormat(localeMap[language], {
     dateStyle: 'medium',
   }).format(new Date(value))
 }
 
-export function formatNumber(value: number, language: LanguageCode = 'zh') {
+export function formatNumber(value: number, language: LanguageCode = 'en') {
   return new Intl.NumberFormat(localeMap[language], {
     maximumFractionDigits: 2,
   }).format(value)
 }
 
-export function formatPercent(value: number, language: LanguageCode = 'zh') {
+export function formatPercent(value: number, language: LanguageCode = 'en') {
   return new Intl.NumberFormat(localeMap[language], {
     style: 'percent',
     maximumFractionDigits: 1,
@@ -34,7 +34,7 @@ export function formatPercent(value: number, language: LanguageCode = 'zh') {
 export function formatCurrency(
   value: number,
   currency = 'USD',
-  language: LanguageCode = 'zh',
+  language: LanguageCode = 'en',
 ) {
   return formatMoney(value, currency, language, { maximumFractionDigits: 0 })
 }
@@ -48,7 +48,7 @@ function isIsoCurrencyCode(currency: string) {
 export function formatMoney(
   value: number | undefined,
   currency = 'USD',
-  language: LanguageCode = 'zh',
+  language: LanguageCode = 'en',
   options: Intl.NumberFormatOptions = {},
 ) {
   if (typeof value !== 'number' || Number.isNaN(value)) {

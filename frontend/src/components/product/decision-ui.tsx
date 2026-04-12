@@ -1,21 +1,24 @@
-import type { ReactNode } from 'react'
+import { Children, useEffect, useState, type InputHTMLAttributes, type ReactNode } from 'react'
+import { Dialog, DialogBackdrop, DialogPanel } from '@headlessui/react'
 import {
   AlertTriangle,
   ArrowUpRight,
   CheckCircle2,
+  ChevronRight,
   CircleHelp,
   Clock3,
   ExternalLink,
   FileSearch,
+  Filter,
   Search,
   Sigma,
   Sparkles,
 } from 'lucide-react'
 
 import { Skeleton } from '@/components/feedback/skeleton'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Badge, type BadgeProps } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Input, Textarea } from '@/components/ui/field'
 import { cn } from '@/lib/utils/cn'
@@ -35,6 +38,7 @@ import type {
   AnalysisSession,
   CalculationTask,
   ClarificationQuestion,
+  ConclusionType,
   EvidenceItem,
 } from '@/types'
 
@@ -44,15 +48,178 @@ export interface ClarificationDraftValue {
   answerStatus: 'answered' | 'skipped' | 'uncertain' | 'declined'
 }
 
+function dotClass(tone: BadgeProps['tone']) {
+  if (tone === 'success') return 'bg-success'
+  if (tone === 'warning') return 'bg-warning'
+  if (tone === 'danger') return 'bg-danger'
+  if (tone === 'gold') return 'bg-accent-violet'
+  if (tone === 'primary') return 'bg-primary'
+  if (tone === 'info') return 'bg-info'
+  return 'bg-text-muted'
+}
+
+function badgeWithDot(tone: BadgeProps['tone'], label: string) {
+  return (
+    <Badge tone={tone}>
+      <span className={cn('status-dot', dotClass(tone))} />
+      {label}
+    </Badge>
+  )
+}
+
+function sourceTypeMeta(item: EvidenceItem): { label: string; tone: BadgeProps['tone'] } {
+  if (item.sourceType === 'user') {
+    return { label: 'User provided', tone: 'primary' }
+  }
+
+  if (item.sourceType === 'internal') {
+    return { label: 'Research', tone: 'gold' }
+  }
+
+  const hostname = evidenceDomain(item.sourceUrl)
+  const url = item.sourceUrl.toLowerCase()
+
+  if (
+    hostname.includes('etherscan') ||
+    hostname.includes('blockscout') ||
+    hostname.includes('arbiscan') ||
+    hostname.includes('basescan') ||
+    hostname.includes('solscan') ||
+    hostname.includes('defillama')
+  ) {
+    return { label: 'On-chain', tone: 'info' }
+  }
+
+  if (
+    url.includes('/docs/') ||
+    hostname.startsWith('docs.') ||
+    hostname.includes('hashkeychain.net')
+  ) {
+    return { label: 'Protocol docs', tone: 'primary' }
+  }
+
+  if (
+    hostname.endsWith('.gov') ||
+    hostname.includes('sec.gov') ||
+    hostname.includes('hkma.gov.hk') ||
+    hostname.includes('sfc.hk') ||
+    hostname.includes('fca.org') ||
+    hostname.includes('esma.europa')
+  ) {
+    return { label: 'Official / regulator', tone: 'info' }
+  }
+
+  if (
+    hostname.includes('research') ||
+    hostname.includes('messari') ||
+    hostname.includes('galaxy.com') ||
+    hostname.includes('binance.com/en/research')
+  ) {
+    return { label: 'Research', tone: 'gold' }
+  }
+
+  if (
+    hostname.includes('news') ||
+    hostname.includes('coindesk') ||
+    hostname.includes('cointelegraph') ||
+    hostname.includes('reuters') ||
+    hostname.includes('bloomberg') ||
+    hostname.includes('prnewswire')
+  ) {
+    return { label: 'News', tone: 'warning' }
+  }
+
+  return { label: 'Research', tone: 'neutral' }
+}
+
+function calculationCategory(taskType: string) {
+  const lower = taskType.toLowerCase()
+  if (lower.includes('break-even') || lower.includes('breakeven')) {
+    return { label: 'Breakeven', tone: 'info' as const }
+  }
+  if (lower.includes('budget')) {
+    return { label: 'Budget range', tone: 'primary' as const }
+  }
+  if (lower.includes('opportunity')) {
+    return { label: 'Opportunity cost', tone: 'gold' as const }
+  }
+  if (lower.includes('sensitivity')) {
+    return { label: 'Sensitivity', tone: 'warning' as const }
+  }
+  if (lower.includes('fee')) {
+    return { label: 'Fee drag', tone: 'warning' as const }
+  }
+  if (lower.includes('lock') || lower.includes('liquid')) {
+    return { label: 'Liquidity window', tone: 'info' as const }
+  }
+  return { label: taskType.replace(/-/g, ' '), tone: 'neutral' as const }
+}
+
+function calculationStatusMeta(task: CalculationTask) {
+  if (task.status === 'failed' || task.validationState === 'rejected') {
+    return { label: 'Needs review', tone: 'danger' as const }
+  }
+  if (task.validationState === 'pending') {
+    return { label: 'Pending validation', tone: 'warning' as const }
+  }
+  if (task.status === 'running') {
+    return { label: 'Running', tone: 'primary' as const }
+  }
+  return { label: 'Ready', tone: 'success' as const }
+}
+
+function conclusionTone(type: ConclusionType) {
+  if (type === 'fact') return 'info' as const
+  if (type === 'estimate') return 'gold' as const
+  return 'warning' as const
+}
+
+function clarificationStateMeta(value: ClarificationDraftValue) {
+  if (value.answerStatus === 'answered') {
+    return { label: 'Answered', tone: 'success' as const }
+  }
+  if (value.answerStatus === 'uncertain') {
+    return { label: 'Uncertain', tone: 'warning' as const }
+  }
+  if (value.answerStatus === 'skipped') {
+    return { label: 'Skipped', tone: 'neutral' as const }
+  }
+  return { label: 'Pending', tone: 'primary' as const }
+}
+
+function clarificationSummary(
+  question: ClarificationQuestion,
+  value: ClarificationDraftValue,
+) {
+  const optionMap = new Map((question.options ?? []).map((option) => [option.value, option.label]))
+  const selectedLabels = value.selectedOptions
+    .map((selected) => optionMap.get(selected) ?? selected)
+    .filter(Boolean)
+
+  if (selectedLabels.length && value.customInput.trim()) {
+    return `${selectedLabels.join(', ')} · ${value.customInput.trim()}`
+  }
+  if (selectedLabels.length) {
+    return selectedLabels.join(', ')
+  }
+  if (value.customInput.trim()) {
+    return value.customInput.trim()
+  }
+  return ''
+}
+
 export function StatusBadge({ status }: { status: string }) {
   const meta = statusMeta(status)
-  return <Badge tone={meta.tone}>{meta.label}</Badge>
+  return badgeWithDot(meta.tone, meta.label)
 }
+
+export const StatusChip = StatusBadge
 
 export function ConfidenceBadge({ confidence }: { confidence?: number }) {
   const meta = confidenceMeta(confidence)
   return (
     <Badge tone={meta.tone}>
+      <span className={cn('status-dot', dotClass(meta.tone))} />
       {meta.label}
       {typeof confidence === 'number' ? ` · ${Math.round(confidence * 100)}%` : ''}
     </Badge>
@@ -62,7 +229,7 @@ export function ConfidenceBadge({ confidence }: { confidence?: number }) {
 export function SearchInput({
   className,
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement>) {
+}: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className={cn('relative min-w-[220px] flex-1', className)}>
       <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
@@ -78,15 +245,48 @@ export function FilterBar({
   children: ReactNode
   className?: string
 }) {
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const items = Children.toArray(children)
+  const primaryItem = items[0]
+  const secondaryItems = items.slice(1)
+  const hasSecondary = secondaryItems.length > 0
+
   return (
-    <div
-      className={cn(
-        'panel-card flex flex-wrap items-center gap-3 rounded-[24px] p-4',
-        className,
-      )}
-    >
-      {children}
-    </div>
+    <>
+      <div className={cn('panel-card hidden flex-wrap items-center gap-3 rounded-[24px] p-4 lg:flex', className)}>
+        {items}
+      </div>
+
+      <div className={cn('space-y-3 lg:hidden', className)}>
+        {primaryItem ? <div className="panel-card rounded-[24px] p-3">{primaryItem}</div> : null}
+        {hasSecondary ? (
+          <div className="panel-card rounded-[24px] p-3">
+            <Button variant="secondary" className="w-full justify-between" onClick={() => setMobileOpen(true)}>
+              Filters
+              <Filter className="size-4" />
+            </Button>
+          </div>
+        ) : null}
+      </div>
+
+      <DetailDrawer
+        open={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        title="Filters"
+        description="Adjust the current view without losing your place in the page."
+      >
+        <div className="space-y-3">
+          {items.map((item, index) => (
+            <div key={index} className="space-y-3">
+              {item}
+            </div>
+          ))}
+          <Button className="w-full" onClick={() => setMobileOpen(false)}>
+            Apply filters
+          </Button>
+        </div>
+      </DetailDrawer>
+    </>
   )
 }
 
@@ -104,16 +304,12 @@ export function SectionCard({
   title: string
 }) {
   return (
-    <Card className={cn('space-y-5 p-6', className)}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <Card className={cn('space-y-5 p-5 md:p-6', className)}>
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-1.5">
-          <h2 className="text-lg font-semibold tracking-[-0.03em] text-text-primary">
-            {title}
-          </h2>
+          <h2 className="text-lg font-semibold tracking-[-0.03em] text-text-primary">{title}</h2>
           {description ? (
-            <p className="max-w-3xl text-sm leading-6 text-text-secondary">
-              {description}
-            </p>
+            <p className="max-w-3xl text-sm leading-6 text-text-secondary">{description}</p>
           ) : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -136,19 +332,17 @@ export function MetricCard({
 }) {
   const toneClass =
     tone === 'brand'
-      ? 'bg-brand-soft/70'
+      ? 'bg-[linear-gradient(180deg,rgba(22,42,70,0.96),rgba(15,27,49,0.92))] border-[rgba(79,124,255,0.24)]'
       : tone === 'success'
-        ? 'bg-[rgba(45,118,80,0.08)]'
+        ? 'bg-[linear-gradient(180deg,rgba(16,49,46,0.94),rgba(12,33,31,0.9))] border-[rgba(34,197,94,0.22)]'
         : tone === 'warning'
-          ? 'bg-[rgba(185,115,44,0.08)]'
-          : 'bg-app-bg-elevated'
+          ? 'bg-[linear-gradient(180deg,rgba(67,43,16,0.9),rgba(40,28,13,0.92))] border-[rgba(245,158,11,0.24)]'
+          : 'bg-[linear-gradient(180deg,rgba(19,34,58,0.94),rgba(15,27,49,0.92))]'
 
   return (
     <Card className={cn('space-y-3 p-5', toneClass)}>
       <p className="text-sm font-medium text-text-secondary">{title}</p>
-      <p className="metric-value text-[1.95rem] font-semibold leading-none text-text-primary">
-        {value}
-      </p>
+      <p className="metric-value text-[1.95rem] font-semibold leading-none text-text-primary">{value}</p>
       <p className="text-sm leading-6 text-text-secondary">{detail}</p>
     </Card>
   )
@@ -168,13 +362,15 @@ export function LoadingState({
         <p className="text-sm text-text-secondary">{description}</p>
       </div>
       <div className="space-y-3">
-        <Skeleton className="h-12 w-full rounded-[18px] bg-brand-soft/60" />
-        <Skeleton className="h-12 w-full rounded-[18px] bg-brand-soft/50" />
-        <Skeleton className="h-32 w-full rounded-[20px] bg-brand-soft/45" />
+        <Skeleton className="h-12 w-full rounded-[18px]" />
+        <Skeleton className="h-12 w-full rounded-[18px]" />
+        <Skeleton className="h-32 w-full rounded-[20px]" />
       </div>
     </Card>
   )
 }
+
+export const SkeletonState = LoadingState
 
 export function ErrorState({
   action,
@@ -186,7 +382,7 @@ export function ErrorState({
   title: string
 }) {
   return (
-    <Card className="space-y-4 border-[rgba(181,86,77,0.2)] bg-[rgba(181,86,77,0.08)] p-6">
+    <Card className="space-y-4 border-[rgba(244,63,94,0.28)] bg-[linear-gradient(180deg,rgba(53,18,29,0.9),rgba(34,12,19,0.88))] p-6">
       <div className="flex items-start gap-3">
         <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" />
         <div className="space-y-1.5">
@@ -196,6 +392,16 @@ export function ErrorState({
       </div>
       {action ? <div>{action}</div> : null}
     </Card>
+  )
+}
+
+export function SourceBadge({ item }: { item: EvidenceItem }) {
+  const sourceType = sourceTypeMeta(item)
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Badge tone={sourceType.tone}>{sourceType.label}</Badge>
+      <Badge tone="neutral">{evidenceDomain(item.sourceUrl)}</Badge>
+    </div>
   )
 }
 
@@ -217,7 +423,7 @@ export function SourceCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="neutral">{evidenceDomain(item.sourceUrl)}</Badge>
+            <SourceBadge item={item} />
             <ConfidenceBadge confidence={item.confidence} />
             <Badge tone={freshness.tone}>{freshness.label}</Badge>
           </div>
@@ -227,49 +433,52 @@ export function SourceCard({
           </p>
         </div>
         {onOpen ? (
-          <Button variant="ghost" size="sm" onClick={onOpen}>
+          <Button variant="secondary" size="sm" onClick={onOpen}>
             View details
             <ArrowUpRight className="size-4" />
           </Button>
         ) : null}
       </div>
-      <p className="text-sm leading-6 text-text-secondary">{item.summary}</p>
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="rounded-[20px] bg-app-bg-elevated p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-            Extracted facts
-          </p>
-          <ul className="mt-3 space-y-2 text-sm leading-6 text-text-secondary">
-            {item.extractedFacts.slice(0, 3).map((fact) => (
-              <li key={fact} className="flex gap-2">
-                <CheckCircle2 className="mt-1 size-4 shrink-0 text-success" />
-                <span>{fact}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="rounded-[20px] bg-app-bg-elevated p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-            Usage
-          </p>
-          <div className="mt-3 space-y-2 text-sm text-text-secondary">
-            <p>Linked conclusions: {linkedConclusionCount}</p>
-            <p>Session: {sessionTitle ?? 'Unassigned'}</p>
-            <a
-              href={item.sourceUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-gold-primary hover:text-gold-bright"
-            >
-              Open original source
-              <ExternalLink className="size-4" />
-            </a>
+
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="space-y-3 rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Source summary</p>
+          <p className="text-sm leading-6 text-text-secondary">{item.summary}</p>
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Extracted facts</p>
+            <ul className="space-y-2 text-sm leading-6 text-text-secondary">
+              {item.extractedFacts.slice(0, 3).map((fact) => (
+                <li key={fact} className="flex gap-2">
+                  <CheckCircle2 className="mt-1 size-4 shrink-0 text-info" />
+                  <span>{fact}</span>
+                </li>
+              ))}
+            </ul>
           </div>
+        </div>
+        <div className="space-y-3 rounded-[20px] border border-border-subtle bg-bg-surface p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Usage and freshness</p>
+          <div className="space-y-2 text-sm leading-6 text-text-secondary">
+            <p>Session: {sessionTitle ?? 'Unassigned'}</p>
+            <p>Linked conclusions: {linkedConclusionCount}</p>
+            <p>Freshness note: {item.freshness?.staleWarning ?? freshness.label}</p>
+          </div>
+          <a
+            href={item.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-accent-cyan hover:text-text-primary"
+          >
+            Open original source
+            <ExternalLink className="size-4" />
+          </a>
         </div>
       </div>
     </Card>
   )
 }
+
+export const EvidenceCard = SourceCard
 
 export function ConclusionCard({
   basisCount,
@@ -282,17 +491,16 @@ export function ConclusionCard({
   title: string
   type: 'fact' | 'estimate' | 'inference'
 }) {
-  const typeLabel =
-    type === 'fact' ? 'Fact' : type === 'estimate' ? 'Estimate' : 'Inference'
+  const label = type === 'fact' ? 'Fact' : type === 'estimate' ? 'Estimate' : 'Inference'
 
   return (
-    <Card className="space-y-3 p-5">
+    <Card className="space-y-3 p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="info">{typeLabel}</Badge>
+        <Badge tone={conclusionTone(type)}>{label}</Badge>
         <ConfidenceBadge confidence={confidence} />
       </div>
       <p className="text-sm leading-6 text-text-primary">{title}</p>
-      <p className="text-xs text-text-muted">Basis references: {basisCount}</p>
+      <p className="text-xs text-text-muted">Evidence links: {basisCount}</p>
     </Card>
   )
 }
@@ -304,48 +512,44 @@ export function CalculationCard({
   sessionTitle?: string
   task: CalculationTask
 }) {
+  const category = calculationCategory(task.taskType)
+  const status = calculationStatusMeta(task)
+
   return (
     <Card className="space-y-4 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-base font-semibold text-text-primary">
-            {calculationTitle(task)}
-          </h3>
-          <p className="mt-1 text-sm text-text-secondary">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={category.tone}>{category.label}</Badge>
+            <Badge tone={status.tone}>{status.label}</Badge>
+          </div>
+          <h3 className="text-base font-semibold text-text-primary">{calculationTitle(task)}</h3>
+          <p className="text-sm text-text-secondary">
             {sessionTitle ?? 'Analysis calculation'} · {formatRelativeTime(task.createdAt)}
           </p>
         </div>
-        <Badge tone={task.status === 'failed' ? 'danger' : 'info'}>
-          {task.status === 'failed' ? 'Calculation failed' : 'Calculation ready'}
-        </Badge>
       </div>
-      <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-[20px] bg-app-bg-elevated p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-            Formula
-          </p>
-          <p className="mono mt-3 text-sm leading-6 text-text-primary">
-            {task.formulaExpression}
-          </p>
+
+      <div className="grid gap-3 xl:grid-cols-[1.25fr_0.75fr]">
+        <div className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Formula</p>
+          <p className="mono mt-3 text-sm leading-6 text-text-primary">{task.formulaExpression}</p>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {Object.entries(task.inputParams).map(([key, value]) => (
-              <div key={key} className="rounded-2xl bg-panel px-3 py-2.5 text-sm">
+              <div key={key} className="rounded-[16px] border border-border-subtle bg-bg-surface px-3 py-2.5 text-sm">
                 <span className="text-text-muted">{key}</span>
                 <p className="mono mt-1 text-text-primary">{String(value)}</p>
               </div>
             ))}
           </div>
         </div>
-        <div className="rounded-[20px] bg-app-bg-elevated p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-            Result
-          </p>
-          <p className="metric-value mt-3 text-[1.8rem] font-semibold text-text-primary">
-            {task.result}
-          </p>
+
+        <div className="rounded-[20px] border border-border-subtle bg-bg-surface p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Result</p>
+          <p className="metric-value mt-3 text-[1.9rem] font-semibold text-text-primary">{task.result}</p>
           <p className="mt-1 text-sm text-text-secondary">{task.units}</p>
           <p className="mt-4 text-sm leading-6 text-text-secondary">
-            {task.errorMargin ?? task.notes ?? 'No additional applicability note provided.'}
+            {task.errorMargin ?? task.notes ?? task.failureReason ?? 'No additional note provided.'}
           </p>
         </div>
       </div>
@@ -356,14 +560,21 @@ export function CalculationCard({
 export function SessionCard({
   actions,
   confidence,
+  evidenceCount,
+  calculationCount,
   onOpen,
   session,
 }: {
   actions?: ReactNode
   confidence?: number
+  evidenceCount?: number
+  calculationCount?: number
   onOpen?: () => void
   session: AnalysisSession
 }) {
+  const resolvedEvidenceCount = evidenceCount ?? session.evidence.length
+  const resolvedCalculationCount = calculationCount ?? session.calculations.length
+
   return (
     <Card className="space-y-4 p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -373,40 +584,43 @@ export function SessionCard({
             <StatusBadge status={session.status} />
             <ConfidenceBadge confidence={confidence} />
           </div>
-          <h3 className="text-lg font-semibold tracking-[-0.03em] text-text-primary">
+          <h3 className="line-clamp-2 text-lg font-semibold tracking-[-0.03em] text-text-primary">
             {session.problemStatement}
           </h3>
-          <p className="text-sm text-text-secondary">
-            Updated {formatRelativeTime(session.updatedAt)}
-          </p>
+          <p className="text-sm text-text-secondary">Updated {formatRelativeTime(session.updatedAt)}</p>
         </div>
         {onOpen ? (
-          <Button variant="ghost" size="sm" onClick={onOpen}>
+          <Button variant="secondary" size="sm" onClick={onOpen}>
             Open session
             <ArrowUpRight className="size-4" />
           </Button>
         ) : null}
       </div>
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="rounded-[20px] bg-app-bg-elevated p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-            Key conclusion
-          </p>
-          <p className="mt-2 text-sm leading-6 text-text-primary">
-            {sessionKeyConclusion(session)}
-          </p>
+
+      <div className="grid gap-3">
+        <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Key conclusion</p>
+          <p className="mt-2 text-sm leading-6 text-text-primary">{sessionKeyConclusion(session)}</p>
         </div>
-        <div className="rounded-[20px] bg-app-bg-elevated p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-            Current understanding
-          </p>
-          <ul className="mt-2 space-y-1.5 text-sm leading-6 text-text-secondary">
-            {currentUnderstanding(session).slice(0, 3).map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-[18px] border border-border-subtle bg-bg-surface p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Current understanding</p>
+            <ul className="mt-2 space-y-1.5 text-sm leading-6 text-text-secondary">
+              {currentUnderstanding(session).slice(0, 2).map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-[18px] border border-border-subtle bg-bg-surface p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Signal coverage</p>
+            <div className="mt-2 space-y-1.5 text-sm leading-6 text-text-secondary">
+              <p>{resolvedEvidenceCount} evidence items</p>
+              <p>{resolvedCalculationCount} calculations</p>
+            </div>
+          </div>
         </div>
       </div>
+
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
     </Card>
   )
@@ -416,18 +630,20 @@ export function SessionRow({
   actions,
   confidence,
   evidenceCount,
+  calculationCount,
   onOpen,
   session,
 }: {
   actions?: ReactNode
   confidence?: number
   evidenceCount: number
+  calculationCount?: number
   onOpen?: () => void
   session: AnalysisSession
 }) {
   return (
     <div
-      className="grid cursor-pointer gap-4 rounded-[24px] border border-border-subtle bg-panel px-4 py-4 transition hover:border-border-strong hover:bg-panel-strong xl:grid-cols-[2.5fr_1.1fr_1.1fr_1fr_2fr_1.4fr_1fr_auto]"
+      className="grid cursor-pointer gap-4 rounded-[24px] border border-border-subtle bg-panel px-4 py-4 transition hover:border-border-strong hover:bg-panel-strong xl:grid-cols-[2.4fr_1fr_1fr_1fr_1.8fr_1.3fr_0.8fr_0.8fr_auto]"
       onClick={onOpen}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -438,29 +654,29 @@ export function SessionRow({
       role="button"
       tabIndex={0}
     >
-      <div className="space-y-1.5">
-        <p className="font-semibold text-text-primary">{session.problemStatement}</p>
-        <p className="text-sm text-text-secondary">{sessionKeyConclusion(session)}</p>
+      <div className="min-w-0 space-y-1.5">
+        <p className="truncate font-semibold text-text-primary">{session.problemStatement}</p>
+        <p className="line-clamp-2 text-sm text-text-secondary">{sessionKeyConclusion(session)}</p>
       </div>
       <div className="text-sm text-text-secondary">{modeLabel(session.mode)}</div>
       <div>
         <StatusBadge status={session.status} />
       </div>
       <div className="text-sm text-text-secondary">{formatRelativeTime(session.updatedAt)}</div>
-      <div className="text-sm text-text-secondary">{session.lastInsight}</div>
+      <div className="line-clamp-2 text-sm text-text-secondary">{session.lastInsight}</div>
       <div>
         <ConfidenceBadge confidence={confidence} />
       </div>
-      <div className="text-sm text-text-secondary">{evidenceCount} sources</div>
-      <div
-        className="flex flex-wrap items-center justify-start gap-2"
-        onClick={(event) => event.stopPropagation()}
-      >
+      <div className="text-sm text-text-secondary">{evidenceCount}</div>
+      <div className="text-sm text-text-secondary">{calculationCount ?? session.calculations.length}</div>
+      <div className="flex flex-wrap items-center justify-start gap-2" onClick={(event) => event.stopPropagation()}>
         {actions}
       </div>
     </div>
   )
 }
+
+export const SessionRowCard = SessionRow
 
 export function ClarificationQuestionCard({
   onChange,
@@ -471,8 +687,18 @@ export function ClarificationQuestionCard({
   question: ClarificationQuestion
   value: ClarificationDraftValue
 }) {
-  const currentSliderValue =
-    Number(value.selectedOptions[0] ?? question.recommended?.[0] ?? question.min ?? 5)
+  const currentSliderValue = Number(value.selectedOptions[0] ?? question.recommended?.[0] ?? question.min ?? 5)
+  const meta = clarificationStateMeta(value)
+  const summary = clarificationSummary(question, value)
+  const [expanded, setExpanded] = useState(value.answerStatus !== 'answered' || !summary)
+
+  useEffect(() => {
+    if (value.answerStatus === 'answered' && summary) {
+      setExpanded(false)
+      return
+    }
+    setExpanded(true)
+  }, [summary, value.answerStatus])
 
   const updateSelectedOption = (nextValue: string) => {
     if (question.fieldType === 'multi-choice') {
@@ -495,116 +721,121 @@ export function ClarificationQuestionCard({
   }
 
   return (
-    <Card className="space-y-5 p-5">
+    <Card className="space-y-4 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="neutral">Question</Badge>
-            <Badge tone={value.answerStatus === 'answered' ? 'success' : value.answerStatus === 'skipped' ? 'warning' : 'neutral'}>
-              {value.answerStatus === 'answered'
-                ? 'Answered'
-                : value.answerStatus === 'skipped'
-                  ? 'Skipped'
-                  : value.answerStatus === 'uncertain'
-                    ? 'Needs more context'
-                    : 'Pending'}
-            </Badge>
+            <Badge tone={meta.tone}>{meta.label}</Badge>
           </div>
           <h3 className="text-base font-semibold text-text-primary">{question.question}</h3>
-          <div className="flex items-start gap-2 rounded-[18px] bg-app-bg-elevated px-3 py-3 text-sm leading-6 text-text-secondary">
+          <div className="flex items-start gap-2 rounded-[18px] border border-border-subtle bg-app-bg-elevated px-3 py-3 text-sm leading-6 text-text-secondary">
             <CircleHelp className="mt-0.5 size-4 shrink-0 text-info" />
             <span>{question.purpose}</span>
           </div>
         </div>
+        {summary ? (
+          <Button variant="ghost" size="sm" onClick={() => setExpanded((current) => !current)}>
+            {expanded ? 'Hide' : 'Edit'}
+            <ChevronRight className={cn('size-4 transition', expanded ? 'rotate-90' : '')} />
+          </Button>
+        ) : null}
       </div>
 
-      {question.fieldType === 'slider' ? (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-text-secondary">Current answer</span>
-            <span className="mono rounded-full bg-brand-soft px-3 py-1 text-text-primary">
-              {currentSliderValue}
-              {question.unit ?? ''}
-            </span>
-          </div>
-          <input
-            type="range"
-            min={question.min ?? 1}
-            max={question.max ?? 10}
-            value={currentSliderValue}
-            onChange={(event) =>
-              onChange({
-                ...value,
-                answerStatus: 'answered',
-                selectedOptions: [event.target.value],
-              })
-            }
-            className="w-full accent-[var(--brand-solid)]"
-          />
+      {!expanded && summary ? (
+        <div className="rounded-[18px] border border-[rgba(34,197,94,0.18)] bg-[rgba(20,184,122,0.1)] px-4 py-3 text-sm leading-6 text-text-primary">
+          {summary}
         </div>
       ) : null}
 
-      {question.options?.length ? (
-        <div className="flex flex-wrap gap-2.5">
-          {question.options.map((option) => {
-            const active = value.selectedOptions.includes(option.value)
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => updateSelectedOption(option.value)}
-                className={cn(
-                  'interactive-lift rounded-full border px-3.5 py-2 text-sm',
-                  active
-                    ? 'border-border-strong bg-brand-soft text-text-primary'
-                    : 'border-border-subtle bg-app-bg-elevated text-text-secondary hover:border-border-strong hover:text-text-primary',
-                )}
-              >
-                {option.label}
-              </button>
+      {expanded ? (
+        <>
+          {question.fieldType === 'slider' ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-text-secondary">Current answer</span>
+                <span className="mono rounded-full bg-primary-soft px-3 py-1 text-text-primary">
+                  {currentSliderValue}
+                  {question.unit ?? ''}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={question.min ?? 1}
+                max={question.max ?? 10}
+                value={currentSliderValue}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    answerStatus: 'answered',
+                    selectedOptions: [event.target.value],
+                  })
+                }
+                className="w-full accent-[var(--primary)]"
+              />
+            </div>
+          ) : null}
+
+          {question.options?.length ? (
+            <div className="flex flex-wrap gap-2.5">
+              {question.options.map((option) => {
+                const active = value.selectedOptions.includes(option.value)
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => updateSelectedOption(option.value)}
+                    className={cn(
+                      'interactive-lift rounded-full border px-3.5 py-2 text-sm',
+                      active
+                        ? 'border-[rgba(79,124,255,0.32)] bg-primary-soft text-text-primary'
+                        : 'border-border-subtle bg-bg-surface text-text-secondary hover:border-border-strong hover:text-text-primary',
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
+          ) : null}
+
+          {question.allowCustomInput ? (
+            question.fieldType === 'text' ? (
+              <Input
+                value={value.customInput}
+                placeholder={question.inputHint || 'Add custom context'}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    answerStatus: 'answered',
+                    customInput: event.target.value,
+                  })
+                }
+              />
+            ) : (
+              <Textarea
+                value={value.customInput}
+                placeholder={
+                  question.inputHint ||
+                  question.exampleAnswer ||
+                  'Add anything that changes the recommendation.'
+                }
+                className="min-h-24"
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    answerStatus: 'answered',
+                    customInput: event.target.value,
+                  })
+                }
+              />
             )
-          })}
-        </div>
-      ) : null}
-
-      {question.allowCustomInput ? (
-        question.fieldType === 'text' ? (
-          <Input
-            value={value.customInput}
-            placeholder={question.inputHint || 'Add custom context'}
-            onChange={(event) =>
-              onChange({
-                ...value,
-                answerStatus: 'answered',
-                customInput: event.target.value,
-              })
-            }
-          />
-        ) : (
-          <Textarea
-            value={value.customInput}
-            placeholder={
-              question.inputHint ||
-              question.exampleAnswer ||
-              'Add anything that changes the recommendation.'
-            }
-            onChange={(event) =>
-              onChange({
-                ...value,
-                answerStatus: 'answered',
-                customInput: event.target.value,
-              })
-            }
-          />
-        )
+          ) : null}
+        </>
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => onChange({ ...value, answerStatus: 'uncertain' })}
-        >
+        <Button variant="secondary" size="sm" onClick={() => onChange({ ...value, answerStatus: 'uncertain' })}>
           Mark uncertain
         </Button>
         {question.allowSkip ? (
@@ -628,6 +859,42 @@ export function ClarificationQuestionCard({
   )
 }
 
+export function StickyActionBar({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn('panel-card sticky bottom-4 z-20 flex flex-wrap items-center justify-between gap-3 p-4', className)}>
+      {children}
+    </div>
+  )
+}
+
+export function WorklogCard({
+  detail,
+  icon,
+  title,
+}: {
+  detail: string
+  icon: ReactNode
+  title: string
+}) {
+  return (
+    <div className="flex items-start gap-3 rounded-[20px] border border-border-subtle bg-app-bg-elevated px-4 py-4">
+      <div className="mt-1 flex size-8 items-center justify-center rounded-full bg-primary-soft text-primary">
+        {icon}
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-text-primary">{title}</p>
+        <p className="mt-1 text-sm leading-6 text-text-secondary">{detail}</p>
+      </div>
+    </div>
+  )
+}
+
 export function ReportSection({
   children,
   description,
@@ -644,15 +911,29 @@ export function ReportSection({
       <Card className="space-y-5 p-6">
         <div className="space-y-1.5">
           <h2 className="apple-kicker text-left">{title}</h2>
-          {description ? (
-            <p className="max-w-3xl text-sm leading-6 text-text-secondary">
-              {description}
-            </p>
-          ) : null}
+          {description ? <p className="max-w-3xl text-sm leading-6 text-text-secondary">{description}</p> : null}
         </div>
         {children}
       </Card>
     </section>
+  )
+}
+
+export const ReportSectionCard = ReportSection
+
+export function ChartPanel({
+  children,
+  description,
+  title,
+}: {
+  children: ReactNode
+  description?: string
+  title: string
+}) {
+  return (
+    <SectionCard title={title} description={description}>
+      {children}
+    </SectionCard>
   )
 }
 
@@ -666,10 +947,8 @@ export function MiniFact({
   value: string
 }) {
   return (
-    <div className="rounded-[20px] bg-app-bg-elevated p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-        {label}
-      </p>
+    <div className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">{label}</p>
       <div className="mt-2 flex items-center gap-2 text-sm text-text-primary">
         {icon}
         <span>{value}</span>
@@ -700,10 +979,46 @@ export function PreviewNote({
   icon?: ReactNode
 }) {
   return (
-    <div className="flex items-start gap-2 rounded-[18px] bg-brand-soft/60 px-4 py-3 text-sm leading-6 text-text-secondary">
-      {icon ?? <Sparkles className="mt-0.5 size-4 shrink-0 text-gold-primary" />}
+    <div className="flex items-start gap-2 rounded-[18px] border border-[rgba(34,211,238,0.18)] bg-[rgba(34,211,238,0.08)] px-4 py-3 text-sm leading-6 text-text-secondary">
+      {icon ?? <Sparkles className="mt-0.5 size-4 shrink-0 text-info" />}
       <span>{children}</span>
     </div>
+  )
+}
+
+export function DetailDrawer({
+  actions,
+  children,
+  description,
+  onClose,
+  open,
+  title,
+}: {
+  actions?: ReactNode
+  children: ReactNode
+  description?: string
+  onClose: () => void
+  open: boolean
+  title: string
+}) {
+  return (
+    <Dialog open={open} onClose={onClose} className="relative z-50">
+      <DialogBackdrop className="fixed inset-0 bg-[rgba(2,8,20,0.68)]" />
+      <div className="fixed inset-0 overflow-y-auto">
+        <div className="flex min-h-full items-end justify-center p-4 md:items-center">
+          <DialogPanel className="panel-card w-full max-w-3xl space-y-5 rounded-[28px] p-6">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="space-y-1.5">
+                <h3 className="text-xl font-semibold text-text-primary">{title}</h3>
+                {description ? <p className="text-sm leading-6 text-text-secondary">{description}</p> : null}
+              </div>
+              {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+            </div>
+            {children}
+          </DialogPanel>
+        </div>
+      </div>
+    </Dialog>
   )
 }
 
@@ -730,11 +1045,10 @@ export function ResourceKicker({
 
 export function CalculationEmptyHint() {
   return (
-    <div className="flex items-start gap-3 rounded-[20px] bg-app-bg-elevated px-4 py-4 text-sm leading-6 text-text-secondary">
+    <div className="flex items-start gap-3 rounded-[20px] border border-border-subtle bg-app-bg-elevated px-4 py-4 text-sm leading-6 text-text-secondary">
       <Sigma className="mt-0.5 size-4 shrink-0 text-info" />
       <span>
-        Calculations only appear when the system has enough structured inputs to
-        compute a meaningful result.
+        Calculations appear only when the system has enough structured inputs to compute a decision-relevant result.
       </span>
     </div>
   )

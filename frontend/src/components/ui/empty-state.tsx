@@ -18,7 +18,7 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <Card className="flex min-h-56 flex-col items-center justify-center gap-4 p-8 text-center">
-      <div className="rounded-full border border-border-subtle bg-app-bg-elevated p-4 text-gold-primary">
+      <div className="rounded-full border border-border-subtle bg-app-bg-elevated p-4 text-accent-cyan">
         {icon ?? <DatabaseZap className="size-6" />}
       </div>
       <div className="space-y-2">

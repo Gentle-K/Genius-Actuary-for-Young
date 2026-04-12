@@ -27,6 +27,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
+import { Select } from '@/components/ui/field'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
 import { exportToPdf } from '@/lib/export/pdf'
 import {
@@ -240,6 +241,27 @@ export function ReportPage() {
           }
         />
 
+        <div className="xl:hidden">
+          <Card className="p-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Jump to section</p>
+            <Select
+              value=""
+              onChange={(event) => {
+                if (event.target.value) {
+                  window.location.hash = event.target.value
+                }
+              }}
+            >
+              <option value="">Select a section</option>
+              {reportSections.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </Select>
+          </Card>
+        </div>
+
         <Card className="space-y-5 overflow-hidden p-6 md:p-7">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-3">
@@ -273,8 +295,7 @@ export function ReportPage() {
             <div className="flex items-start gap-2 rounded-[20px] border border-[rgba(185,115,44,0.2)] bg-[rgba(185,115,44,0.08)] px-4 py-3 text-sm leading-6 text-warning">
               <TriangleAlert className="mt-0.5 size-4 shrink-0" />
               <span>
-                Some evidence may be out of date. Review freshness before treating the
-                recommendation as current.
+                Some evidence may be out of date. Review freshness before treating the recommendation as current.
               </span>
             </div>
           ) : null}
@@ -314,7 +335,8 @@ export function ReportPage() {
         >
           <div className="space-y-3">
             {report.assumptions.map((item) => (
-              <div key={item} className="rounded-[20px] bg-app-bg-elevated px-4 py-3 text-sm leading-6 text-text-secondary">
+              <div key={item} className="rounded-[20px] border border-[rgba(139,92,246,0.22)] bg-[rgba(139,92,246,0.08)] px-4 py-3 text-sm leading-6 text-text-secondary">
+                <div className="mb-2"><Badge tone="gold">Estimate</Badge></div>
                 {item}
               </div>
             ))}
@@ -329,7 +351,7 @@ export function ReportPage() {
           <div className="space-y-3">
             {report.evidence.flatMap((item) =>
               item.extractedFacts.slice(0, 2).map((fact) => (
-                <div key={`${item.id}-${fact}`} className="rounded-[20px] bg-app-bg-elevated px-4 py-3">
+                <div key={`${item.id}-${fact}`} className="rounded-[20px] border border-[rgba(34,211,238,0.22)] bg-[rgba(34,211,238,0.08)] px-4 py-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone="info">Fact</Badge>
                     <Badge tone="neutral">{item.sourceName}</Badge>
@@ -389,7 +411,7 @@ export function ReportPage() {
             {session.conclusions.map((item) => (
               <div key={item.id} className="rounded-[20px] bg-app-bg-elevated p-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={item.conclusionType === 'fact' ? 'info' : 'warning'}>
+                  <Badge tone={item.conclusionType === 'fact' ? 'info' : item.conclusionType === 'estimate' ? 'gold' : 'warning'}>
                     {item.conclusionType}
                   </Badge>
                   <ConfidenceBadge confidence={item.confidence} />
@@ -573,7 +595,8 @@ export function ReportPage() {
           {(report.unknowns ?? []).length ? (
             <div className="space-y-3">
               {(report.unknowns ?? []).map((item) => (
-                <div key={item} className="rounded-[20px] bg-app-bg-elevated px-4 py-3 text-sm leading-6 text-text-secondary">
+                <div key={item} className="rounded-[20px] border border-[rgba(244,63,94,0.24)] bg-[rgba(244,63,94,0.08)] px-4 py-3 text-sm leading-6 text-text-secondary">
+                  <div className="mb-2"><Badge tone="danger">Unknown</Badge></div>
                   {item}
                 </div>
               ))}
@@ -592,7 +615,7 @@ export function ReportPage() {
           description="Recommendation direction is structured, bounded, and tied back to visible assumptions and uncertainty."
         >
           <div className="space-y-4">
-            <div className="rounded-[22px] bg-brand-soft p-5">
+            <div className="rounded-[22px] border border-[rgba(79,124,255,0.22)] bg-primary-soft p-5">
               <p className="text-base font-semibold text-text-primary">{recommendationLine}</p>
               <p className="mt-2 text-sm leading-6 text-text-secondary">
                 Recommendation confidence: {typeof confidence === 'number' ? `${Math.round(confidence * 100)}%` : 'not available yet'}
@@ -616,7 +639,7 @@ export function ReportPage() {
               </div>
             ))}
             <PreviewNote>
-              This is decision support, not professional advice. Use it to structure a choice, not to outsource responsibility for the choice.
+              Use the report to structure the decision, not to outsource accountability for it.
             </PreviewNote>
           </div>
         </ReportSection>

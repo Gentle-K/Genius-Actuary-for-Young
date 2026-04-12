@@ -45,7 +45,7 @@ export function ChartCard({ chart }: ChartCardProps) {
           <h3 className="text-lg font-semibold text-text-primary">{chart.title}</h3>
           {chart.subtitle ? <p className="text-sm text-text-secondary">{chart.subtitle}</p> : null}
         </div>
-        {chart.unit ? <p className="mono text-xs text-gold-ink">{chart.unit}</p> : null}
+        {chart.unit ? <p className="mono text-xs text-accent-cyan">{chart.unit}</p> : null}
       </div>
 
       {option ? (
@@ -70,6 +70,7 @@ export function ChartCard({ chart }: ChartCardProps) {
 
       <div className="mt-4 flex flex-wrap gap-3 text-xs text-text-muted">
         {chart.source ? <span>{isZh ? '来源' : 'Source'}: {chart.source}</span> : null}
+        <span>{isZh ? '编码' : 'Encoding'}: actual = cyan/blue, estimated = violet, inferred = amber</span>
         {chart.note ? <span>{chart.note}</span> : null}
       </div>
     </Card>

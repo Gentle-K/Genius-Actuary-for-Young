@@ -25,6 +25,7 @@ import {
   formatRelativeTime,
   modeLabel,
   sessionConfidence,
+  statusMeta,
 } from '@/features/analysis/lib/view-models'
 
 export function SessionDetailPage() {
@@ -103,7 +104,7 @@ export function SessionDetailPage() {
       <SmallMetaList
         items={[
           { label: 'Mode', value: modeLabel(session.mode) },
-          { label: 'Status', value: session.status },
+          { label: 'Status', value: statusMeta(session.status).label },
           { label: 'Updated', value: formatRelativeTime(session.updatedAt) },
           {
             label: 'Current round',
@@ -116,7 +117,7 @@ export function SessionDetailPage() {
         <div className="space-y-6">
           <SectionCard
             title="Current understanding"
-            description="These are the facts and constraints the frontend can already show without exposing backend internals."
+            description="These are the facts and constraints already visible before the next analysis step."
             actions={
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={session.status} />
@@ -141,8 +142,8 @@ export function SessionDetailPage() {
           </SectionCard>
 
           <SectionCard
-            title="Clarification progress"
-            description="Dynamic follow-up questions are the main lever for improving recommendation quality."
+            title="Current status and next action"
+            description="Dynamic follow-up questions and evidence synthesis are the main levers for improving recommendation quality."
           >
             <div className="grid gap-4 md:grid-cols-3">
               <MetricCard
@@ -165,8 +166,7 @@ export function SessionDetailPage() {
               />
             </div>
             <PreviewNote icon={<CircleHelp className="mt-0.5 size-4 shrink-0 text-info" />}>
-              Dynamic clarification stays separate from the core analysis engine. The
-              frontend only records answers and shows state transitions.
+              Next action: {session.status === 'COMPLETED' ? 'Review the final report and unresolved uncertainty list.' : 'Continue the session to close blockers and raise confidence.'}
             </PreviewNote>
           </SectionCard>
 
@@ -175,13 +175,13 @@ export function SessionDetailPage() {
             description="These sources are available even before the final report is assembled."
           >
             {evidence.length ? (
-              <div className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 {evidence.slice(0, 4).map((item) => (
-                  <div key={item.id} className="rounded-[20px] bg-app-bg-elevated p-4">
+                  <div key={item.id} className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold text-text-primary">{item.title}</p>
-                        <p className="mt-1 text-sm text-text-secondary">{item.summary}</p>
+                        <p className="mt-1 line-clamp-2 text-sm text-text-secondary">{item.summary}</p>
                       </div>
                       <FileSearch className="size-4 shrink-0 text-info" />
                     </div>
@@ -241,7 +241,7 @@ export function SessionDetailPage() {
             {unresolved.length ? (
               <div className="space-y-3">
                 {unresolved.map((item) => (
-                  <div key={item} className="rounded-[20px] bg-app-bg-elevated px-4 py-3 text-sm leading-6 text-text-secondary">
+                  <div key={item} className="rounded-[20px] border border-[rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.08)] px-4 py-3 text-sm leading-6 text-text-secondary">
                     {item}
                   </div>
                 ))}
@@ -270,8 +270,7 @@ export function SessionDetailPage() {
           </div>
 
           <PreviewNote icon={<Sigma className="mt-0.5 size-4 shrink-0 text-info" />}>
-            Recommendation confidence should rise only when assumptions, evidence,
-            and calculations all converge. The UI keeps those boundaries visible.
+            Confidence should rise only when assumptions, evidence, and calculations converge. The UI keeps those boundaries visible instead of flattening them into one summary score.
           </PreviewNote>
         </div>
       </div>

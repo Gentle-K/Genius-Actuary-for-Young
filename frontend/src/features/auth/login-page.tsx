@@ -3,8 +3,8 @@ import {
   ArrowRight,
   CheckCircle2,
   FileSearch,
-  GitBranchPlus,
   ShieldCheck,
+  Sigma,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -12,12 +12,12 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/field'
+import { Badge } from '@/components/ui/badge'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
 import { useAppStore } from '@/lib/store/app-store'
 
 const initialForm = {
   email: '',
-  password: '',
 }
 
 export function LoginPage() {
@@ -26,7 +26,7 @@ export function LoginPage() {
   const setAuthSession = useAppStore((state) => state.setAuthSession)
   const [form, setForm] = useState(initialForm)
   const [inlineError, setInlineError] = useState('')
-  const [demoMessage, setDemoMessage] = useState('')
+  const [infoMessage, setInfoMessage] = useState('')
 
   const mutation = useMutation({
     mutationFn: adapter.auth.login,
@@ -43,167 +43,138 @@ export function LoginPage() {
     },
   })
 
-  const previewFacts = useMemo(
+  const trustPoints = useMemo(
     () => [
       {
-        icon: <GitBranchPlus className="size-4" />,
-        title: 'Dynamic clarification',
-        description: 'The system asks only the questions that change the recommendation.',
+        icon: <FileSearch className="size-4" />,
+        title: 'Evidence-led output',
+        description: 'Freshness, confidence, and extracted facts stay visible from intake to report.',
       },
       {
-        icon: <FileSearch className="size-4" />,
-        title: 'Evidence-backed analysis',
-        description: 'Search results, extracted facts, freshness, and uncertainty stay visible.',
+        icon: <Sigma className="size-4" />,
+        title: 'Calculation discipline',
+        description: 'Deterministic math sits beside narrative reasoning instead of disappearing into prose.',
       },
       {
         icon: <ShieldCheck className="size-4" />,
-        title: 'Structured reports & charts',
-        description: 'Every report separates facts, estimates, unknowns, and final guidance.',
+        title: 'Bounded recommendations',
+        description: 'The product separates facts, estimates, inferences, and unresolved unknowns.',
       },
     ],
     [],
   )
 
   const handleEmailContinue = async () => {
-    setDemoMessage('')
+    setInfoMessage('')
     if (!form.email.trim()) {
-      setInlineError('Enter an email to continue.')
+      setInlineError('Enter your work email to continue.')
       return
     }
     if (!/.+@.+\..+/.test(form.email.trim())) {
       setInlineError('Enter a valid email address.')
       return
     }
-    if (!form.password.trim()) {
-      setInlineError('Enter a password or use Try demo.')
-      return
-    }
+
     setInlineError('')
+    setInfoMessage('This release uses an email-first access flow with a browser-scoped session.')
     await mutation.mutateAsync({
-      email: form.email,
-      password: form.password,
+      email: form.email.trim(),
+      password: 'email-access',
       mfaCode: '',
     })
   }
 
   const handleDemo = async () => {
     setInlineError('')
-    setDemoMessage(
-      'Demo mode opens a curated workspace with sample sessions, evidence, calculations, and reports.',
-    )
+    setInfoMessage('Demo access opens a curated workspace with sample sessions, evidence, calculations, and reports.')
     await mutation.mutateAsync({
       email: 'demo@geniusactuary.ai',
-      password: 'demo',
+      password: 'demo-access',
       mfaCode: '',
     })
   }
 
   return (
-    <div className="app-grid min-h-screen bg-app-bg p-4 md:p-6">
+    <div className="app-grid min-h-screen bg-bg-canvas p-4 md:p-6">
       <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-[1440px] gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <Card className="relative overflow-hidden p-6 md:p-8 lg:p-10">
-          <div className="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top_left,rgba(137,179,154,0.18),transparent_42%),radial-gradient(circle_at_top_right,rgba(143,183,195,0.14),transparent_34%)]" />
-          <div className="relative space-y-8">
-            <div className="space-y-4">
-              <p className="apple-kicker">Genius Actuary</p>
-              <div className="space-y-3">
-                <h1 className="max-w-[12ch] text-[2.8rem] font-semibold leading-[0.92] tracking-[-0.07em] text-text-primary md:text-[4.6rem]">
-                  Break complex decisions into cost, risk, evidence, and conclusion.
-                </h1>
-                <p className="max-w-2xl text-[15px] leading-7 text-text-secondary md:text-[17px]">
-                  A personal AI decision analysis agent for choices that need more
-                  structure than a pros-and-cons list.
-                </p>
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_24%),radial-gradient(circle_at_center_right,rgba(79,124,255,0.16),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(139,92,246,0.12),transparent_26%)]" />
+
+          <div className="relative flex h-full flex-col justify-between gap-10">
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <p className="apple-kicker">Genius Actuary</p>
+                <div className="space-y-3">
+                  <h1 className="text-balance max-w-[11ch] text-[3rem] font-semibold leading-[0.92] tracking-[-0.07em] text-text-primary md:text-[4.9rem]">
+                    Institutional AI decision analysis for crypto and RWA workflows.
+                  </h1>
+                  <p className="max-w-2xl text-[15px] leading-7 text-text-secondary md:text-[17px]">
+                    Evaluate costs, liquidity, evidence quality, scenario risk, and recommendation boundaries in one release-ready workspace.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                {trustPoints.map((item) => (
+                  <div key={item.title} className="rounded-[22px] border border-border-subtle bg-[rgba(19,34,58,0.74)] p-4">
+                    <div className="inline-flex size-9 items-center justify-center rounded-full bg-primary-soft text-primary">
+                      {item.icon}
+                    </div>
+                    <h2 className="mt-4 text-sm font-semibold text-text-primary">{item.title}</h2>
+                    <p className="mt-2 text-sm leading-6 text-text-secondary">{item.description}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
-              {previewFacts.map((item) => (
-                <div key={item.title} className="rounded-[22px] bg-app-bg-elevated p-4">
-                  <div className="inline-flex size-9 items-center justify-center rounded-full bg-brand-soft text-gold-primary">
-                    {item.icon}
-                  </div>
-                  <h2 className="mt-4 text-sm font-semibold text-text-primary">
-                    {item.title}
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-text-secondary">
-                    {item.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="rounded-[28px] border border-border-subtle bg-app-bg-elevated p-5 md:p-6">
+            <div className="rounded-[28px] border border-border-subtle bg-[rgba(15,27,49,0.82)] p-5 md:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-text-primary">
-                    Example analysis preview
-                  </p>
-                  <p className="mt-1 text-sm text-text-secondary">
-                    Should I join a study abroad exchange?
-                  </p>
+                  <p className="text-sm font-semibold text-text-primary">Live report preview</p>
+                  <p className="mt-1 text-sm text-text-secondary">Should treasury idle cash remain in USDT or rotate into a tokenized MMF?</p>
                 </div>
-                <span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold text-text-primary">
-                  Report preview
-                </span>
+                <Badge tone="primary">Report preview</Badge>
               </div>
 
-              <div className="mt-5 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
-                <div className="space-y-3 rounded-[22px] bg-panel p-4">
+              <div className="mt-5 grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
+                <div className="space-y-3 rounded-[22px] border border-border-subtle bg-app-bg-elevated p-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold text-text-primary">
-                      Medium confidence
-                    </span>
-                    <span className="rounded-full bg-[rgba(79,122,134,0.1)] px-3 py-1 text-xs font-semibold text-info">
-                      12 evidence sources
-                    </span>
+                    <Badge tone="info">Fact-led</Badge>
+                    <Badge tone="gold">Estimated range</Badge>
+                    <Badge tone="success">Confidence 84%</Badge>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm font-semibold text-text-primary">
-                      Recommendation direction
-                    </p>
+                    <p className="text-sm font-semibold text-text-primary">Recommendation direction</p>
                     <p className="text-sm leading-6 text-text-secondary">
-                      The exchange improves exposure and academic upside, but only
-                      if budget buffer and visa timing stay controlled.
+                      The MMF path improves yield, but only if redemption timing and KYC friction fit the operating cash window.
                     </p>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="rounded-[18px] bg-app-bg-elevated p-3">
-                      <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                        Best case
-                      </p>
-                      <p className="mt-2 text-sm text-text-primary">
-                        Strong learning and network lift
-                      </p>
+                    <div className="rounded-[18px] border border-border-subtle bg-bg-surface p-3">
+                      <p className="text-xs uppercase tracking-[0.12em] text-text-muted">Evidence</p>
+                      <p className="mt-2 text-sm text-text-primary">7 sources, 2 on-chain, 1 official disclosure</p>
                     </div>
-                    <div className="rounded-[18px] bg-app-bg-elevated p-3">
-                      <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                        Unknown
-                      </p>
-                      <p className="mt-2 text-sm text-text-primary">
-                        Funding certainty and visa timing
-                      </p>
+                    <div className="rounded-[18px] border border-border-subtle bg-bg-surface p-3">
+                      <p className="text-xs uppercase tracking-[0.12em] text-text-muted">Calculation</p>
+                      <p className="mt-2 text-sm text-text-primary">Fee drag vs yield spread, 90-day breakeven</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-[22px] bg-panel p-4">
-                  <p className="text-sm font-semibold text-text-primary">
-                    Analysis flow
-                  </p>
+                <div className="rounded-[22px] border border-border-subtle bg-bg-surface p-4">
+                  <p className="text-sm font-semibold text-text-primary">Trust cues</p>
                   <div className="mt-4 space-y-3">
                     {[
-                      '1. Select analysis mode',
-                      '2. Describe the decision',
-                      '3. Answer dynamic follow-up questions',
-                      '4. Watch evidence and calculations progress',
-                      '5. Read the final structured report',
+                      'Last updated and freshness stay visible.',
+                      'Facts and inferred states are styled differently.',
+                      'Assumptions and unknowns remain explicit.',
+                      'Recommendation stays bounded by constraints.',
                     ].map((step) => (
                       <div
                         key={step}
-                        className="flex items-center gap-3 rounded-[18px] bg-app-bg-elevated px-3 py-3 text-sm text-text-secondary"
+                        className="flex items-center gap-3 rounded-[18px] border border-border-subtle bg-app-bg-elevated px-3 py-3 text-sm text-text-secondary"
                       >
-                        <CheckCircle2 className="size-4 shrink-0 text-success" />
+                        <CheckCircle2 className="size-4 shrink-0 text-info" />
                         <span>{step}</span>
                       </div>
                     ))}
@@ -216,21 +187,18 @@ export function LoginPage() {
 
         <div className="flex items-center">
           <Card className="w-full max-w-[520px] p-6 md:p-8">
-            <div className="space-y-2">
+            <div className="space-y-3">
               <p className="apple-kicker">Access</p>
-              <h2 className="text-[2rem] font-semibold tracking-[-0.05em] text-text-primary">
-                Continue to your workspace
-              </h2>
+              <h2 className="text-[2rem] font-semibold tracking-[-0.05em] text-text-primary">Continue to your workspace</h2>
               <p className="text-sm leading-6 text-text-secondary">
-                This MVP keeps a browser-linked session for demo purposes. The UI
-                reflects a production login flow even when mock data is active.
+                Use email access for your own workspace, or open the curated demo to review realistic sessions and report output.
               </p>
             </div>
 
             <div className="mt-6 space-y-4">
               <div className="space-y-2">
                 <label htmlFor="email" className="text-sm font-semibold text-text-primary">
-                  Email
+                  Work email
                 </label>
                 <Input
                   id="email"
@@ -243,41 +211,19 @@ export function LoginPage() {
                   }
                 />
                 <p className="text-xs text-text-muted">
-                  Use a real-looking email. Authentication is mocked in this MVP.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <label
-                  htmlFor="password"
-                  className="text-sm font-semibold text-text-primary"
-                >
-                  Password
-                </label>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  placeholder="Enter your password"
-                  value={form.password}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, password: event.target.value }))
-                  }
-                />
-                <p className="text-xs text-text-muted">
-                  No password is stored. This only drives realistic UI states.
+                  Access sessions remain browser-scoped in this release build. No password entry is shown unless the product supports it.
                 </p>
               </div>
 
               {inlineError ? (
-                <div className="rounded-[20px] border border-[rgba(181,86,77,0.22)] bg-[rgba(181,86,77,0.08)] px-4 py-3 text-sm text-danger">
+                <div className="rounded-[20px] border border-[rgba(244,63,94,0.28)] bg-[rgba(244,63,94,0.1)] px-4 py-3 text-sm text-danger">
                   {inlineError}
                 </div>
               ) : null}
 
-              {demoMessage ? (
-                <div className="rounded-[20px] border border-[rgba(79,122,134,0.2)] bg-[rgba(79,122,134,0.08)] px-4 py-3 text-sm text-info">
-                  {demoMessage}
+              {infoMessage ? (
+                <div className="rounded-[20px] border border-[rgba(34,211,238,0.24)] bg-[rgba(34,211,238,0.08)] px-4 py-3 text-sm text-info">
+                  {infoMessage}
                 </div>
               ) : null}
 
@@ -287,34 +233,25 @@ export function LoginPage() {
                   disabled={mutation.isPending}
                   onClick={() => void handleEmailContinue()}
                 >
-                  {mutation.isPending ? 'Signing in...' : 'Continue with Email'}
+                  {mutation.isPending ? 'Entering workspace...' : 'Continue with email'}
                   <ArrowRight className="size-4" />
                 </Button>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Button
-                    variant="secondary"
-                    className="w-full"
-                    disabled={mutation.isPending}
-                    onClick={() =>
-                      void mutation.mutateAsync({
-                        email: 'google@geniusactuary.ai',
-                        password: 'google',
-                        mfaCode: '',
-                      })
-                    }
-                  >
-                    Continue with Google
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className="w-full"
-                    disabled={mutation.isPending}
-                    onClick={() => void handleDemo()}
-                  >
-                    Try demo
-                  </Button>
-                </div>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  disabled={mutation.isPending}
+                  onClick={() => void handleDemo()}
+                >
+                  Try demo workspace
+                </Button>
               </div>
+            </div>
+
+            <div className="mt-6 rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
+              <p className="text-xs uppercase tracking-[0.12em] text-text-muted">Privacy and security</p>
+              <p className="mt-2 text-sm leading-6 text-text-secondary">
+                Decision context, evidence summaries, and exports should be handled as sensitive working material. Review data handling policies before sharing external links or PDFs.
+              </p>
             </div>
 
             <div className="mt-6 flex flex-wrap gap-x-4 gap-y-2 text-xs text-text-muted">

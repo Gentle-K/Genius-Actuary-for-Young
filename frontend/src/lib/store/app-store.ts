@@ -76,19 +76,19 @@ interface AppStoreState {
 export const useAppStore = create<AppStoreState>()(
   persist(
     (set) => ({
-      themeMode: 'light',
-      resolvedTheme: 'light',
-      locale: 'zh',
+      themeMode: 'dark',
+      resolvedTheme: 'dark',
+      locale: 'en',
       displayDensity: 'cozy',
       apiMode: defaultApiMode,
-      sidebarOpen: false,
+      sidebarOpen: true,
       accessToken: null,
       refreshToken: null,
       currentUser: null,
       walletAddress: '',
       walletChainId: null,
-      setThemeMode: (themeMode) => set({ themeMode }),
-      setResolvedTheme: (resolvedTheme) => set({ resolvedTheme }),
+      setThemeMode: () => set({ themeMode: 'dark' }),
+      setResolvedTheme: () => set({ resolvedTheme: 'dark' }),
       setLocale: (locale) => set({ locale }),
       setDisplayDensity: (displayDensity) => set({ displayDensity }),
       setApiMode: (apiMode) =>
@@ -113,7 +113,8 @@ export const useAppStore = create<AppStoreState>()(
         }),
       syncFromSettings: (settings) =>
         set({
-          themeMode: settings.themeMode,
+          themeMode: 'dark',
+          resolvedTheme: 'dark',
           locale: settings.language,
         }),
     }),

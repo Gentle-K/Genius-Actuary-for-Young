@@ -22,7 +22,7 @@ export function RouteErrorBoundary() {
   return (
     <Card className="mx-auto max-w-3xl space-y-4 p-8">
       <div className="flex items-center gap-3">
-        <AlertTriangle className="size-5 text-gold-primary" />
+        <AlertTriangle className="size-5 text-warning" />
         <h1 className="text-xl font-semibold text-text-primary">
           {isZh ? '页面已切换到安全模式' : 'The page switched to safe mode'}
         </h1>
@@ -36,11 +36,11 @@ export function RouteErrorBoundary() {
         {description}
       </p>
       <div className="flex flex-wrap gap-2">
-        <Button variant="secondary" onClick={() => void navigate('/analysis/modes')}>
+        <Button variant="secondary" onClick={() => void navigate('/new-analysis')}>
           {isZh ? '返回分析页' : 'Back to Analysis'}
         </Button>
-        <Button onClick={() => void navigate('/resources/analyses')}>
-          {isZh ? '查看历史记录' : 'Go to History'}
+        <Button onClick={() => void navigate('/sessions')}>
+          {isZh ? '查看会话' : 'Go to Sessions'}
         </Button>
       </div>
     </Card>

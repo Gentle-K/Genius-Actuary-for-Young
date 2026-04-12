@@ -19,6 +19,7 @@ import {
   MetricCard,
   PreviewNote,
   SectionCard,
+  WorklogCard,
 } from '@/components/product/decision-ui'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -146,9 +147,9 @@ export function ProgressPage() {
                 key={label}
                 className={`rounded-[22px] border px-4 py-4 ${
                   completed
-                    ? 'border-[rgba(45,118,80,0.18)] bg-[rgba(45,118,80,0.08)]'
+                    ? 'border-[rgba(34,197,94,0.18)] bg-[rgba(20,184,122,0.08)]'
                     : active
-                      ? 'border-border-strong bg-brand-soft'
+                      ? 'border-[rgba(79,124,255,0.28)] bg-primary-soft'
                       : 'border-border-subtle bg-app-bg-elevated'
                 }`}
               >
@@ -157,7 +158,7 @@ export function ProgressPage() {
                   {completed ? (
                     <CheckCircle2 className="size-4 text-success" />
                   ) : active ? (
-                    <LoaderCircle className="size-4 animate-spin text-gold-primary" />
+                    <LoaderCircle className="size-4 animate-spin text-primary" />
                   ) : (
                     <Badge tone="neutral">Pending</Badge>
                   )}
@@ -204,12 +205,12 @@ export function ProgressPage() {
             {activityItems.length ? (
               <div className="space-y-3">
                 {activityItems.map((item, index) => (
-                  <div
+                  <WorklogCard
                     key={`${item.title}-${index}`}
-                    className="flex items-start gap-3 rounded-[20px] bg-app-bg-elevated px-4 py-4"
-                  >
-                    <div className="mt-1 flex size-8 items-center justify-center rounded-full bg-brand-soft text-gold-primary">
-                      {item.title.includes('Search') ? (
+                    title={item.title}
+                    detail={item.detail}
+                    icon={
+                      item.title.includes('Search') ? (
                         <FileSearch className="size-4" />
                       ) : item.title.includes('Calculation') ? (
                         <Sigma className="size-4" />
@@ -217,15 +218,9 @@ export function ProgressPage() {
                         <Sparkles className="size-4" />
                       ) : (
                         <CircleAlert className="size-4" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-text-primary">{item.title}</p>
-                      <p className="mt-1 text-sm leading-6 text-text-secondary">
-                        {item.detail}
-                      </p>
-                    </div>
-                  </div>
+                      )
+                    }
+                  />
                 ))}
               </div>
             ) : (
@@ -251,8 +246,7 @@ export function ProgressPage() {
             />
           ) : (
             <PreviewNote>
-              The UI is showing orchestration state only. Search, evidence synthesis, and
-              report generation still live behind the backend API.
+              Progress surfaces keep active work, blockers, and remaining steps visible so the user can tell whether the report is converging or still waiting on signal.
             </PreviewNote>
           )}
         </div>
@@ -287,6 +281,20 @@ export function ProgressPage() {
                 </p>
                 <p className="mt-2 text-sm leading-6 text-text-primary">
                   {progress.currentFocus ?? 'Waiting for the next orchestrated step.'}
+                </p>
+              </div>
+              <div className="rounded-[20px] bg-app-bg-elevated p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                  What remains before report draft
+                </p>
+                <p className="mt-2 text-sm leading-6 text-text-primary">
+                  {progress.nextAction === 'complete'
+                    ? 'The report draft is ready.'
+                    : progress.pendingSearchTasks?.length
+                      ? `${progress.pendingSearchTasks.length} evidence task(s) still open.`
+                      : progress.pendingCalculationTasks?.length
+                        ? `${progress.pendingCalculationTasks.length} calculation task(s) still open.`
+                        : 'The workflow is waiting for the next orchestrated step.'}
                 </p>
               </div>
               <div className="rounded-[20px] bg-app-bg-elevated p-4">

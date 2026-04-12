@@ -1,7 +1,7 @@
 import type { EChartsOption } from 'echarts'
 
 import { graphic } from '@/lib/charts/echarts'
-import type { ChartArtifact, ChartSeriesDatum } from '@/types'
+import type { ChartArtifact, ChartSeriesDatum, ChartValueNature } from '@/types'
 
 interface ChartPalette {
   appBg: string
@@ -11,8 +11,12 @@ interface ChartPalette {
   textPrimary: string
   textSecondary: string
   gridLine: string
-  goldPrimary: string
-  goldBright: string
+  primary: string
+  cyan: string
+  violet: string
+  emerald: string
+  amber: string
+  rose: string
 }
 
 interface AxisTooltipDatum {
@@ -39,24 +43,30 @@ function normalizeTooltipParams(params: unknown): AxisTooltipDatum[] {
 
 function getPalette(): ChartPalette {
   return {
-    appBg: readCssVar('--app-bg', '#08080A'),
-    panel: readCssVar('--panel', '#121215'),
-    borderStrong: readCssVar('--border-strong', 'rgba(249, 228, 159, 0.28)'),
-    axisLine: readCssVar('--border-subtle', 'rgba(255,255,255,0.08)'),
-    textPrimary: readCssVar('--text-primary', '#FBFBFC'),
-    textSecondary: readCssVar('--text-secondary', 'rgba(251, 251, 252, 0.72)'),
-    gridLine: readCssVar('--grid-line', 'rgba(255, 255, 255, 0.05)'),
-    goldPrimary: readCssVar('--gold-primary', '#D4AF37'),
-    goldBright: readCssVar('--gold-bright', '#F9E49F'),
+    appBg: readCssVar('--app-bg', '#0b1526'),
+    panel: readCssVar('--panel', '#0f1b31'),
+    borderStrong: readCssVar('--border-strong', 'rgba(116, 151, 205, 0.42)'),
+    axisLine: readCssVar('--border-subtle', 'rgba(101, 132, 180, 0.28)'),
+    textPrimary: readCssVar('--text-primary', '#f4f7fc'),
+    textSecondary: readCssVar('--text-secondary', '#b7c1d4'),
+    gridLine: readCssVar('--grid-line', 'rgba(76, 107, 153, 0.12)'),
+    primary: readCssVar('--primary', '#4F7CFF'),
+    cyan: readCssVar('--accent-cyan', '#22D3EE'),
+    violet: readCssVar('--accent-violet', '#8B5CF6'),
+    emerald: readCssVar('--accent-emerald', '#14B87A'),
+    amber: readCssVar('--accent-amber', '#F59E0B'),
+    rose: readCssVar('--accent-rose', '#F43F5E'),
   }
 }
 
-function createGoldGradient() {
-  return new graphic.LinearGradient(0, 0, 1, 1, [
-    { offset: 0, color: '#F9E49F' },
-    { offset: 0.5, color: '#D4AF37' },
-    { offset: 1, color: '#8A7338' },
-  ])
+function natureColor(palette: ChartPalette, nature?: ChartValueNature) {
+  if (nature === 'estimated') return palette.violet
+  if (nature === 'inferred') return palette.amber
+  return palette.cyan
+}
+
+function seriesColorByIndex(palette: ChartPalette, index: number) {
+  return [palette.primary, palette.cyan, palette.violet, palette.emerald, palette.amber, palette.rose][index % 6]
 }
 
 function createSharedOption(palette: ChartPalette): EChartsOption {
@@ -101,13 +111,14 @@ function axisLabelStyle(palette: ChartPalette) {
 
 function buildLineOption(chart: ChartArtifact, palette: ChartPalette): EChartsOption {
   const points = chart.lineSeries ?? []
-  const goldGradient = createGoldGradient()
+  const labels = points.map((point) => point.label)
+  const natures: ChartValueNature[] = ['actual', 'estimated', 'inferred']
 
   return {
     ...createSharedOption(palette),
     xAxis: {
       type: 'category',
-      data: points.map((point) => point.label),
+      data: labels,
       axisLabel: axisLabelStyle(palette),
       axisLine: { lineStyle: { color: palette.axisLine } },
       splitLine: {
@@ -124,32 +135,36 @@ function buildLineOption(chart: ChartArtifact, palette: ChartPalette): EChartsOp
         lineStyle: { color: palette.gridLine },
       },
     },
-    series: [
-      {
+    series: natures
+      .filter((nature) => points.some((point) => (point.nature ?? 'actual') === nature))
+      .map((nature) => ({
         type: 'line',
+        name: nature === 'actual' ? 'Confirmed' : nature === 'estimated' ? 'Estimated' : 'Inferred',
         smooth: true,
-        symbolSize: 9,
+        connectNulls: true,
+        symbolSize: 8,
         showSymbol: true,
         lineStyle: {
           width: 3,
-          color: goldGradient,
-          shadowBlur: 14,
-          shadowColor: 'rgba(212,175,55,0.45)',
+          color: natureColor(palette, nature),
+          type: nature === 'actual' ? 'solid' : 'dashed',
         },
         itemStyle: {
-          color: palette.goldBright,
+          color: natureColor(palette, nature),
           borderColor: palette.panel,
           borderWidth: 2,
         },
-        areaStyle: {
-          color: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(212, 175, 55, 0.22)' },
-            { offset: 1, color: 'rgba(212, 175, 55, 0.03)' },
-          ]),
-        },
-        data: points.map((point) => point.value),
-      },
-    ],
+        areaStyle:
+          nature === 'actual'
+            ? {
+                color: new graphic.LinearGradient(0, 0, 0, 1, [
+                  { offset: 0, color: 'rgba(34, 211, 238, 0.18)' },
+                  { offset: 1, color: 'rgba(34, 211, 238, 0.03)' },
+                ]),
+              }
+            : undefined,
+        data: points.map((point) => ((point.nature ?? 'actual') === nature ? point.value : null)),
+      })),
   }
 }
 
@@ -157,7 +172,6 @@ function buildBarOption(chart: ChartArtifact, palette: ChartPalette): EChartsOpt
   const seriesData = chart.compareSeries ?? []
   const categories = Array.from(new Set(seriesData.map((item) => item.label)))
   const groups = Array.from(new Set(seriesData.map((item) => item.group ?? 'Value')))
-  const goldGradient = createGoldGradient()
   const rotateLabels = categories.some((category) => category.length > 14)
 
   return {
@@ -220,13 +234,15 @@ function buildBarOption(chart: ChartArtifact, palette: ChartPalette): EChartsOpt
       barMaxWidth: 28,
       itemStyle: {
         borderRadius: [12, 12, 4, 4],
-        color: index === 0 ? goldGradient : 'rgba(249, 228, 159, 0.35)',
-        shadowBlur: 16,
-        shadowColor: 'rgba(212,175,55,0.24)',
       },
       data: categories.map((category) => {
         const datum = seriesData.find((item) => item.label === category && (item.group ?? 'Value') === group)
-        return datum?.value ?? 0
+        return {
+          value: datum?.value ?? 0,
+          itemStyle: {
+            color: datum ? natureColor(palette, datum.nature) : seriesColorByIndex(palette, index),
+          },
+        }
       }),
     })),
   }
@@ -253,17 +269,12 @@ function buildScatterOption(chart: ChartArtifact, palette: ChartPalette): EChart
       {
         type: 'scatter',
         symbolSize: (value: number[]) => Math.max(14, value[2] * 14),
-        data: points.map((point) => [
-          Number(point.group ?? 0),
-          point.value,
-          point.intensity ?? 0.6,
-          point.label,
-        ]),
-        itemStyle: {
-          color: 'rgba(249, 228, 159, 0.82)',
-          shadowBlur: 26,
-          shadowColor: 'rgba(212,175,55,0.48)',
-        },
+        data: points.map((point) => ({
+          value: [Number(point.group ?? 0), point.value, point.intensity ?? 0.6, point.label],
+          itemStyle: {
+            color: natureColor(palette, point.nature),
+          },
+        })),
       },
     ],
     tooltip: {
@@ -271,8 +282,8 @@ function buildScatterOption(chart: ChartArtifact, palette: ChartPalette): EChart
       backgroundColor: palette.panel,
       borderColor: palette.borderStrong,
       formatter: (params) => {
-        const payload = params as unknown as { data: [number, number, number, string] }
-        return `${payload.data[3]}<br/>X: ${payload.data[0]}<br/>Y: ${payload.data[1]}`
+        const payload = params as unknown as { data: { value: [number, number, number, string] } }
+        return `${payload.data.value[3]}<br/>X: ${payload.data.value[0]}<br/>Y: ${payload.data.value[1]}`
       },
     },
   }
@@ -310,14 +321,14 @@ function buildRadarOption(chart: ChartArtifact, palette: ChartPalette): EChartsO
           name: item.name,
           value: item.values.map((value) => value.value),
           lineStyle: {
-            color: index === 0 ? palette.goldBright : palette.goldPrimary,
+            color: seriesColorByIndex(palette, index),
             width: 2,
           },
           itemStyle: {
-            color: index === 0 ? palette.goldBright : palette.goldPrimary,
+            color: seriesColorByIndex(palette, index),
           },
           areaStyle: {
-            color: index === 0 ? 'rgba(249,228,159,0.14)' : 'rgba(212,175,55,0.08)',
+            color: `${seriesColorByIndex(palette, index)}22`,
           },
         })),
       },
@@ -358,7 +369,7 @@ function buildHeatmapOption(chart: ChartArtifact, palette: ChartPalette): EChart
       calculable: false,
       textStyle: { color: palette.textSecondary },
       inRange: {
-        color: ['rgba(61,52,31,0.35)', '#8A7338', '#D4AF37', '#F9E49F'],
+        color: ['rgba(79,124,255,0.2)', palette.primary, palette.cyan, palette.rose],
       },
     },
     series: [
@@ -369,7 +380,7 @@ function buildHeatmapOption(chart: ChartArtifact, palette: ChartPalette): EChart
         emphasis: {
           itemStyle: {
             shadowBlur: 18,
-            shadowColor: 'rgba(212,175,55,0.35)',
+            shadowColor: 'rgba(79,124,255,0.28)',
           },
         },
       },
@@ -382,18 +393,9 @@ function buildPieOption(chart: ChartArtifact, palette: ChartPalette): EChartsOpt
     name: item.label,
     value: item.value,
     itemStyle: {
-      color:
-        index === 0
-          ? '#F9E49F'
-          : index === 1
-            ? '#D4AF37'
-            : index === 2
-              ? '#8A7338'
-              : 'rgba(249, 228, 159, 0.42)',
+      color: natureColor(palette, item.nature) || seriesColorByIndex(palette, index),
       borderColor: palette.panel,
       borderWidth: 2,
-      shadowBlur: 18,
-      shadowColor: 'rgba(212,175,55,0.22)',
     },
   }))
 

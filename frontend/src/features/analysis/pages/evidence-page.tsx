@@ -1,16 +1,15 @@
-import { Dialog, DialogBackdrop, DialogPanel } from '@headlessui/react'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
+  DetailDrawer,
   EmptyState,
   ErrorState,
   FilterBar,
   LoadingState,
   SearchInput,
-  SectionCard,
   SourceCard,
 } from '@/components/product/decision-ui'
 import { Button } from '@/components/ui/button'
@@ -72,7 +71,7 @@ export function EvidencePage() {
       <PageHeader
         eyebrow="Evidence"
         title="Evidence library"
-        description="Inspect the source summaries supporting current analyses, including freshness, extracted facts, and where each source is used."
+        description="Inspect the source summaries supporting current analyses, including freshness, extracted facts, source classification, and where each source is used."
       />
 
       <FilterBar>
@@ -164,80 +163,74 @@ export function EvidencePage() {
         />
       )}
 
-      <Dialog open={Boolean(selectedEvidence)} onClose={() => setSelectedId(null)} className="relative z-50">
-        <DialogBackdrop className="fixed inset-0 bg-[rgba(18,27,21,0.26)]" />
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
-            <DialogPanel className="panel-card w-full max-w-3xl space-y-5 p-6">
-              {selectedEvidence ? (
-                <>
-                  <SectionCard
-                    title={selectedEvidence.item.title}
-                    description={selectedEvidence.item.summary}
-                    actions={
-                      <a
-                        href={selectedEvidence.item.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-sm font-semibold text-gold-primary"
-                      >
-                        Open source
-                        <ExternalLink className="size-4" />
-                      </a>
-                    }
-                  >
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="rounded-[20px] bg-app-bg-elevated p-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-                          Extracted facts
-                        </p>
-                        <ul className="mt-3 space-y-2 text-sm leading-6 text-text-secondary">
-                          {selectedEvidence.item.extractedFacts.map((fact) => (
-                            <li key={fact}>{fact}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div className="rounded-[20px] bg-app-bg-elevated p-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-                          Linked report usage
-                        </p>
-                        <div className="mt-3 space-y-2 text-sm leading-6 text-text-secondary">
-                          <p>Session: {selectedEvidence.session.problemStatement}</p>
-                          <p>
-                            Linked conclusions:{' '}
-                            {
-                              selectedEvidence.session.conclusions.filter((conclusion) =>
-                                conclusion.basisRefs.includes(selectedEvidence.item.id),
-                              ).length
-                            }
-                          </p>
-                          <p>
-                            Included in final report:{' '}
-                            {selectedEvidence.report?.evidence.some(
-                              (evidence) => evidence.id === selectedEvidence.item.id,
-                            )
-                              ? 'Yes'
-                              : 'No'}
-                          </p>
-                          <p>
-                            Freshness warning:{' '}
-                            {selectedEvidence.item.freshness?.staleWarning ?? 'No explicit warning'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </SectionCard>
-                  <div className="flex justify-end">
-                    <Button variant="secondary" onClick={() => setSelectedId(null)}>
-                      Close
-                    </Button>
-                  </div>
-                </>
-              ) : null}
-            </DialogPanel>
+      <DetailDrawer
+        open={Boolean(selectedEvidence)}
+        onClose={() => setSelectedId(null)}
+        title={selectedEvidence?.item.title ?? 'Evidence detail'}
+        description={selectedEvidence?.item.summary}
+        actions={
+          selectedEvidence ? (
+            <a
+              href={selectedEvidence.item.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-accent-cyan"
+            >
+              Open source
+              <ExternalLink className="size-4" />
+            </a>
+          ) : undefined
+        }
+      >
+        {selectedEvidence ? (
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-3 rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                Extracted facts
+              </p>
+              <ul className="space-y-2 text-sm leading-6 text-text-secondary">
+                {selectedEvidence.item.extractedFacts.map((fact) => (
+                  <li key={fact}>{fact}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="space-y-3 rounded-[20px] border border-border-subtle bg-bg-surface p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                Usage and freshness
+              </p>
+              <div className="space-y-2 text-sm leading-6 text-text-secondary">
+                <p>Session: {selectedEvidence.session.problemStatement}</p>
+                <p>
+                  Linked conclusions:{' '}
+                  {
+                    selectedEvidence.session.conclusions.filter((conclusion) =>
+                      conclusion.basisRefs.includes(selectedEvidence.item.id),
+                    ).length
+                  }
+                </p>
+                <p>
+                  Included in final report:{' '}
+                  {selectedEvidence.report?.evidence.some(
+                    (evidence) => evidence.id === selectedEvidence.item.id,
+                  )
+                    ? 'Yes'
+                    : 'No'}
+                </p>
+                <p>Fetch time: {new Date(selectedEvidence.item.fetchedAt).toLocaleString()}</p>
+                <p>
+                  Freshness warning:{' '}
+                  {selectedEvidence.item.freshness?.staleWarning ?? 'No explicit warning'}
+                </p>
+              </div>
+            </div>
           </div>
+        ) : null}
+        <div className="flex justify-end">
+          <Button variant="secondary" onClick={() => setSelectedId(null)}>
+            Close
+          </Button>
         </div>
-      </Dialog>
+      </DetailDrawer>
     </div>
   )
 }

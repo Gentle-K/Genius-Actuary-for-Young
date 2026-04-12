@@ -79,7 +79,7 @@ export function ReportsPage() {
       <PageHeader
         eyebrow="Reports"
         title="Reports"
-        description="Browse final decision reports, compare evidence density, and inspect which outputs already include deterministic calculations."
+        description="Browse final decision reports, compare evidence density, and inspect which outputs already include deterministic calculations and annotated chart context."
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -98,14 +98,14 @@ export function ReportsPage() {
         <MetricCard
           title="Avg time to report"
           value={`${Math.round(avgTimeToReport || 0)} min`}
-          detail="Measured from session creation to last update in mock data."
+          detail="Measured from session creation to last update in the current catalog."
           tone="brand"
         />
         <MetricCard
           title="Reports with calculations"
           value={`${reportsWithCalculations}`}
-          detail="Finished reports that surface deterministic outputs."
-          tone="success"
+          detail="Finished reports that surface deterministic outputs alongside narrative guidance."
+          tone="warning"
         />
       </div>
 
@@ -155,7 +155,7 @@ export function ReportsPage() {
                       <h3 className="text-lg font-semibold text-text-primary">
                         {report.summaryTitle}
                       </h3>
-                      <p className="text-sm leading-6 text-text-secondary">
+                      <p className="line-clamp-2 text-sm leading-6 text-text-secondary">
                         {extractExecutiveSummary(report.markdown)}
                       </p>
                     </div>
@@ -163,15 +163,31 @@ export function ReportsPage() {
                       View full report
                     </Button>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge tone="neutral">Cost</Badge>
-                    <Badge tone="neutral">Risk</Badge>
-                    <Badge tone="neutral">Recommendation direction</Badge>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Summary</p>
+                      <p className="mt-2 text-sm leading-6 text-text-primary">
+                        {report.highlights[0]?.detail ?? report.highlights[0]?.value ?? 'Recommendation generated.'}
+                      </p>
+                    </div>
+                    <div className="rounded-[18px] border border-border-subtle bg-bg-surface p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Evidence / calculations</p>
+                      <p className="mt-2 text-sm leading-6 text-text-secondary">
+                        {report.evidence.length} evidence items · {report.calculations.length} calculations
+                      </p>
+                    </div>
+                    <div className="rounded-[18px] border border-border-subtle bg-bg-surface p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Unresolved uncertainty</p>
+                      <p className="mt-2 text-sm leading-6 text-text-secondary">
+                        {report.unknowns?.[0] ?? 'No explicit unresolved uncertainty listed.'}
+                      </p>
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-4 text-sm text-text-secondary">
                     <span>Last updated: {new Date(session.updatedAt).toLocaleDateString()}</span>
                     <span>{report.evidence.length} evidence items</span>
                     <span>{report.calculations.length} calculations</span>
+                    <span>{report.charts.length} charts</span>
                   </div>
                 </Card>
               )
@@ -179,14 +195,20 @@ export function ReportsPage() {
           </div>
 
           <SectionCard
-            title="Chart showcase"
-            description="Reports should only include charts with real decision meaning, not decorative finance visuals."
+            title="Insight rail"
+            description="Charts should carry factual or modeled decision value, not decorative trading-terminal styling."
           >
             {chartShowcase.length ? (
               <div className="space-y-4">
                 {chartShowcase.map((chart) => (
                   <ChartCard key={chart.id} chart={chart} />
                 ))}
+                <div className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Rail note</p>
+                  <p className="mt-2 text-sm leading-6 text-text-secondary">
+                    Actual and estimated values will be visually separated in the chart system so report readers can see where model output starts.
+                  </p>
+                </div>
               </div>
             ) : (
               <EmptyState

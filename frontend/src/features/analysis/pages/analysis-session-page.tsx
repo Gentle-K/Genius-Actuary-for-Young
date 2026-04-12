@@ -16,6 +16,7 @@ import {
   PreviewNote,
   SectionCard,
   SmallMetaList,
+  StickyActionBar,
 } from '@/components/product/decision-ui'
 import { Button } from '@/components/ui/button'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
@@ -66,6 +67,10 @@ function toAnswers(
     const hasContent =
       draft.selectedOptions.length > 0 || draft.customInput.trim().length > 0
 
+    if (draft.answerStatus === 'declined') {
+      return []
+    }
+
     if (draft.answerStatus === 'answered' && !hasContent) {
       return []
     }
@@ -88,6 +93,7 @@ export function AnalysisSessionPage() {
   const queryClient = useQueryClient()
   const adapter = useApiAdapter()
   const [drafts, setDrafts] = useState<Record<string, ClarificationDraftValue>>({})
+  const [lastSavedAt, setLastSavedAt] = useState<string>('')
 
   const sessionQuery = useQuery({
     queryKey: ['analysis', sessionId, 'clarify'],
@@ -147,6 +153,7 @@ export function AnalysisSessionPage() {
 
   const saveDraft = () => {
     setLocalStorageItem(`ga-clarify-${sessionId}`, JSON.stringify(drafts))
+    setLastSavedAt(new Date().toISOString())
     toast.success('Draft answers saved')
   }
 
@@ -249,11 +256,13 @@ export function AnalysisSessionPage() {
             )}
           </SectionCard>
 
-          <div className="panel-card sticky bottom-4 z-20 flex flex-wrap items-center justify-between gap-3 p-4">
+          <StickyActionBar>
             <div>
-              <p className="text-sm font-semibold text-text-primary">Sticky action bar</p>
+              <p className="text-sm font-semibold text-text-primary">Round progress</p>
               <p className="text-sm text-text-secondary">
-                Save draft answers locally or continue once this round is ready.
+                {answers.length
+                  ? `${answers.length} answer${answers.length === 1 ? '' : 's'} ready. ${lastSavedAt ? `Autosaved at ${new Date(lastSavedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` : 'Save locally at any time.'}`
+                  : 'Answer at least one high-value question before continuing.'}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -268,7 +277,7 @@ export function AnalysisSessionPage() {
                 Continue analysis
               </Button>
             </div>
-          </div>
+          </StickyActionBar>
         </div>
 
         <div className="space-y-6 xl:sticky xl:top-28 xl:self-start">
@@ -297,7 +306,7 @@ export function AnalysisSessionPage() {
             {unresolved.length ? (
               <div className="space-y-3">
                 {unresolved.map((item) => (
-                  <div key={item} className="rounded-[20px] bg-app-bg-elevated px-4 py-3 text-sm leading-6 text-text-secondary">
+                  <div key={item} className="rounded-[20px] border border-[rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.08)] px-4 py-3 text-sm leading-6 text-text-secondary">
                     {item}
                   </div>
                 ))}
@@ -326,8 +335,7 @@ export function AnalysisSessionPage() {
           </div>
 
           <PreviewNote>
-            The UI stores draft answers locally, but the actual transition into analysis
-            only happens when you press Continue analysis.
+            Answered cards collapse after they have enough signal. You can reopen them at any time if a later question changes the trade-off.
           </PreviewNote>
         </div>
       </div>

@@ -56,24 +56,20 @@ export function Sidebar({ collapsed }: SidebarProps) {
     <aside
       className={cn(
         'panel-card fixed inset-y-3 left-3 z-50 flex flex-col justify-between overflow-hidden border lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:translate-x-0',
-        collapsed ? 'w-[98px] lg:w-[98px]' : 'w-[292px]',
+        collapsed ? 'w-[94px] lg:w-[94px]' : 'w-[252px]',
         collapsed ? '-translate-x-[120%] lg:flex lg:-translate-x-0' : 'translate-x-0',
       )}
     >
-      <div className="space-y-8 p-4">
+      <div className="space-y-7 p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex size-12 items-center justify-center rounded-[18px] bg-gold-primary text-lg font-semibold tracking-[-0.05em] text-white">
+            <div className="flex size-12 items-center justify-center rounded-[18px] bg-primary text-lg font-semibold tracking-[-0.05em] text-white shadow-[0_12px_30px_rgba(44,87,190,0.32)]">
               GA
             </div>
             {!collapsed ? (
               <div className="min-w-0">
-                <p className="text-sm font-semibold tracking-[-0.03em] text-text-primary">
-                  Genius Actuary
-                </p>
-                <p className="text-xs leading-5 text-text-secondary">
-                  AI decision analysis agent
-                </p>
+                <p className="text-sm font-semibold tracking-[-0.03em] text-text-primary">Genius Actuary</p>
+                <p className="text-xs leading-5 text-text-secondary">Decision intelligence workspace</p>
               </div>
             ) : null}
           </div>
@@ -90,10 +86,10 @@ export function Sidebar({ collapsed }: SidebarProps) {
         </div>
 
         {!collapsed ? (
-          <div className="rounded-[22px] bg-brand-soft/55 px-4 py-4">
-            <p className="text-sm leading-6 text-text-secondary">
-              Break decisions into explicit costs, risk paths, evidence, calculations,
-              and a bounded recommendation.
+          <div className="rounded-[22px] border border-border-subtle bg-[linear-gradient(180deg,rgba(19,34,58,0.94),rgba(15,27,49,0.9))] px-4 py-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent-cyan">Release Workspace</p>
+            <p className="mt-2 text-sm leading-6 text-text-secondary">
+              Break decisions into explicit cost, risk, evidence, calculations, and bounded recommendations.
             </p>
           </div>
         ) : null}
@@ -108,7 +104,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                     className={cn(
                       'interactive-lift group flex items-center gap-3 rounded-[20px] px-3 py-3 text-sm font-medium transition',
                       isActive
-                        ? 'bg-brand-soft text-text-primary shadow-[0_0_0_1px_rgba(70,106,84,0.12)]'
+                        ? 'bg-primary-soft text-text-primary shadow-[0_0_0_1px_rgba(79,124,255,0.18)]'
                         : 'text-text-secondary hover:bg-app-bg-elevated hover:text-text-primary',
                     )}
                   >
@@ -116,8 +112,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
                       className={cn(
                         'flex size-10 shrink-0 items-center justify-center rounded-[16px] transition',
                         isActive
-                          ? 'bg-gold-primary text-white'
-                          : 'bg-white/60 text-text-secondary group-hover:bg-white group-hover:text-text-primary',
+                          ? 'bg-primary text-white'
+                          : 'bg-bg-surface text-text-secondary group-hover:bg-bg-surface-3 group-hover:text-text-primary',
                       )}
                     >
                       <Icon className="size-5" />
@@ -135,7 +131,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
         {!collapsed ? (
           <div className="space-y-4">
             <div className="grid gap-3">
-              <div className="rounded-[20px] bg-app-bg-elevated px-4 py-3">
+              <div className="rounded-[20px] border border-border-subtle bg-app-bg-elevated px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
                   Active sessions
                 </p>
@@ -143,7 +139,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                   {activeSessionsCount}
                 </p>
               </div>
-              <div className="rounded-[20px] bg-app-bg-elevated px-4 py-3">
+              <div className="rounded-[20px] border border-border-subtle bg-app-bg-elevated px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
                   Reports generated
                 </p>
@@ -153,10 +149,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <Badge tone="info">Mock data</Badge>
-              <p className="text-xs text-text-muted">
-                Latest sync {latestSync ? formatRelativeTime(latestSync) : 'pending'}
-              </p>
+              <Badge tone="info">Evidence-led</Badge>
+              <p className="text-xs text-text-muted">Updated {latestSync ? formatRelativeTime(latestSync) : 'pending'}</p>
             </div>
           </div>
         ) : (

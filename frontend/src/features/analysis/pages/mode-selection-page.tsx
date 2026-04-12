@@ -14,12 +14,12 @@ import {
   ConfidenceBadge,
   EmptyState,
   ErrorState,
-  FilterBar,
   LoadingState,
   MetricCard,
   PreviewNote,
   SectionCard,
   SessionCard,
+  StickyActionBar,
 } from '@/components/product/decision-ui'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -61,7 +61,7 @@ function modeCardClass(active: boolean) {
   return cn(
     'interactive-lift rounded-[26px] border p-5 text-left',
     active
-      ? 'border-border-strong bg-brand-soft shadow-[0_12px_30px_rgba(70,106,84,0.1)]'
+      ? 'border-[rgba(79,124,255,0.3)] bg-primary-soft shadow-[0_12px_30px_rgba(44,87,190,0.18)]'
       : 'border-border-subtle bg-panel hover:border-border-strong hover:bg-panel-strong',
   )
 }
@@ -85,31 +85,41 @@ export function ModeSelectionPage() {
   const [budgetRange, setBudgetRange] = useState('$8k - $15k')
   const [timeHorizon, setTimeHorizon] = useState('6-12 months')
   const [riskPreference, setRiskPreference] = useState('Balanced')
+  const [settlementCurrency, setSettlementCurrency] = useState('USD')
+  const [targetChain, setTargetChain] = useState('Any supported network')
+  const [accessConstraints, setAccessConstraints] = useState('No additional access constraints')
   const [mustHaveGoals, setMustHaveGoals] = useState(
     'Protect cash runway; keep optionality; make trade-offs explicit',
   )
   const [mustAvoidOutcomes, setMustAvoidOutcomes] = useState(
     'Irreversible commitment without evidence',
   )
+  const [lastSavedAt, setLastSavedAt] = useState<string>('')
 
   useEffect(() => {
     const raw = getLocalStorageItem(DRAFT_KEY)
     if (!raw) return
     try {
       const parsed = JSON.parse(raw) as {
+        accessConstraints: string
         budgetRange: string
         mode: AnalysisMode
         mustAvoidOutcomes: string
         mustHaveGoals: string
         problem: string
         riskPreference: string
+        settlementCurrency: string
+        targetChain: string
         timeHorizon: string
       }
+      setAccessConstraints(parsed.accessConstraints ?? 'No additional access constraints')
       setMode(parsed.mode)
       setProblem(parsed.problem)
       setBudgetRange(parsed.budgetRange)
       setTimeHorizon(parsed.timeHorizon)
       setRiskPreference(parsed.riskPreference)
+      setSettlementCurrency(parsed.settlementCurrency ?? 'USD')
+      setTargetChain(parsed.targetChain ?? 'Any supported network')
       setMustHaveGoals(parsed.mustHaveGoals)
       setMustAvoidOutcomes(parsed.mustAvoidOutcomes)
     } catch {
@@ -121,16 +131,31 @@ export function ModeSelectionPage() {
     setLocalStorageItem(
       DRAFT_KEY,
       JSON.stringify({
+        accessConstraints,
         mode,
         problem,
         budgetRange,
         timeHorizon,
         riskPreference,
+        settlementCurrency,
+        targetChain,
         mustHaveGoals,
         mustAvoidOutcomes,
       }),
     )
-  }, [budgetRange, mode, mustAvoidOutcomes, mustHaveGoals, problem, riskPreference, timeHorizon])
+    setLastSavedAt(new Date().toISOString())
+  }, [
+    accessConstraints,
+    budgetRange,
+    mode,
+    mustAvoidOutcomes,
+    mustHaveGoals,
+    problem,
+    riskPreference,
+    settlementCurrency,
+    targetChain,
+    timeHorizon,
+  ])
 
   const catalogQuery = useQuery({
     queryKey: ['analysis', 'catalog', 'new-analysis'],
@@ -143,11 +168,14 @@ export function ModeSelectionPage() {
       setLocalStorageItem(
         DRAFT_KEY,
         JSON.stringify({
+          accessConstraints,
           mode,
           problem,
           budgetRange,
           timeHorizon,
           riskPreference,
+          settlementCurrency,
+          targetChain,
           mustHaveGoals,
           mustAvoidOutcomes,
         }),
@@ -155,6 +183,8 @@ export function ModeSelectionPage() {
       await navigate(`/sessions/${session.id}/clarify`)
     },
   })
+
+  const isValidProblem = problem.trim().length >= 12
 
   const draftContext = useMemo<RwaIntakeContext>(
     () => ({
@@ -171,7 +201,7 @@ export function ModeSelectionPage() {
         .filter(Boolean),
       draftPrompt: problem,
       investmentAmount: parseBudgetToAmount(budgetRange),
-      baseCurrency: 'USD',
+      baseCurrency: settlementCurrency,
       preferredAssetIds: [],
       holdingPeriodDays:
         timeHorizon === '1-3 months'
@@ -188,16 +218,35 @@ export function ModeSelectionPage() {
             ? 'aggressive'
             : 'balanced',
       liquidityNeed: 't_plus_3',
-      minimumKycLevel: 0,
+      minimumKycLevel: accessConstraints.toLowerCase().includes('kyc') ? 1 : 0,
       walletAddress: '',
       wantsOnchainAttestation: false,
-      additionalConstraints: `${mustHaveGoals}\n${mustAvoidOutcomes}`,
+      additionalConstraints: `${mustHaveGoals}\n${mustAvoidOutcomes}\nTarget chain / asset universe: ${targetChain}\nAccess constraints: ${accessConstraints}`,
     }),
-    [budgetRange, mustAvoidOutcomes, mustHaveGoals, problem, riskPreference, timeHorizon],
+    [
+      accessConstraints,
+      budgetRange,
+      mustAvoidOutcomes,
+      mustHaveGoals,
+      problem,
+      riskPreference,
+      settlementCurrency,
+      targetChain,
+      timeHorizon,
+    ],
   )
 
   const recentSessions = catalogQuery.data?.sessions.slice(0, 3) ?? []
   const exampleReports = Object.values(catalogQuery.data?.reportsBySession ?? {}).slice(0, 2)
+  const autosaveLabel = lastSavedAt ? `Autosaved ${new Date(lastSavedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Draft saved locally'
+
+  const startAnalysis = () =>
+    void createMutation.mutateAsync({
+      mode,
+      locale,
+      problemStatement: problem.trim(),
+      intakeContext: draftContext,
+    })
 
   return (
     <div className="space-y-6">
@@ -235,7 +284,7 @@ export function ModeSelectionPage() {
                       <span
                         className={cn(
                           'inline-flex size-10 items-center justify-center rounded-full',
-                          active ? 'bg-gold-primary text-white' : 'bg-app-bg-elevated text-text-secondary',
+                          active ? 'bg-primary text-white' : 'bg-app-bg-elevated text-text-secondary',
                         )}
                       >
                         <Sparkles className="size-4" />
@@ -263,8 +312,13 @@ export function ModeSelectionPage() {
                   id="problem"
                   value={problem}
                   placeholder="Example: Should I join a study abroad exchange in year 3?"
+                  className="min-h-36"
                   onChange={(event) => setProblem(event.target.value)}
                 />
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-muted">
+                  <span>{isValidProblem ? 'Structured prompt looks valid.' : 'Add at least a concrete question or decision target.'}</span>
+                  <span>{autosaveLabel}</span>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -272,7 +326,7 @@ export function ModeSelectionPage() {
                   <button
                     key={example}
                     type="button"
-                    className="interactive-lift rounded-full border border-border-subtle bg-app-bg-elevated px-3.5 py-2 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary"
+                    className="interactive-lift rounded-full border border-border-subtle bg-app-bg-elevated px-3.5 py-2 text-sm text-text-secondary hover:border-border-strong hover:bg-bg-surface hover:text-text-primary"
                     onClick={() => setProblem(example)}
                   >
                     {example}
@@ -334,6 +388,45 @@ export function ModeSelectionPage() {
                     <option value="Aggressive">Aggressive</option>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-text-primary">
+                    Settlement currency
+                  </label>
+                  <Select
+                    value={settlementCurrency}
+                    onChange={(event) => setSettlementCurrency(event.target.value)}
+                  >
+                    <option value="USD">USD</option>
+                    <option value="USDT">USDT</option>
+                    <option value="HKD">HKD</option>
+                    <option value="Custom">Custom</option>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-text-primary">
+                    Target chain / asset universe
+                  </label>
+                  <Select value={targetChain} onChange={(event) => setTargetChain(event.target.value)}>
+                    <option value="Any supported network">Any supported network</option>
+                    <option value="HashKey Chain / stable assets">HashKey Chain / stable assets</option>
+                    <option value="RWA-compatible assets only">RWA-compatible assets only</option>
+                    <option value="General decision analysis">General decision analysis</option>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-text-primary">
+                    Access constraints / KYC
+                  </label>
+                  <Select
+                    value={accessConstraints}
+                    onChange={(event) => setAccessConstraints(event.target.value)}
+                  >
+                    <option value="No additional access constraints">No additional access constraints</option>
+                    <option value="KYC required">KYC required</option>
+                    <option value="Jurisdiction restricted">Jurisdiction restricted</option>
+                    <option value="Institutional-only access">Institutional-only access</option>
+                  </Select>
+                </div>
                 <div className="space-y-2 md:col-span-2">
                   <label className="text-sm font-semibold text-text-primary">
                     Must-have goals
@@ -357,8 +450,7 @@ export function ModeSelectionPage() {
               </div>
             ) : (
               <PreviewNote>
-                You can skip constraints now. The system will still ask follow-up
-                questions before it drafts a recommendation.
+                You can skip constraints now. The system will still ask follow-up questions before it drafts a recommendation.
               </PreviewNote>
             )}
           </SectionCard>
@@ -375,31 +467,35 @@ export function ModeSelectionPage() {
             />
           ) : null}
 
-          <FilterBar>
-            <PreviewNote>
-              The frontend only captures input and display state. Evidence search,
-              calculations, orchestration, and report logic stay behind the API boundary.
-            </PreviewNote>
-            <Button
-              className="ml-auto"
-              disabled={!problem.trim() || createMutation.isPending}
-              onClick={() =>
-                void createMutation.mutateAsync({
-                  mode,
-                  locale,
-                  problemStatement: problem.trim(),
-                  intakeContext: draftContext,
-                })
-              }
-            >
-              {createMutation.isPending ? 'Starting analysis...' : 'Start analysis'}
-              {createMutation.isPending ? (
-                <LoaderCircle className="size-4 animate-spin" />
-              ) : (
-                <ArrowRight className="size-4" />
-              )}
-            </Button>
-          </FilterBar>
+          <StickyActionBar>
+            <div>
+              <p className="text-sm font-semibold text-text-primary">Ready to start</p>
+              <p className="text-sm text-text-secondary">
+                {isValidProblem
+                  ? `${autosaveLabel}. The first clarification round will open immediately after session creation.`
+                  : 'Complete the decision prompt before starting analysis.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setProblem(examplePrompts[mode][0])}
+              >
+                Use example
+              </Button>
+              <Button
+                disabled={!isValidProblem || createMutation.isPending}
+                onClick={startAnalysis}
+              >
+                {createMutation.isPending ? 'Starting analysis...' : 'Start analysis'}
+                {createMutation.isPending ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : (
+                  <ArrowRight className="size-4" />
+                )}
+              </Button>
+            </div>
+          </StickyActionBar>
         </div>
 
         <div className="space-y-6">
@@ -431,6 +527,14 @@ export function ModeSelectionPage() {
                           session,
                           catalogQuery.data?.reportsBySession[session.id],
                         )}
+                        evidenceCount={
+                          catalogQuery.data?.reportsBySession[session.id]?.evidence.length ??
+                          session.evidence.length
+                        }
+                        calculationCount={
+                          catalogQuery.data?.reportsBySession[session.id]?.calculations.length ??
+                          session.calculations.length
+                        }
                         onOpen={() => void navigate(continuePath(session))}
                       />
                     ))}
@@ -497,23 +601,35 @@ export function ModeSelectionPage() {
                 <MetricCard
                   title="How it works"
                   value="5 steps"
-                  detail="Mode selection, problem intake, dynamic clarification, transparent analysis, and final report."
+                  detail="Mode selection, decision intake, clarification, transparent analysis, and final report."
                   tone="brand"
                 />
                 <MetricCard
                   title="What you get"
-                  value="Report + evidence"
-                  detail="A structured recommendation with assumptions, unknowns, calculations, and charted comparisons."
+                  value="Trust cues built in"
+                  detail="Facts, freshness, calculations, assumptions, and unresolved unknowns stay visible throughout the flow."
                   tone="success"
                 />
               </div>
 
+              <SectionCard title="How it works" description="Support content stays visible while you prepare the intake.">
+                <div className="space-y-3">
+                  <PreviewNote>Start with the actual decision question, not the surrounding story.</PreviewNote>
+                  <PreviewNote icon={<Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />}>
+                    Optional crypto-aware fields sharpen chain, access, and settlement assumptions without making the product crypto-only.
+                  </PreviewNote>
+                  <PreviewNote icon={<Clock3 className="mt-0.5 size-4 shrink-0 text-info" />}>
+                    The draft is stored locally so you can step away and resume the intake without losing context.
+                  </PreviewNote>
+                </div>
+              </SectionCard>
+
               <SectionCard title="Last saved draft" description="Your in-progress intake is stored locally in this browser.">
                 {problem.trim() ? (
-                  <div className="space-y-3 rounded-[22px] bg-app-bg-elevated p-4">
+                  <div className="space-y-3 rounded-[22px] border border-border-subtle bg-app-bg-elevated p-4">
                     <p className="text-sm font-semibold text-text-primary">{problem}</p>
                     <div className="flex flex-wrap gap-2">
-                      <span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold text-text-primary">
+                      <span className="rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-text-primary">
                         {modeLabel(mode)}
                       </span>
                       <span className="rounded-full bg-panel px-3 py-1 text-xs font-semibold text-text-secondary">
@@ -521,6 +637,9 @@ export function ModeSelectionPage() {
                       </span>
                       <span className="rounded-full bg-panel px-3 py-1 text-xs font-semibold text-text-secondary">
                         {timeHorizon}
+                      </span>
+                      <span className="rounded-full bg-panel px-3 py-1 text-xs font-semibold text-text-secondary">
+                        {settlementCurrency}
                       </span>
                     </div>
                   </div>

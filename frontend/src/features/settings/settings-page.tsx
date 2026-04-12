@@ -4,7 +4,6 @@ import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
-  EmptyState,
   ErrorState,
   MetricCard,
   PreviewNote,
@@ -13,7 +12,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input, Select } from '@/components/ui/field'
-import { Badge } from '@/components/ui/badge'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
 import { useAppStore } from '@/lib/store/app-store'
 import { getLocalStorageItem, setLocalStorageItem } from '@/lib/utils/safe-storage'
@@ -21,8 +19,14 @@ import { getLocalStorageItem, setLocalStorageItem } from '@/lib/utils/safe-stora
 export function SettingsPage() {
   const adapter = useApiAdapter()
   const syncFromSettings = useAppStore((state) => state.syncFromSettings)
+  const walletAddress = useAppStore((state) => state.walletAddress)
+  const walletChainId = useAppStore((state) => state.walletChainId)
   const [riskDefault, setRiskDefault] = useState('Balanced')
   const [dataRetention, setDataRetention] = useState('90 days')
+  const [preferredCurrency, setPreferredCurrency] = useState('USD')
+  const [preferredNetwork, setPreferredNetwork] = useState('HashKey Chain')
+  const [chartUnit, setChartUnit] = useState('Native units')
+  const [exportPreference, setExportPreference] = useState('Manual export')
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
@@ -52,13 +56,32 @@ export function SettingsPage() {
   useEffect(() => {
     const storedRisk = getLocalStorageItem('ga-risk-default')
     const storedRetention = getLocalStorageItem('ga-data-retention')
+    const storedCurrency = getLocalStorageItem('ga-preferred-currency')
+    const storedNetwork = getLocalStorageItem('ga-preferred-network')
+    const storedChartUnit = getLocalStorageItem('ga-preferred-chart-unit')
+    const storedExportPreference = getLocalStorageItem('ga-export-preference')
     if (storedRisk) setRiskDefault(storedRisk)
     if (storedRetention) setDataRetention(storedRetention)
+    if (storedCurrency) setPreferredCurrency(storedCurrency)
+    if (storedNetwork) setPreferredNetwork(storedNetwork)
+    if (storedChartUnit) setChartUnit(storedChartUnit)
+    if (storedExportPreference) setExportPreference(storedExportPreference)
   }, [])
 
-  const saveLocalPreferences = (nextRisk = riskDefault, nextRetention = dataRetention) => {
+  const saveLocalPreferences = (
+    nextRisk = riskDefault,
+    nextRetention = dataRetention,
+    nextCurrency = preferredCurrency,
+    nextNetwork = preferredNetwork,
+    nextChartUnit = chartUnit,
+    nextExportPreference = exportPreference,
+  ) => {
     setLocalStorageItem('ga-risk-default', nextRisk)
     setLocalStorageItem('ga-data-retention', nextRetention)
+    setLocalStorageItem('ga-preferred-currency', nextCurrency)
+    setLocalStorageItem('ga-preferred-network', nextNetwork)
+    setLocalStorageItem('ga-preferred-chart-unit', nextChartUnit)
+    setLocalStorageItem('ga-export-preference', nextExportPreference)
   }
 
   if (settingsQuery.isError || profileQuery.isError) {
@@ -104,7 +127,7 @@ export function SettingsPage() {
       <PageHeader
         eyebrow="Settings"
         title="Settings"
-        description="Manage profile details, default analysis preferences, export behavior, notifications, and data retention for this personal workspace."
+        description="Manage profile details, release-safe defaults, export behavior, notifications, wallet connections, and retention choices for this workspace."
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -121,15 +144,15 @@ export function SettingsPage() {
           tone="success"
         />
         <MetricCard
-          title="Export behavior"
-          value={settings.autoExportPdf ? 'Auto PDF on' : 'Manual export'}
-          detail="Report export preferences affect only the frontend presentation layer."
+          title="Default currency"
+          value={preferredCurrency}
+          detail="Stored locally until server-side release preferences expand."
           tone="brand"
         />
         <MetricCard
-          title="Data retention"
-          value={dataRetention}
-          detail="Local preference only in this MVP."
+          title="Wallet connection"
+          value={walletAddress ? 'Connected' : 'Not connected'}
+          detail={walletAddress ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : 'No wallet connected in this browser session.'}
           tone="success"
         />
       </div>
@@ -157,7 +180,7 @@ export function SettingsPage() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Default analysis preferences" description="These defaults shape the initial intake surface.">
+          <SectionCard title="Default analysis preferences" description="These defaults shape the initial intake surface and release presentation.">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-text-primary">Language</label>
@@ -177,22 +200,15 @@ export function SettingsPage() {
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-text-primary">Theme</label>
                 <Select
-                  value={settings.themeMode}
-                  onChange={(event) =>
+                  value="dark"
+                  onChange={() =>
                     void updateMutation.mutateAsync({
                       ...settings,
-                      themeMode:
-                        event.target.value === 'dark'
-                          ? 'dark'
-                          : event.target.value === 'system'
-                            ? 'system'
-                            : 'light',
+                      themeMode: 'dark',
                     })
                   }
                 >
-                  <option value="light">Light</option>
                   <option value="dark">Dark</option>
-                  <option value="system">System</option>
                 </Select>
               </div>
               <div className="space-y-2">
@@ -204,7 +220,7 @@ export function SettingsPage() {
                   onChange={(event) => {
                     const nextValue = event.target.value
                     setRiskDefault(nextValue)
-                    saveLocalPreferences(nextValue, dataRetention)
+                    saveLocalPreferences(nextValue)
                   }}
                 >
                   <option value="Conservative">Conservative</option>
@@ -213,20 +229,80 @@ export function SettingsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">
-                  Report export preference
-                </label>
+                <label className="text-sm font-semibold text-text-primary">Default currency</label>
                 <Select
-                  value={settings.autoExportPdf ? 'auto' : 'manual'}
-                  onChange={(event) =>
+                  value={preferredCurrency}
+                  onChange={(event) => {
+                    const nextValue = event.target.value
+                    setPreferredCurrency(nextValue)
+                    saveLocalPreferences(riskDefault, dataRetention, nextValue)
+                  }}
+                >
+                  <option value="USD">USD</option>
+                  <option value="USDT">USDT</option>
+                  <option value="HKD">HKD</option>
+                  <option value="Custom">Custom</option>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-text-primary">Preferred chain / network</label>
+                <Select
+                  value={preferredNetwork}
+                  onChange={(event) => {
+                    const nextValue = event.target.value
+                    setPreferredNetwork(nextValue)
+                    saveLocalPreferences(riskDefault, dataRetention, preferredCurrency, nextValue)
+                  }}
+                >
+                  <option value="HashKey Chain">HashKey Chain</option>
+                  <option value="Ethereum-compatible">Ethereum-compatible</option>
+                  <option value="General analysis">General analysis</option>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-text-primary">Preferred chart unit</label>
+                <Select
+                  value={chartUnit}
+                  onChange={(event) => {
+                    const nextValue = event.target.value
+                    setChartUnit(nextValue)
+                    saveLocalPreferences(
+                      riskDefault,
+                      dataRetention,
+                      preferredCurrency,
+                      preferredNetwork,
+                      nextValue,
+                    )
+                  }}
+                >
+                  <option value="Native units">Native units</option>
+                  <option value="USD converted">USD converted</option>
+                  <option value="Percent / basis points">Percent / basis points</option>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-text-primary">Report export preference</label>
+                <Select
+                  value={exportPreference}
+                  onChange={(event) => {
+                    const nextValue = event.target.value
+                    setExportPreference(nextValue)
+                    saveLocalPreferences(
+                      riskDefault,
+                      dataRetention,
+                      preferredCurrency,
+                      preferredNetwork,
+                      chartUnit,
+                      nextValue,
+                    )
                     void updateMutation.mutateAsync({
                       ...settings,
-                      autoExportPdf: event.target.value === 'auto',
+                      autoExportPdf: nextValue === 'Auto PDF after completion',
                     })
-                  }
+                  }}
                 >
-                  <option value="manual">Manual export</option>
-                  <option value="auto">Auto PDF after completion</option>
+                  <option value="Manual export">Manual export</option>
+                  <option value="Auto PDF after completion">Auto PDF after completion</option>
                 </Select>
               </div>
             </div>
@@ -290,23 +366,35 @@ export function SettingsPage() {
         </div>
 
         <div className="space-y-6">
-          <SectionCard title="Connected services" description="Reserved for future integrations.">
-            <EmptyState
-              title="No connected services yet"
-              description="Future versions can show search providers, storage connectors, or export integrations here."
-            />
+          <SectionCard title="Wallet connections" description="Wallet state is shown separately from authentication.">
+            <div className="space-y-3">
+              <div className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Current wallet</p>
+                <p className="mt-2 text-sm leading-6 text-text-primary">
+                  {walletAddress ? `${walletAddress} on chain ${walletChainId ?? 'unknown'}` : 'No wallet connected in this browser.'}
+                </p>
+              </div>
+              <div className="rounded-[20px] border border-border-subtle bg-bg-surface p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Release behavior</p>
+                <p className="mt-2 text-sm leading-6 text-text-secondary">
+                  Wallets are treated as connected-service context for evidence, execution, and KYC-aware flows. They are not used as login credentials in this release build.
+                </p>
+              </div>
+            </div>
           </SectionCard>
 
-          <SectionCard title="Model and environment" description="Visible only for preview and internal testing.">
-            <div className="flex flex-wrap gap-2">
-              <Badge tone="info">Mock adapter</Badge>
-              <Badge tone="neutral">Frontend-only orchestration</Badge>
-              <Badge tone="gold">Decision support preview</Badge>
-            </div>
+          <SectionCard title="Boundary note" description="The release keeps product boundaries explicit on the settings page as well.">
             <PreviewNote>
-              This product offers decision support, not professional advice. Model and
-              environment badges stay visible in preview builds to make testing boundaries explicit.
+              Genius Actuary provides structured decision support. Recommendations, confidence levels, and calculations should be reviewed alongside source freshness, constraints, and any external legal or financial review required by the decision.
             </PreviewNote>
+          </SectionCard>
+
+          <SectionCard title="Notifications and release behavior" description="Communication and export defaults should stay conservative for high-signal workflows.">
+            <div className="space-y-3 rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
+              <p className="text-sm leading-6 text-text-secondary">
+                Email notifications are {settings.notificationsEmail ? 'enabled' : 'disabled'}, push notifications are {settings.notificationsPush ? 'enabled' : 'disabled'}, and export behavior is set to {exportPreference.toLowerCase()}.
+              </p>
+            </div>
           </SectionCard>
 
           <SectionCard title="Team features coming later" description="The MVP is optimized for a single user workspace.">

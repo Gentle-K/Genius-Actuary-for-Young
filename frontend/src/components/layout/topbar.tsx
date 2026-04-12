@@ -73,7 +73,7 @@ export function Topbar() {
   return (
     <header className="apple-nav-glass sticky top-3 z-30 mb-6 rounded-[28px] px-4 py-4 md:px-5">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="min-w-0 space-y-2">
+        <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap items-center gap-2.5">
             <Button
               variant="secondary"
@@ -84,17 +84,15 @@ export function Topbar() {
             >
               <Menu className="size-4" />
             </Button>
-            <Badge tone="gold">Workspace</Badge>
-            <Badge tone="neutral">{locale === 'zh' ? 'ZH' : 'EN'}</Badge>
-            <Badge tone="info">
-              {latestUpdate ? `Synced ${formatRelativeTime(latestUpdate)}` : 'Waiting for data'}
-            </Badge>
+            <Badge tone="primary">Release</Badge>
+            <Badge tone="info">{latestUpdate ? `Updated ${formatRelativeTime(latestUpdate)}` : 'Waiting for activity'}</Badge>
+            <Badge tone="neutral">{locale === 'zh' ? 'Chinese locale' : 'English locale'}</Badge>
           </div>
           <div>
-            <h2 className="text-[1.45rem] font-semibold tracking-[-0.04em] text-text-primary md:text-[1.75rem]">
+            <h2 className="text-[1.5rem] font-semibold tracking-[-0.04em] text-text-primary md:text-[1.85rem]">
               {meta.title}
             </h2>
-            <p className="text-sm leading-6 text-text-secondary">{meta.helper}</p>
+            <p className="max-w-3xl text-sm leading-6 text-text-secondary">{meta.helper}</p>
           </div>
         </div>
 
@@ -145,17 +143,13 @@ export function Topbar() {
             <LogOut className="size-4" />
           </button>
 
-          <div className="flex min-h-11 items-center gap-3 rounded-full border border-border-subtle bg-app-bg-elevated px-3 py-2">
-            <div className="flex size-9 items-center justify-center rounded-full bg-brand-soft text-text-primary">
+          <div className="flex min-h-11 items-center gap-3 rounded-[18px] border border-border-subtle bg-app-bg-elevated px-3 py-2">
+            <div className="flex size-9 items-center justify-center rounded-full bg-primary-soft text-primary">
               <Sparkles className="size-4" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-text-primary">
-                {currentUser?.name ?? 'Demo analyst'}
-              </p>
-              <p className="truncate text-xs text-text-muted">
-                {currentUser?.title ?? 'Personal decision workspace'}
-              </p>
+              <p className="truncate text-sm font-semibold text-text-primary">{currentUser?.name ?? 'Ada Shen'}</p>
+              <p className="truncate text-xs text-text-muted">{currentUser?.title ?? 'Lead decision analyst'}</p>
             </div>
           </div>
         </div>

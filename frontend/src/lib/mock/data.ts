@@ -132,7 +132,7 @@ export const users: User[] = [
     name: 'Ada Shen',
     email: 'analyst@geniusactuary.ai',
     title: 'Lead Decision Analyst',
-    locale: 'zh',
+    locale: 'en',
     roles: ['admin', 'analyst'],
     lastActiveAt: iso('2026-03-28T15:15:00+08:00'),
   },
@@ -148,8 +148,8 @@ export const users: User[] = [
 ]
 
 export const defaultSettings: SettingsPayload = {
-  themeMode: 'light',
-  language: 'zh',
+  themeMode: 'dark',
+  language: 'en',
   apiMode: 'mock',
   displayDensity: 'cozy',
   notificationsEmail: true,

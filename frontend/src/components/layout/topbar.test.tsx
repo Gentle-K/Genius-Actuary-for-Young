@@ -28,7 +28,9 @@ describe('Topbar', () => {
       },
     })
 
-    expect(await screen.findByText('Workspace')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Genius Actuary' })).toBeInTheDocument()
+    expect(screen.getByText('Release')).toBeInTheDocument()
+    expect(screen.getByText('English locale')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Help' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Profile' })).toBeInTheDocument()
@@ -42,6 +44,7 @@ describe('Topbar', () => {
 
     expect(await screen.findByRole('heading', { name: 'Genius Actuary' })).toBeInTheDocument()
     expect(screen.getByText('AI decision analysis workspace.')).toBeInTheDocument()
-    expect(screen.getByText('Demo analyst')).toBeInTheDocument()
+    expect(screen.getByText('Ada Shen')).toBeInTheDocument()
+    expect(screen.getByText('Lead decision analyst')).toBeInTheDocument()
   })
 })

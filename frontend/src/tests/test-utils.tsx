@@ -38,7 +38,7 @@ export function renderWithProviders(ui: ReactElement, route?: string) {
   useAppStore.setState({
     themeMode: 'dark',
     resolvedTheme: 'dark',
-    locale: 'zh',
+    locale: 'en',
     displayDensity: 'cozy',
     apiMode: 'mock',
     sidebarOpen: true,
@@ -46,7 +46,7 @@ export function renderWithProviders(ui: ReactElement, route?: string) {
     refreshToken: null,
     currentUser: null,
   })
-  void i18n.changeLanguage('zh')
+  void i18n.changeLanguage('en')
 
   return render(ui, {
     wrapper: ({ children }) => <Providers route={targetRoute}>{children}</Providers>,
@@ -62,11 +62,11 @@ interface RenderAppOptions {
 
 export function renderWithAppState(
   ui: ReactElement,
-  { route = '/', apiMode = 'mock', currentUser = null, locale = 'zh' }: RenderAppOptions = {},
+  { route = '/', apiMode = 'mock', currentUser = null, locale = 'en' }: RenderAppOptions = {},
 ) {
   useAppStore.setState({
-    themeMode: 'light',
-    resolvedTheme: 'light',
+    themeMode: 'dark',
+    resolvedTheme: 'dark',
     locale,
     displayDensity: 'cozy',
     apiMode,

@@ -303,7 +303,7 @@ describe('genius backend contract mapping', () => {
     expect(report.highlights.length).toBeGreaterThan(0)
     expect(report.charts[0]?.kind).toBe('bar')
     expect(report.calculations[0]?.result).toBe('23000')
-    expect(report.disclaimers[1]).toContain('图表')
+    expect(report.disclaimers[1]).toContain('Tables and charts')
     expect(report.comparisonMatrix?.rows[0]?.cells[0]?.displayValue).toBe('4.90%')
     expect(report.recommendationReason?.topDrivers[0]?.title).toContain('Liquidity')
     expect(report.actionIntents?.[0]?.actionReadiness).toBe('ready')
