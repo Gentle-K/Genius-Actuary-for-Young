@@ -1,4 +1,5 @@
 import { AlertTriangle, ExternalLink, Radio } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { formatDateTime } from '@/lib/utils/format'
 import type { LanguageCode, MarketDataSnapshot } from '@/types'
@@ -12,7 +13,7 @@ export function OracleSnapshotSection({
   snapshots,
   locale = 'en',
 }: OracleSnapshotSectionProps) {
-  const isZh = locale === 'zh'
+  const { t } = useTranslation()
 
   if (!snapshots.length) {
     return null
@@ -28,10 +29,10 @@ export function OracleSnapshotSection({
       <div className="mb-3 flex items-center gap-2">
         <Radio className="h-5 w-5 text-blue-400" />
         <h3 className="text-sm font-semibold text-white/90">
-          {isZh ? '预言机价格快照' : 'Oracle Price Snapshots'}
+          {t('analysis.oracleSnapshot.title')}
         </h3>
         <span className="ml-auto text-xs text-white/40">
-          {liveCount}/{snapshots.length} {isZh ? '在线' : 'live'}
+          {t('analysis.oracleSnapshot.liveCount', { live: liveCount, total: snapshots.length })}
         </span>
       </div>
 
@@ -72,12 +73,12 @@ export function OracleSnapshotSection({
                 ) : (
                   <p className="inline-flex items-center gap-1 text-xs text-amber-300">
                     <AlertTriangle className="h-3.5 w-3.5" />
-                    {isZh ? '数据不可用' : 'Unavailable'}
+                    {t('analysis.oracleSnapshot.unavailable')}
                   </p>
                 )}
                 {snapshot.updatedAt ? (
                   <p className="mt-1 text-[11px] text-white/35">
-                    {isZh ? '更新时间' : 'Updated'}:{' '}
+                    {t('analysis.oracleSnapshot.updated')}:{' '}
                     {formatDateTime(snapshot.updatedAt, locale)}
                   </p>
                 ) : null}
@@ -90,7 +91,7 @@ export function OracleSnapshotSection({
 
             <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-white/35">
               <span>
-                {isZh ? '抓取时间' : 'Fetched'}: {formatDateTime(snapshot.fetchedAt, locale)}
+                {t('analysis.oracleSnapshot.fetched')}: {formatDateTime(snapshot.fetchedAt, locale)}
               </span>
               {snapshot.explorerUrl ? (
                 <a
@@ -100,7 +101,7 @@ export function OracleSnapshotSection({
                   className="inline-flex items-center gap-1 text-white/55 transition hover:text-white/80"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
-                  {isZh ? '查看喂价合约' : 'View feed contract'}
+                  {t('analysis.oracleSnapshot.viewFeedContract')}
                 </a>
               ) : null}
               {snapshot.sourceUrl ? (
@@ -111,7 +112,7 @@ export function OracleSnapshotSection({
                   className="inline-flex items-center gap-1 text-white/55 transition hover:text-white/80"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
-                  {isZh ? '查看来源文档' : 'View docs'}
+                  {t('analysis.oracleSnapshot.viewDocs')}
                 </a>
               ) : null}
             </div>

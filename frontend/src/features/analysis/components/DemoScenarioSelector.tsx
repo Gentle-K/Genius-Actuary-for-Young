@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
+import { useTranslation } from 'react-i18next'
 import type { DemoScenarioDefinition, LanguageCode } from '@/types'
 
 interface DemoScenarioSelectorProps {
@@ -12,10 +13,10 @@ interface DemoScenarioSelectorProps {
 export function DemoScenarioSelector({
   scenarios = [],
   selectedScenarioId = '',
-  locale = 'en',
+  locale: _locale = 'en',
   onSelect,
 }: DemoScenarioSelectorProps) {
-  const isZh = locale === 'zh'
+  const { t } = useTranslation()
 
   if (!scenarios.length) {
     return null
@@ -26,15 +27,15 @@ export function DemoScenarioSelector({
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-text-primary">
-            {isZh ? '官方 Demo 场景' : 'Official demo scenarios'}
+            {t('analysis.demoScenarioSelector.title')}
           </h2>
           <p className="mt-2 text-sm leading-7 text-text-secondary">
-            {isZh
-              ? '一键填充问题、约束、资产池和随机种子。Demo 资产池固定，适合现场评审。'
-              : 'One click fills the prompt, constraints, asset universe, and seed. The demo universe stays fixed for judging.'}
+            {t('analysis.demoScenarioSelector.description')}
           </p>
         </div>
-        {selectedScenarioId ? <Badge tone="gold">{isZh ? 'Demo 已启用' : 'Demo enabled'}</Badge> : null}
+        {selectedScenarioId ? (
+          <Badge tone="gold">{t('analysis.demoScenarioSelector.enabled')}</Badge>
+        ) : null}
       </div>
 
       <div className="grid gap-3 xl:grid-cols-3">

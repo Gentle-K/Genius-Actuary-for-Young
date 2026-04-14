@@ -1,4 +1,8 @@
 import ReactEChartsCore from 'echarts-for-react'
+import { useTranslation } from 'react-i18next'
+
+import { useAppStore } from '@/lib/store/app-store'
+import { formatMoney } from '@/lib/utils/format'
 
 interface PathPoint {
   day: number
@@ -22,16 +26,25 @@ export function ScenarioChart({
   currency = 'USD',
   className = '',
 }: ScenarioChartProps) {
+  const { t } = useTranslation()
+  const locale = useAppStore((state) => state.locale)
+
   if (!path.length) {
     return null
   }
 
-  const days = path.map((p) => `Day ${p.day}`)
+  const days = path.map((p) =>
+    t('analysis.scenarioChart.dayLabel', { value: p.day }),
+  )
+  const optimisticLabel = t('analysis.scenarioChart.legend.optimistic')
+  const baseLabel = t('analysis.scenarioChart.legend.base')
+  const pessimisticLabel = t('analysis.scenarioChart.legend.pessimistic')
+  const investmentLabel = t('analysis.scenarioChart.legend.investment')
 
   const option = {
     backgroundColor: 'transparent',
     title: {
-      text: `${assetName} — Scenario Paths`,
+      text: t('analysis.scenarioChart.title', { assetName }),
       textStyle: { color: '#e5e5e5', fontSize: 14, fontWeight: 500 },
       left: 'center',
       top: 0,
@@ -44,13 +57,17 @@ export function ScenarioChart({
       formatter: (params: Array<{ seriesName: string; value: number; axisValue: string }>) => {
         const header = params[0]?.axisValue ?? ''
         const lines = params.map(
-          (p) => `${p.seriesName}: ${currency}${p.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+          (p) =>
+            `${p.seriesName}: ${formatMoney(p.value, currency, locale, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}`,
         )
         return `<strong>${header}</strong><br/>${lines.join('<br/>')}`
       },
     },
     legend: {
-      data: ['P90 (optimistic)', 'P50 (base)', 'P10 (pessimistic)'],
+      data: [optimisticLabel, baseLabel, pessimisticLabel],
       bottom: 0,
       textStyle: { color: '#a3a3a3', fontSize: 11 },
     },
@@ -71,13 +88,16 @@ export function ScenarioChart({
       axisLabel: {
         color: '#737373',
         fontSize: 11,
-        formatter: (v: number) => `${currency}${v.toLocaleString()}`,
+        formatter: (v: number) =>
+          formatMoney(v, currency, locale, {
+            maximumFractionDigits: 0,
+          }),
       },
       splitLine: { lineStyle: { color: 'rgba(163,163,163,0.1)' } },
     },
     series: [
       {
-        name: 'P90 (optimistic)',
+        name: optimisticLabel,
         type: 'line',
         data: path.map((p) => p.p90Value),
         smooth: true,
@@ -86,7 +106,7 @@ export function ScenarioChart({
         areaStyle: { color: 'rgba(16,185,129,0.06)' },
       },
       {
-        name: 'P50 (base)',
+        name: baseLabel,
         type: 'line',
         data: path.map((p) => p.p50Value),
         smooth: true,
@@ -94,7 +114,7 @@ export function ScenarioChart({
         itemStyle: { color: '#f59e0b' },
       },
       {
-        name: 'P10 (pessimistic)',
+        name: pessimisticLabel,
         type: 'line',
         data: path.map((p) => p.p10Value),
         smooth: true,
@@ -108,7 +128,7 @@ export function ScenarioChart({
   // Reference line for investment amount
   if (investmentAmount) {
     option.series.push({
-      name: 'Investment',
+      name: investmentLabel,
       type: 'line',
       data: path.map(() => investmentAmount),
       smooth: false,

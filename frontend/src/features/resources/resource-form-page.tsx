@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input, Select, Textarea } from '@/components/ui/field'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
+import { isChineseLocale } from '@/lib/i18n/locale'
 import { getResourceDefinition } from '@/lib/registry/resource-registry'
 
 export function ResourceFormPage() {
@@ -16,7 +17,7 @@ export function ResourceFormPage() {
   const { resourceKey = '', recordId } = useParams()
   const adapter = useApiAdapter()
   const definition = getResourceDefinition(resourceKey)
-  const isZh = i18n.language.startsWith('zh')
+  const isZh = isChineseLocale(i18n.language)
   const isHistoryPage = resourceKey === 'analyses'
 
   const recordQuery = useQuery({

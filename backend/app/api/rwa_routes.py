@@ -75,7 +75,7 @@ def _resolve_locale(request: Request) -> str:
     return normalize_locale(
         request.headers.get("x-app-locale")
         or request.headers.get("accept-language")
-        or "zh"
+        or "zh-CN"
     )
 
 

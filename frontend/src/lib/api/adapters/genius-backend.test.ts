@@ -134,6 +134,8 @@ function buildBackendSession(overrides: Partial<BackendSession> = {}): BackendSe
       },
     ],
     report: {
+      title: 'Exchange program funding decision',
+      locale: 'en',
       summary: 'The exchange option is attractive but sensitive to scholarship outcome.',
       assumptions: ['Scholarship outcome is still pending.'],
       unknowns: ['Issuer terms may still change.'],
@@ -293,13 +295,13 @@ describe('genius backend contract mapping', () => {
     expect(session.calculations[0]?.formulaExpression).toBe('tuition + rent + travel')
     expect(session.calculations[0]?.result).toBe('23000')
     expect(session.calculations[0]?.units).toBe('USD')
-    expect(session.lastInsight).toContain('Final')
+    expect(session.lastInsight).toContain('exchange option')
   })
 
   it('builds a frontend report bundle from the backend payload', () => {
     const report = mapBackendReport(buildBackendSession())
 
-    expect(report.summaryTitle).toContain('exchange')
+    expect(report.summaryTitle).toBe('Exchange program funding decision')
     expect(report.highlights.length).toBeGreaterThan(0)
     expect(report.charts[0]?.kind).toBe('bar')
     expect(report.calculations[0]?.result).toBe('23000')
@@ -309,6 +311,23 @@ describe('genius backend contract mapping', () => {
     expect(report.actionIntents?.[0]?.actionReadiness).toBe('ready')
     expect(report.evidenceGovernance?.overallScore).toBe(0.74)
     expect(report.reanalysisDiff?.changedConstraints[0]?.label).toBe('Liquidity')
+  })
+
+  it('falls back to the original problem statement when the backend report title is missing', () => {
+    const baseReport = buildBackendSession().report!
+    const report = mapBackendReport(
+      buildBackendSession({
+        problem_statement: '比较 USDC、代币化 MMF 和白银 RWA，做一笔 30 天的 HashKey Chain 配置。',
+        report: {
+          ...baseReport,
+          title: '',
+          locale: 'zh-HK',
+        },
+      }),
+    )
+
+    expect(report.summaryTitle).toBe('比较 USDC、代币化 MMF 和白银 RWA，做一笔 30 天的 HashKey Chain 配置。')
+    expect(report.locale).toBe('zh-HK')
   })
 
   it('translates progress and outgoing answers for the backend step route', () => {

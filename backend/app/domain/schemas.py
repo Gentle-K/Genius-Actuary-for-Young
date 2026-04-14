@@ -54,7 +54,7 @@ from app.domain.rwa import (
 
 class SessionCreateRequest(BaseModel):
     mode: AnalysisMode
-    locale: str = "zh"
+    locale: str = "zh-CN"
     problem_statement: str = Field(min_length=5)
     intake_context: RwaIntakeContext = Field(default_factory=RwaIntakeContext)
 
@@ -119,6 +119,33 @@ class AuditLogListResponse(BaseModel):
 class DebugAuthStatusResponse(BaseModel):
     username: str
     role: str = "debug_admin"
+
+
+class DebugSeedReadySessionRequest(BaseModel):
+    locale: str = "en"
+    mode: AnalysisMode = AnalysisMode.STRATEGY_COMPARE
+    problem_statement: str = Field(
+        default=(
+            "Allocate idle USDT from the wallet into one eligible "
+            "HashKey Chain RWA sleeve."
+        ),
+        min_length=5,
+    )
+    answer_value: str = (
+        "Keep liquidity inside T+3 and preserve evidence traceability."
+    )
+    max_rounds: int = Field(default=12, ge=1, le=20)
+    intake_context: RwaIntakeContext = Field(default_factory=RwaIntakeContext)
+
+
+class DebugSeedReadySessionResponse(BaseModel):
+    session_id: str
+    status: SessionStatus
+    next_action: NextAction
+    prompt_to_user: str
+    report_ready: bool = False
+    report_url: str
+    execute_url: str
 
 
 class PersonalDataDeletionResponse(BaseModel):
@@ -212,7 +239,7 @@ class RwaComparisonRequest(BaseModel):
     minimum_kyc_level: int = 0
     wallet_address: str = ""
     wallet_network: str = ""
-    locale: str = "zh"
+    locale: str = "zh-CN"
     include_multi_horizon: bool = True
     include_defi_llama_evidence: bool = True
     include_non_production_assets: bool = False
@@ -336,7 +363,7 @@ class ReportAnchorResponse(BaseModel):
 
 class RwaClarifyRequest(BaseModel):
     problem_statement: str = Field(min_length=5)
-    locale: str = "zh"
+    locale: str = "zh-CN"
 
 
 class RwaClarifyResponse(BaseModel):

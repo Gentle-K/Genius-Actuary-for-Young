@@ -8,6 +8,7 @@ import {
   TriangleAlert,
 } from 'lucide-react'
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -30,55 +31,59 @@ import { Card } from '@/components/ui/card'
 import { Select } from '@/components/ui/field'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
 import { exportToPdf } from '@/lib/export/pdf'
+import { useAppStore } from '@/lib/store/app-store'
+import { formatDate } from '@/lib/utils/format'
 import {
   extractExecutiveSummary,
   modeLabel,
   reportState,
+  sessionDisplayTitle,
   sessionConfidence,
 } from '@/features/analysis/lib/view-models'
 
-const reportSections = [
-  { id: 'summary', label: 'Executive summary' },
-  { id: 'eligibility', label: 'Eligibility summary' },
-  { id: 'asset-facts', label: 'Asset facts' },
-  { id: 'goal', label: 'Decision goal' },
-  { id: 'assumptions', label: 'Key assumptions' },
-  { id: 'facts', label: 'Confirmed facts' },
-  { id: 'costs', label: 'Cost breakdown' },
-  { id: 'risks', label: 'Risk breakdown' },
-  { id: 'options', label: 'Option comparison' },
-  { id: 'scenarios', label: 'Best / likely / worst case' },
-  { id: 'calculations', label: 'Key calculations' },
-  { id: 'charts', label: 'Charts' },
-  { id: 'evidence', label: 'Evidence references' },
-  { id: 'execution', label: 'Execution plan' },
-  { id: 'monitoring', label: 'Monitoring checklist' },
-  { id: 'receipts', label: 'Onchain receipts' },
-  { id: 'unknowns', label: 'Unknowns' },
-  { id: 'recommendation', label: 'Recommendation' },
-  { id: 'boundary', label: 'Boundary note' },
-] as const
-
 export function ReportPage() {
+  const { t } = useTranslation()
   const { reportId = '', sessionId = '' } = useParams()
   const resolvedId = reportId || sessionId
   const adapter = useApiAdapter()
   const navigate = useNavigate()
+  const locale = useAppStore((state) => state.locale)
+  const reportSections = [
+    { id: 'summary', label: t('analysis.reportPage.sections.summary') },
+    { id: 'eligibility', label: t('analysis.reportPage.sections.eligibility') },
+    { id: 'asset-facts', label: t('analysis.reportPage.sections.assetFacts') },
+    { id: 'goal', label: t('analysis.reportPage.sections.goal') },
+    { id: 'assumptions', label: t('analysis.reportPage.sections.assumptions') },
+    { id: 'facts', label: t('analysis.reportPage.sections.facts') },
+    { id: 'costs', label: t('analysis.reportPage.sections.costs') },
+    { id: 'risks', label: t('analysis.reportPage.sections.risks') },
+    { id: 'options', label: t('analysis.reportPage.sections.options') },
+    { id: 'scenarios', label: t('analysis.reportPage.sections.scenarios') },
+    { id: 'calculations', label: t('analysis.reportPage.sections.calculations') },
+    { id: 'charts', label: t('analysis.reportPage.sections.charts') },
+    { id: 'evidence', label: t('analysis.reportPage.sections.evidence') },
+    { id: 'execution', label: t('analysis.reportPage.sections.execution') },
+    { id: 'monitoring', label: t('analysis.reportPage.sections.monitoring') },
+    { id: 'receipts', label: t('analysis.reportPage.sections.receipts') },
+    { id: 'unknowns', label: t('analysis.reportPage.sections.unknowns') },
+    { id: 'recommendation', label: t('analysis.reportPage.sections.recommendation') },
+    { id: 'boundary', label: t('analysis.reportPage.sections.boundary') },
+  ] as const
 
   const sessionQuery = useQuery({
-    queryKey: ['analysis', resolvedId, 'report-session'],
+    queryKey: ['analysis', resolvedId, 'report-session', locale],
     queryFn: () => adapter.analysis.getById(resolvedId),
   })
 
   const reportQuery = useQuery({
-    queryKey: ['analysis', resolvedId, 'report'],
+    queryKey: ['analysis', resolvedId, 'report', locale],
     queryFn: () => adapter.analysis.getReport(resolvedId),
   })
 
   const reanalyzeMutation = useMutation({
     mutationFn: () => adapter.analysis.requestMoreFollowUp(resolvedId),
     onSuccess: async () => {
-      toast.success('Clarification window reopened')
+      toast.success(t('analysis.reportPage.reopened'))
       await navigate(`/sessions/${resolvedId}/clarify`)
     },
   })
@@ -96,24 +101,32 @@ export function ReportPage() {
   const handleCopyLink = async () => {
     const url = `${window.location.origin}/reports/${resolvedId}`
     await navigator.clipboard.writeText(url)
-    toast.success('Report link copied')
+    toast.success(t('analysis.reportPage.linkCopied'))
   }
 
   const handleShare = async () => {
     const url = `${window.location.origin}/reports/${resolvedId}`
     if (navigator.share) {
-      await navigator.share({ title: 'Genius Actuary report', url })
+      await navigator.share({
+        title: t('analysis.reportPage.shareTitle'),
+        url,
+      })
       return
     }
     await navigator.clipboard.writeText(url)
-    toast.success('Share is unavailable here, so the link was copied instead')
+    toast.success(t('analysis.reportPage.shareFallback'))
   }
 
   const handleExport = async () => {
     if (!sessionQuery.data || !reportQuery.data) return
     await exportToPdf({
       title: `genius-actuary-report-${resolvedId}`,
-      headers: ['Section', 'Item', 'Value', 'Detail'],
+      headers: [
+        t('analysis.reportPage.exportHeaders.section'),
+        t('analysis.reportPage.exportHeaders.item'),
+        t('analysis.reportPage.exportHeaders.value'),
+        t('analysis.reportPage.exportHeaders.detail'),
+      ],
       rows: [
         ['overview', 'problem', reportQuery.data.summaryTitle, modeLabel(reportQuery.data.mode)],
         ['overview', 'status', sessionQuery.data.status, reportState(sessionQuery.data, reportQuery.data).label],
@@ -136,11 +149,11 @@ export function ReportPage() {
   if (sessionQuery.isError || reportQuery.isError) {
     return (
       <ErrorState
-        title="Could not load the report"
+        title={t('analysis.reportPage.errorTitle')}
         description={
           (sessionQuery.error as Error | undefined)?.message ??
           (reportQuery.error as Error | undefined)?.message ??
-          'The report view is unavailable.'
+          t('analysis.reportPage.errorFallback')
         }
         action={
           <Button
@@ -150,7 +163,7 @@ export function ReportPage() {
               void reportQuery.refetch()
             }}
           >
-            Retry
+            {t('common.retry')}
           </Button>
         }
       />
@@ -160,20 +173,21 @@ export function ReportPage() {
   if (sessionQuery.isLoading || reportQuery.isLoading || !sessionQuery.data || !reportQuery.data) {
     return (
       <LoadingState
-        title="Loading report"
-        description="Preparing the structured recommendation, calculations, charts, and evidence references."
+        title={t('analysis.reportPage.loadingTitle')}
+        description={t('analysis.reportPage.loadingDescription')}
       />
     )
   }
 
   const session = sessionQuery.data
   const report = reportQuery.data
+  const sessionTitle = sessionDisplayTitle(session, report)
   const confidence = sessionConfidence(session, report)
   const state = reportState(session, report)
   const evidenceStale = report.evidence.some(
     (item) => item.freshness?.bucket === 'stale',
   )
-  const executiveSummary = extractExecutiveSummary(report.markdown)
+  const executiveSummary = extractExecutiveSummary(report.markdown, locale)
   const primaryAssetId =
     report.executionPlan?.targetAsset ||
     report.recommendedAllocations[0]?.assetId ||
@@ -187,7 +201,7 @@ export function ReportPage() {
       label: item.name,
       range: `${item.low} - ${item.high} ${item.currency}`,
       base: `${item.base} ${item.currency}`,
-      note: item.rationale ?? 'No note provided.',
+      note: item.rationale ?? t('analysis.decisionUi.calculationCard.noAdditionalNote'),
       confidence: item.confidence,
       type: item.itemType,
     })) ?? []
@@ -196,26 +210,26 @@ export function ReportPage() {
     report.budgetSummary != null
       ? [
           {
-            label: 'Best case',
+            label: t('analysis.reportPage.scenarioLabels.bestCase'),
             value: `${report.budgetSummary.netLow} ${report.budgetSummary.currency}`,
-            detail: 'Lower end of the estimated range if key assumptions land favorably.',
+            detail: t('analysis.reportPage.scenarioDetails.bestCase'),
           },
           {
-            label: 'Likely case',
+            label: t('analysis.reportPage.scenarioLabels.likelyCase'),
             value: `${report.budgetSummary.netBase} ${report.budgetSummary.currency}`,
-            detail: 'Base-case range used for the default recommendation.',
+            detail: t('analysis.reportPage.scenarioDetails.likelyCase'),
           },
           {
-            label: 'Worst case',
+            label: t('analysis.reportPage.scenarioLabels.worstCase'),
             value: `${report.budgetSummary.netHigh} ${report.budgetSummary.currency}`,
-            detail: 'Upper-cost range when adverse assumptions show up together.',
+            detail: t('analysis.reportPage.scenarioDetails.worstCase'),
           },
         ]
       : report.optionProfiles?.slice(0, 3).map((option) => ({
           label: option.name,
           value: option.estimatedCostBase
             ? `${option.estimatedCostBase} ${option.currency}`
-            : 'Range unavailable',
+            : t('analysis.reportPage.rangeUnavailable'),
           detail: option.summary,
         })) ?? []
 
@@ -223,41 +237,41 @@ export function ReportPage() {
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_260px]">
       <div className="space-y-6">
         <PageHeader
-          eyebrow="Report detail"
+          eyebrow={t('analysis.reportPage.eyebrow')}
           title={report.summaryTitle}
-          description="This report now sits behind the product loop: verify proof first, then move into execution readiness and monitoring."
+          description={t('analysis.reportPage.description')}
           actions={
             <>
               {primaryAssetId ? (
                 <Button onClick={() => void navigate(`/assets/${primaryAssetId}/proof`)}>
                   <ExternalLink className="size-4" />
-                  Open proof center
+                  {t('analysis.reportPage.openProofCenter')}
                 </Button>
               ) : null}
               <Button variant="secondary" onClick={() => void navigate(`/sessions/${resolvedId}/execute`)}>
-                Review execution plan
+                {t('analysis.reportPage.reviewExecutionPlan')}
               </Button>
               <Button variant="secondary" onClick={() => void navigate(`/sessions/${resolvedId}/execute`)}>
-                Execute on HashKey Chain
+                {t('analysis.reportPage.executeOnHashKeyChain')}
               </Button>
               <Button variant="secondary" onClick={() => void navigate(`/sessions/${resolvedId}`)}>
-                Open session
+                {t('analysis.reportPage.openSession')}
               </Button>
               <Button variant="secondary" onClick={() => void reanalyzeMutation.mutateAsync()}>
                 <RefreshCw className="size-4" />
-                Re-open clarification
+                {t('analysis.reportPage.reopenClarification')}
               </Button>
               <Button variant="secondary" onClick={() => void handleExport()}>
                 <FileDown className="size-4" />
-                Export
+                {t('analysis.reportPage.export')}
               </Button>
               <Button variant="secondary" onClick={() => void handleCopyLink()}>
                 <Copy className="size-4" />
-                Copy link
+                {t('analysis.reportPage.copyLink')}
               </Button>
               <Button variant="secondary" onClick={() => void handleShare()}>
                 <Share2 className="size-4" />
-                Share report
+                {t('analysis.reportPage.shareReport')}
               </Button>
             </>
           }
@@ -265,7 +279,7 @@ export function ReportPage() {
 
         <div className="xl:hidden">
           <Card className="p-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Jump to section</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">{t('analysis.reportPage.jumpToSection')}</p>
             <Select
               value=""
               onChange={(event) => {
@@ -274,7 +288,7 @@ export function ReportPage() {
                 }
               }}
             >
-              <option value="">Select a section</option>
+              <option value="">{t('analysis.reportPage.selectSection')}</option>
               {reportSections.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.label}
@@ -317,7 +331,7 @@ export function ReportPage() {
             <div className="flex items-start gap-2 rounded-[20px] border border-[rgba(185,115,44,0.2)] bg-[rgba(185,115,44,0.08)] px-4 py-3 text-sm leading-6 text-warning">
               <TriangleAlert className="mt-0.5 size-4 shrink-0" />
               <span>
-                Some evidence may be out of date. Review freshness before treating the recommendation as current.
+                {t('analysis.reportPage.staleEvidenceWarning')}
               </span>
             </div>
           ) : null}
@@ -325,19 +339,19 @@ export function ReportPage() {
 
         <ReportSection
           id="summary"
-          title="Executive summary"
-          description="A concise view of what the system currently recommends and why."
+          title={t('analysis.reportPage.sections.summary')}
+          description={t('analysis.reportPage.summaryDescription')}
         >
           <p className="text-sm leading-7 text-text-secondary">{executiveSummary}</p>
           <PreviewNote>
-            This report supports a decision. It does not claim certainty, and it does not replace professional advice.
+            {t('analysis.reportPage.summaryNote')}
           </PreviewNote>
         </ReportSection>
 
         <ReportSection
           id="eligibility"
-          title="Eligibility summary"
-          description="Wallet KYC, investor type, jurisdiction, and ticket constraints are summarized before execution."
+          title={t('analysis.reportPage.sections.eligibility')}
+          description={t('analysis.reportPage.eligibilityDescription')}
         >
           <div className="grid gap-3 md:grid-cols-2">
             {(report.eligibilitySummary ?? []).map((item) => (
@@ -345,12 +359,12 @@ export function ReportPage() {
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-semibold text-text-primary">{item.assetName}</p>
                   <Badge tone={item.status === 'eligible' ? 'success' : item.status === 'conditional' ? 'gold' : 'warning'}>
-                    {item.status}
+                    {t(`analysis.reportPage.eligibilityStatus.${item.status}`)}
                   </Badge>
                 </div>
-                <p className="text-sm text-text-secondary">{item.reasons[0] ?? 'No blocker detected.'}</p>
+                <p className="text-sm text-text-secondary">{item.reasons[0] ?? t('analysis.reportPage.noBlockerDetected')}</p>
                 {(item.missingRequirements ?? []).length ? (
-                  <p className="text-sm text-warning">Missing: {item.missingRequirements.join(' · ')}</p>
+                  <p className="text-sm text-warning">{t('analysis.reportPage.missingPrefix')}: {item.missingRequirements.join(' · ')}</p>
                 ) : null}
               </Card>
             ))}
@@ -359,26 +373,26 @@ export function ReportPage() {
 
         <ReportSection
           id="asset-facts"
-          title="Asset facts"
-          description="Execution-critical facts stay visible next to the recommendation instead of being buried in prose."
+          title={t('analysis.reportPage.sections.assetFacts')}
+          description={t('analysis.reportPage.assetFactsDescription')}
         >
           <div className="grid gap-3 md:grid-cols-2">
-            {report.assetCards.slice(0, 4).map((asset) => (
+              {report.assetCards.slice(0, 4).map((asset) => (
               <Card key={asset.assetId} className="space-y-3 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-semibold text-text-primary">{asset.name}</p>
                   <Badge tone="neutral">{asset.symbol}</Badge>
                 </div>
                 <div className="grid gap-2 text-sm text-text-secondary sm:grid-cols-2">
-                  <div>Settlement: {asset.settlementAsset || 'N/A'}</div>
-                  <div>KYC: L{asset.requiredKycLevel ?? asset.kycRequiredLevel ?? 0}</div>
-                  <div>Indicative yield: {asset.indicativeYield != null ? `${(asset.indicativeYield * 100).toFixed(2)}%` : 'N/A'}</div>
-                  <div>Oracle: {asset.oracleProvider || 'N/A'}</div>
+                  <div>{t('analysis.reportPage.fields.settlement')}: {asset.settlementAsset || t('common.notAvailable')}</div>
+                  <div>{t('analysis.reportPage.fields.kyc')}: L{asset.requiredKycLevel ?? asset.kycRequiredLevel ?? 0}</div>
+                  <div>{t('analysis.reportPage.fields.indicativeYield')}: {asset.indicativeYield != null ? `${(asset.indicativeYield * 100).toFixed(2)}%` : t('common.notAvailable')}</div>
+                  <div>{t('analysis.reportPage.fields.oracle')}: {asset.oracleProvider || t('common.notAvailable')}</div>
                 </div>
                 <p className="text-sm leading-6 text-text-secondary">{asset.fitSummary}</p>
                 <Button variant="secondary" onClick={() => void navigate(`/assets/${asset.assetId}/proof`)}>
                   <ExternalLink className="size-4" />
-                  View proof
+                  {t('analysis.reportPage.viewProof')}
                 </Button>
               </Card>
             ))}
@@ -387,43 +401,43 @@ export function ReportPage() {
 
         <ReportSection
           id="goal"
-          title="Decision goal"
-          description="The problem definition remains explicit so the recommendation can be audited against the original question."
+          title={t('analysis.reportPage.sections.goal')}
+          description={t('analysis.reportPage.goalDescription')}
         >
           <div className="space-y-3">
             <div className="rounded-[20px] bg-app-bg-elevated p-4 text-sm leading-7 text-text-primary">
-              {session.problemStatement}
+              {sessionTitle}
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge tone="neutral">{modeLabel(report.mode)}</Badge>
-              <Badge tone="info">Last updated {new Date(session.updatedAt).toLocaleDateString()}</Badge>
+              <Badge tone="info">{t('analysis.reportPage.lastUpdated', { value: formatDate(session.updatedAt, locale) })}</Badge>
             </div>
           </div>
         </ReportSection>
 
         <ReportSection
           id="execution"
-          title="Execution plan"
-          description="Quote, simulation warnings, and execution steps are wired to the execute page and writeback flow."
+          title={t('analysis.reportPage.sections.execution')}
+          description={t('analysis.reportPage.executionDescription')}
         >
           {report.executionPlan ? (
             <div className="space-y-4">
               <Card className="grid gap-3 p-4 md:grid-cols-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.12em] text-text-muted">Target asset</p>
-                  <p className="mt-2 text-sm font-semibold text-text-primary">{report.executionPlan.targetAsset || 'N/A'}</p>
+                  <p className="text-xs uppercase tracking-[0.12em] text-text-muted">{t('analysis.reportPage.fields.targetAsset')}</p>
+                  <p className="mt-2 text-sm font-semibold text-text-primary">{report.executionPlan.targetAsset || t('common.notAvailable')}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.12em] text-text-muted">Ticket size</p>
+                  <p className="text-xs uppercase tracking-[0.12em] text-text-muted">{t('analysis.reportPage.fields.ticketSize')}</p>
                   <p className="mt-2 text-sm font-semibold text-text-primary">{report.executionPlan.ticketSize}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.12em] text-text-muted">Route</p>
-                  <p className="mt-2 text-sm font-semibold text-text-primary">{report.executionPlan.quote?.routeType ?? 'N/A'}</p>
+                  <p className="text-xs uppercase tracking-[0.12em] text-text-muted">{t('analysis.reportPage.fields.route')}</p>
+                  <p className="mt-2 text-sm font-semibold text-text-primary">{report.executionPlan.quote?.routeType ?? t('common.notAvailable')}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.12em] text-text-muted">Expected amount</p>
-                  <p className="mt-2 text-sm font-semibold text-text-primary">{report.executionPlan.quote?.expectedAmountOut ?? 'N/A'}</p>
+                  <p className="text-xs uppercase tracking-[0.12em] text-text-muted">{t('analysis.reportPage.fields.expectedAmount')}</p>
+                  <p className="mt-2 text-sm font-semibold text-text-primary">{report.executionPlan.quote?.expectedAmountOut ?? t('common.notAvailable')}</p>
                 </div>
               </Card>
               <div className="space-y-3">
@@ -443,24 +457,24 @@ export function ReportPage() {
             </div>
           ) : (
             <EmptyState
-              title="Execution plan will populate after the backend execute call"
-              description="Open the execution page to fetch the latest quote, simulation, bundle, and writeback state."
+              title={t('analysis.reportPage.executionEmptyTitle')}
+              description={t('analysis.reportPage.executionEmptyDescription')}
             />
           )}
         </ReportSection>
 
         <ReportSection
           id="monitoring"
-          title="Monitoring checklist"
-          description="P0 monitoring is baseline and derived from wallet positions, oracle freshness, and execution records."
+          title={t('analysis.reportPage.sections.monitoring')}
+          description={t('analysis.reportPage.monitoringDescription')}
         >
           <div className="grid gap-3 md:grid-cols-2">
             {(report.positionSnapshots ?? []).map((item) => (
               <Card key={item.id} className="space-y-2 p-4">
                 <p className="font-semibold text-text-primary">{item.assetName}</p>
-                <p className="text-sm text-text-secondary">Balance {item.currentBalance} · NAV/price {item.latestNavOrPrice}</p>
-                <p className="text-sm text-text-secondary">PnL {item.unrealizedPnl} · Yield {item.accruedYield}</p>
-                <p className="text-sm text-text-secondary">Next redemption {item.nextRedemptionWindow || 'N/A'}</p>
+                <p className="text-sm text-text-secondary">{t('analysis.reportPage.monitoringLines.balanceNavPrice', { balance: item.currentBalance, value: item.latestNavOrPrice })}</p>
+                <p className="text-sm text-text-secondary">{t('analysis.reportPage.monitoringLines.pnlYield', { pnl: item.unrealizedPnl, yield: item.accruedYield })}</p>
+                <p className="text-sm text-text-secondary">{t('analysis.reportPage.monitoringLines.nextRedemption', { value: item.nextRedemptionWindow || t('common.notAvailable') })}</p>
               </Card>
             ))}
           </div>
@@ -468,19 +482,26 @@ export function ReportPage() {
 
         <ReportSection
           id="receipts"
-          title="Onchain receipts and anchor records"
-          description="Every attestation and related receipt should remain visible on the report and session detail pages."
+          title={t('analysis.reportPage.sections.receipts')}
+          description={t('analysis.reportPage.receiptsDescription')}
         >
           <div className="space-y-3">
             {(report.transactionReceipts ?? []).map((receipt) => (
               <Card key={receipt.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div>
                   <p className="font-semibold text-text-primary">{receipt.txHash}</p>
-                  <p className="text-sm text-text-secondary">{receipt.txStatus} · block {receipt.blockNumber ?? 'pending'}</p>
+                  <p className="text-sm text-text-secondary">
+                    {t('analysis.reportPage.receiptSummary', {
+                      status: receipt.txStatus,
+                      block:
+                        receipt.blockNumber ??
+                        t('analysis.reportPage.pending'),
+                    })}
+                  </p>
                 </div>
                 {receipt.explorerUrl ? (
                   <a href={receipt.explorerUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-primary">
-                    Explorer <ExternalLink className="size-4" />
+                    {t('analysis.reportPage.fields.explorer')} <ExternalLink className="size-4" />
                   </a>
                 ) : null}
               </Card>
@@ -489,7 +510,7 @@ export function ReportPage() {
               <Card key={record.id} className="space-y-2 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-semibold text-text-primary">{record.status}</p>
-                  <Badge tone="info">{record.chainId ?? 'N/A'}</Badge>
+                  <Badge tone="info">{record.chainId ?? t('common.notAvailable')}</Badge>
                 </div>
                 <p className="text-sm text-text-secondary">{record.note || record.attestationHash}</p>
               </Card>
@@ -499,13 +520,13 @@ export function ReportPage() {
 
         <ReportSection
           id="assumptions"
-          title="Key assumptions"
-          description="Assumptions remain visible because they are not confirmed facts."
+          title={t('analysis.reportPage.sections.assumptions')}
+          description={t('analysis.reportPage.assumptionsDescription')}
         >
           <div className="space-y-3">
             {report.assumptions.map((item) => (
               <div key={item} className="rounded-[20px] border border-[rgba(139,92,246,0.22)] bg-[rgba(139,92,246,0.08)] px-4 py-3 text-sm leading-6 text-text-secondary">
-                <div className="mb-2"><Badge tone="gold">Estimate</Badge></div>
+                <div className="mb-2"><Badge tone="gold">{t('analysis.decisionUi.conclusionTypes.estimate')}</Badge></div>
                 {item}
               </div>
             ))}
@@ -514,15 +535,15 @@ export function ReportPage() {
 
         <ReportSection
           id="facts"
-          title="Confirmed facts"
-          description="These facts come from source summaries and stay separate from estimates or inferences."
+          title={t('analysis.reportPage.sections.facts')}
+          description={t('analysis.reportPage.factsDescription')}
         >
           <div className="space-y-3">
             {report.evidence.flatMap((item) =>
               item.extractedFacts.slice(0, 2).map((fact) => (
                 <div key={`${item.id}-${fact}`} className="rounded-[20px] border border-[rgba(34,211,238,0.22)] bg-[rgba(34,211,238,0.08)] px-4 py-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone="info">Fact</Badge>
+                    <Badge tone="info">{t('analysis.decisionUi.conclusionTypes.fact')}</Badge>
                     <Badge tone="neutral">{item.sourceName}</Badge>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-text-primary">{fact}</p>
@@ -534,8 +555,8 @@ export function ReportPage() {
 
         <ReportSection
           id="costs"
-          title="Cost breakdown"
-          description="Direct costs, hidden costs, and buffers should be readable without digging through prose."
+          title={t('analysis.reportPage.sections.costs')}
+          description={t('analysis.reportPage.costsDescription')}
         >
           {costRows.length ? (
             <div className="space-y-3">
@@ -560,16 +581,16 @@ export function ReportPage() {
             </div>
           ) : (
             <EmptyState
-              title="No explicit cost breakdown"
-              description="This report does not currently expose structured cost items."
+              title={t('analysis.reportPage.costEmptyTitle')}
+              description={t('analysis.reportPage.costEmptyDescription')}
             />
           )}
         </ReportSection>
 
         <ReportSection
           id="risks"
-          title="Risk breakdown"
-          description="Warnings and conclusion-level inferences remain visible instead of being hidden inside summary text."
+          title={t('analysis.reportPage.sections.risks')}
+          description={t('analysis.reportPage.risksDescription')}
         >
           <div className="space-y-3">
             {(report.warnings ?? []).map((warning) => (
@@ -581,7 +602,11 @@ export function ReportPage() {
               <div key={item.id} className="rounded-[20px] bg-app-bg-elevated p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={item.conclusionType === 'fact' ? 'info' : item.conclusionType === 'estimate' ? 'gold' : 'warning'}>
-                    {item.conclusionType}
+                    {item.conclusionType === 'fact'
+                      ? t('analysis.decisionUi.conclusionTypes.fact')
+                      : item.conclusionType === 'estimate'
+                        ? t('analysis.decisionUi.conclusionTypes.estimate')
+                        : t('analysis.decisionUi.conclusionTypes.inference')}
                   </Badge>
                   <ConfidenceBadge confidence={item.confidence} />
                 </div>
@@ -593,8 +618,8 @@ export function ReportPage() {
 
         <ReportSection
           id="options"
-          title="Option comparison"
-          description="Only shown when the report includes more than one viable path."
+          title={t('analysis.reportPage.sections.options')}
+          description={t('analysis.reportPage.optionsDescription')}
         >
           {report.optionProfiles?.length ? (
             <div className="space-y-4">
@@ -617,7 +642,7 @@ export function ReportPage() {
                   <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-                        Pros
+                        {t('analysis.reportPage.fields.pros')}
                       </p>
                       <ul className="mt-2 space-y-1.5 text-sm leading-6 text-text-secondary">
                         {option.pros.map((item) => (
@@ -627,7 +652,7 @@ export function ReportPage() {
                     </div>
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-                        Cons
+                        {t('analysis.reportPage.fields.cons')}
                       </p>
                       <ul className="mt-2 space-y-1.5 text-sm leading-6 text-text-secondary">
                         {option.cons.map((item) => (
@@ -637,7 +662,7 @@ export function ReportPage() {
                     </div>
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-                        Conditions
+                        {t('analysis.reportPage.fields.conditions')}
                       </p>
                       <ul className="mt-2 space-y-1.5 text-sm leading-6 text-text-secondary">
                         {option.conditions.map((item) => (
@@ -647,7 +672,7 @@ export function ReportPage() {
                     </div>
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-                        Caution flags
+                        {t('analysis.reportPage.fields.cautionFlags')}
                       </p>
                       <ul className="mt-2 space-y-1.5 text-sm leading-6 text-text-secondary">
                         {option.cautionFlags.map((item) => (
@@ -661,16 +686,16 @@ export function ReportPage() {
             </div>
           ) : (
             <EmptyState
-              title="Single-path report"
-              description="This report analyzes one main decision path rather than comparing several options."
+              title={t('analysis.reportPage.optionsEmptyTitle')}
+              description={t('analysis.reportPage.optionsEmptyDescription')}
             />
           )}
         </ReportSection>
 
         <ReportSection
           id="scenarios"
-          title="Best / likely / worst case"
-          description="Scenario framing prevents a single base-case number from looking more certain than it is."
+          title={t('analysis.reportPage.sections.scenarios')}
+          description={t('analysis.reportPage.scenariosDescription')}
         >
           <div className="grid gap-4 md:grid-cols-3">
             {scenarioRows.map((item) => (
@@ -689,8 +714,8 @@ export function ReportPage() {
 
         <ReportSection
           id="calculations"
-          title="Key calculations"
-          description="Calculations stay separate from narrative so users can inspect formulas and parameters directly."
+          title={t('analysis.reportPage.sections.calculations')}
+          description={t('analysis.reportPage.calculationsDescription')}
         >
           {report.calculations.length ? (
             <div className="space-y-4">
@@ -704,16 +729,16 @@ export function ReportPage() {
             </div>
           ) : (
             <EmptyState
-              title="No calculations available"
-              description="This report does not currently expose deterministic calculations."
+              title={t('analysis.reportPage.calculationsEmptyTitle')}
+              description={t('analysis.reportPage.calculationsEmptyDescription')}
             />
           )}
         </ReportSection>
 
         <ReportSection
           id="charts"
-          title="Charts"
-          description="Charts require titles, units, and source or estimate context. If data is incomplete, the empty state stays visible."
+          title={t('analysis.reportPage.sections.charts')}
+          description={t('analysis.reportPage.chartsDescription')}
         >
           {report.charts.length ? (
             <div className="space-y-4">
@@ -723,16 +748,16 @@ export function ReportPage() {
             </div>
           ) : (
             <EmptyState
-              title="No charts available"
-              description="There was not enough data to render a reliable chart for this report."
+              title={t('analysis.reportPage.chartsEmptyTitle')}
+              description={t('analysis.reportPage.chartsEmptyDescription')}
             />
           )}
         </ReportSection>
 
         <ReportSection
           id="evidence"
-          title="Evidence references"
-          description="Sources and freshness stay visible near the final recommendation."
+          title={t('analysis.reportPage.sections.evidence')}
+          description={t('analysis.reportPage.evidenceDescription')}
         >
           {report.evidence.length ? (
             <div className="space-y-4">
@@ -743,51 +768,56 @@ export function ReportPage() {
                   linkedConclusionCount={session.conclusions.filter((conclusion) =>
                     conclusion.basisRefs.includes(item.id),
                   ).length}
-                  sessionTitle={session.problemStatement}
+                  sessionTitle={sessionTitle}
                   onOpen={() => window.open(item.sourceUrl, '_blank', 'noopener,noreferrer')}
                 />
               ))}
             </div>
           ) : (
             <EmptyState
-              title="No evidence references"
-              description="This report does not currently expose source references."
+              title={t('analysis.reportPage.evidenceEmptyTitle')}
+              description={t('analysis.reportPage.evidenceEmptyDescription')}
             />
           )}
         </ReportSection>
 
         <ReportSection
           id="unknowns"
-          title="Unknowns and unresolved uncertainties"
-          description="Unknowns should be readable before the user acts on the recommendation."
+          title={t('analysis.reportPage.sections.unknowns')}
+          description={t('analysis.reportPage.unknownsDescription')}
         >
           {(report.unknowns ?? []).length ? (
             <div className="space-y-3">
               {(report.unknowns ?? []).map((item) => (
                 <div key={item} className="rounded-[20px] border border-[rgba(244,63,94,0.24)] bg-[rgba(244,63,94,0.08)] px-4 py-3 text-sm leading-6 text-text-secondary">
-                  <div className="mb-2"><Badge tone="danger">Unknown</Badge></div>
+                  <div className="mb-2"><Badge tone="danger">{t('analysis.reportPage.unknownBadge')}</Badge></div>
                   {item}
                 </div>
               ))}
             </div>
           ) : (
             <EmptyState
-              title="No unknowns listed"
-              description="This report does not currently expose an explicit unknowns section."
+              title={t('analysis.reportPage.unknownsEmptyTitle')}
+              description={t('analysis.reportPage.unknownsEmptyDescription')}
             />
           )}
         </ReportSection>
 
         <ReportSection
           id="recommendation"
-          title="Recommendation"
-          description="Recommendation direction is structured, bounded, and tied back to visible assumptions and uncertainty."
+          title={t('analysis.reportPage.sections.recommendation')}
+          description={t('analysis.reportPage.recommendationDescription')}
         >
           <div className="space-y-4">
             <div className="rounded-[22px] border border-[rgba(79,124,255,0.22)] bg-primary-soft p-5">
               <p className="text-base font-semibold text-text-primary">{recommendationLine}</p>
               <p className="mt-2 text-sm leading-6 text-text-secondary">
-                Recommendation confidence: {typeof confidence === 'number' ? `${Math.round(confidence * 100)}%` : 'not available yet'}
+                {t('analysis.reportPage.recommendationConfidence', {
+                  value:
+                    typeof confidence === 'number'
+                      ? `${Math.round(confidence * 100)}%`
+                      : t('analysis.reportPage.recommendationNotAvailable'),
+                })}
               </p>
             </div>
             <div className="rounded-[20px] bg-app-bg-elevated p-4 text-sm leading-7 text-text-secondary">
@@ -798,8 +828,8 @@ export function ReportPage() {
 
         <ReportSection
           id="boundary"
-          title="Boundary note"
-          description="This section makes the product boundary explicit."
+          title={t('analysis.reportPage.sections.boundary')}
+          description={t('analysis.reportPage.boundaryDescription')}
         >
           <div className="space-y-3">
             {report.disclaimers.map((item) => (
@@ -808,7 +838,7 @@ export function ReportPage() {
               </div>
             ))}
             <PreviewNote>
-              Use the report to structure the decision, not to outsource accountability for it.
+              {t('analysis.reportPage.boundaryNote')}
             </PreviewNote>
           </div>
         </ReportSection>
@@ -816,7 +846,7 @@ export function ReportPage() {
 
       <aside className="hidden xl:block">
         <div className="panel-card sticky top-6 space-y-4 p-4">
-          <p className="text-sm font-semibold text-text-primary">Report outline</p>
+          <p className="text-sm font-semibold text-text-primary">{t('analysis.reportPage.outline')}</p>
           <nav className="space-y-1">
             {reportSections.map((item) => (
               <a
@@ -834,7 +864,7 @@ export function ReportPage() {
             rel="noreferrer"
             className="inline-flex items-center gap-2 text-sm font-semibold text-gold-primary"
           >
-            Open first source
+            {t('analysis.reportPage.openFirstSource')}
             <ExternalLink className="size-4" />
           </a>
         </div>

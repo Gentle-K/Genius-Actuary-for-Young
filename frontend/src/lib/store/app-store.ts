@@ -11,6 +11,7 @@ import type {
   User,
 } from '@/types'
 import { resolveRuntimeApiMode } from '@/lib/api/runtime-mode'
+import { DEFAULT_LOCALE, normalizeLanguageCode } from '@/lib/i18n/locale'
 
 const defaultApiMode = resolveRuntimeApiMode(
   import.meta.env['VITE_API_MODE'] as ApiMode | undefined,
@@ -76,9 +77,9 @@ interface AppStoreState {
 export const useAppStore = create<AppStoreState>()(
   persist(
     (set) => ({
-      themeMode: 'dark',
+      themeMode: 'system',
       resolvedTheme: 'dark',
-      locale: 'en',
+      locale: DEFAULT_LOCALE,
       displayDensity: 'cozy',
       apiMode: defaultApiMode,
       sidebarOpen: true,
@@ -87,9 +88,9 @@ export const useAppStore = create<AppStoreState>()(
       currentUser: null,
       walletAddress: '',
       walletChainId: null,
-      setThemeMode: () => set({ themeMode: 'dark' }),
-      setResolvedTheme: () => set({ resolvedTheme: 'dark' }),
-      setLocale: (locale) => set({ locale }),
+      setThemeMode: (themeMode) => set({ themeMode }),
+      setResolvedTheme: (resolvedTheme) => set({ resolvedTheme }),
+      setLocale: (locale) => set({ locale: normalizeLanguageCode(locale) }),
       setDisplayDensity: (displayDensity) => set({ displayDensity }),
       setApiMode: (apiMode) =>
         set({ apiMode: resolveRuntimeApiMode(apiMode) }),
@@ -113,9 +114,8 @@ export const useAppStore = create<AppStoreState>()(
         }),
       syncFromSettings: (settings) =>
         set({
-          themeMode: 'dark',
-          resolvedTheme: 'dark',
-          locale: settings.language,
+          themeMode: settings.themeMode,
+          locale: normalizeLanguageCode(settings.language),
         }),
     }),
     {
@@ -129,7 +129,22 @@ export const useAppStore = create<AppStoreState>()(
 
         return {
           ...merged,
+          themeMode:
+            merged.themeMode === 'dark' ||
+            merged.themeMode === 'light' ||
+            merged.themeMode === 'system'
+              ? merged.themeMode
+              : 'system',
+          resolvedTheme:
+            merged.resolvedTheme === 'light' ? 'light' : 'dark',
+          locale: normalizeLanguageCode(merged.locale),
           apiMode: resolveRuntimeApiMode(merged.apiMode),
+          currentUser: merged.currentUser
+            ? {
+                ...merged.currentUser,
+                locale: normalizeLanguageCode(merged.currentUser.locale),
+              }
+            : null,
         }
       },
       partialize: (state) => ({

@@ -12,6 +12,7 @@ import {
   isResultSessionStatus,
 } from '@/lib/analysis/session-path'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
+import { isChineseLocale } from '@/lib/i18n/locale'
 import { getResourceDefinition } from '@/lib/registry/resource-registry'
 import { formatDateTime } from '@/lib/utils/format'
 import { useAppStore } from '@/lib/store/app-store'
@@ -24,7 +25,7 @@ export function ResourceListPage() {
   const locale = useAppStore((state) => state.locale)
   const adapter = useApiAdapter()
   const definition = getResourceDefinition(resourceKey)
-  const isZh = i18n.language.startsWith('zh')
+  const isZh = isChineseLocale(i18n.language)
   const isHistoryPage = resourceKey === 'analyses'
 
   const recordsQuery = useQuery({

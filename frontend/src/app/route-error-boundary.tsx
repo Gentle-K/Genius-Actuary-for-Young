@@ -3,13 +3,14 @@ import { isRouteErrorResponse, useNavigate, useRouteError } from 'react-router-d
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { isChineseLocale } from '@/lib/i18n/locale'
 import { useAppStore } from '@/lib/store/app-store'
 
 export function RouteErrorBoundary() {
   const error = useRouteError()
   const navigate = useNavigate()
   const locale = useAppStore((state) => state.locale)
-  const isZh = locale === 'zh'
+  const isZh = isChineseLocale(locale)
 
   const description = isRouteErrorResponse(error)
     ? `${error.status} ${error.statusText}`

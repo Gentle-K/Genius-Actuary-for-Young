@@ -1,4 +1,5 @@
 import { i18n } from '@/lib/i18n'
+import { normalizeLanguageCode } from '@/lib/i18n/locale'
 import type { User } from '@/types'
 
 const ACCOUNT_COOKIE_NAME = 'genius_actuary_browser_account'
@@ -82,15 +83,25 @@ function accountCode(accountId: string) {
 
 export function createBrowserBoundUser(): User {
   const account = ensureBrowserAccount()
-  const isZh = i18n.language.startsWith('zh')
+  const locale = normalizeLanguageCode(i18n.language)
   const code = accountCode(account.id)
 
   return {
     id: account.id,
-    name: isZh ? `用户 ${code}` : `User ${code}`,
+    name:
+      locale === 'zh-HK'
+        ? `用戶 ${code}`
+        : locale === 'zh-CN'
+          ? `用户 ${code}`
+          : `User ${code}`,
     email: `${code.toLowerCase()}@browser.local`,
-    title: isZh ? '浏览器自动创建账号' : 'Browser-linked account',
-    locale: isZh ? 'zh' : 'en',
+    title:
+      locale === 'zh-HK'
+        ? '瀏覽器連結帳戶'
+        : locale === 'zh-CN'
+          ? '浏览器关联账户'
+          : 'Browser-linked account',
+    locale,
     roles: ['analyst'],
     lastActiveAt: new Date().toISOString(),
   }

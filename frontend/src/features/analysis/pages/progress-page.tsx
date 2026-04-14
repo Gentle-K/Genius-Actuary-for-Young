@@ -8,6 +8,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -24,22 +25,29 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
+import { useAppStore } from '@/lib/store/app-store'
 import { formatRelativeTime } from '@/features/analysis/lib/view-models'
 
-const stepLabels = ['Clarifying', 'Searching evidence', 'Running calculations', 'Drafting report']
-
 export function ProgressPage() {
+  const { t } = useTranslation()
   const { sessionId = '' } = useParams()
   const adapter = useApiAdapter()
   const navigate = useNavigate()
+  const locale = useAppStore((state) => state.locale)
+  const stepLabels = [
+    t('analysis.progressPage.steps.clarifying'),
+    t('analysis.progressPage.steps.searchingEvidence'),
+    t('analysis.progressPage.steps.runningCalculations'),
+    t('analysis.progressPage.steps.draftingReport'),
+  ]
 
   const sessionQuery = useQuery({
-    queryKey: ['analysis', sessionId, 'progress-session'],
+    queryKey: ['analysis', sessionId, 'progress-session', locale],
     queryFn: () => adapter.analysis.getById(sessionId),
   })
 
   const progressQuery = useQuery({
-    queryKey: ['analysis', sessionId, 'progress'],
+    queryKey: ['analysis', sessionId, 'progress', locale],
     queryFn: () => adapter.analysis.getProgress(sessionId),
     refetchInterval: (query) =>
       query.state.data?.status === 'READY_FOR_EXECUTION' ||
@@ -65,8 +73,8 @@ export function ProgressPage() {
   if (sessionQuery.isLoading || progressQuery.isLoading) {
     return (
       <LoadingState
-        title="Loading analysis progress"
-        description="Preparing stage status, activity feed, and conclusion preview."
+        title={t('analysis.progressPage.loadingTitle')}
+        description={t('analysis.progressPage.loadingDescription')}
       />
     )
   }
@@ -74,11 +82,11 @@ export function ProgressPage() {
   if (sessionQuery.isError || progressQuery.isError || !sessionQuery.data || !progressQuery.data) {
     return (
       <ErrorState
-        title="Could not load analysis progress"
+        title={t('analysis.progressPage.errorTitle')}
         description={
           (sessionQuery.error as Error | undefined)?.message ??
           (progressQuery.error as Error | undefined)?.message ??
-          'The session progress snapshot is unavailable.'
+          t('analysis.progressPage.errorFallback')
         }
         action={
           <Button
@@ -88,7 +96,7 @@ export function ProgressPage() {
               void progressQuery.refetch()
             }}
           >
-            Retry
+            {t('common.retry')}
           </Button>
         }
       />
@@ -107,35 +115,38 @@ export function ProgressPage() {
           : 3
 
   const activityItems = [
-    progress.currentFocus ? { title: 'Current focus', detail: progress.currentFocus } : null,
+    progress.currentFocus ? { kind: 'focus', title: t('analysis.progressPage.worklogItems.currentFocus'), detail: progress.currentFocus } : null,
     ...(progress.pendingSearchTasks ?? []).map((item) => ({
-      title: 'Search task generated',
+      kind: 'search',
+      title: t('analysis.progressPage.worklogItems.searchTaskGenerated'),
       detail: item.topic,
     })),
     ...(progress.pendingCalculationTasks ?? []).map((item) => ({
-      title: 'Calculation queued',
+      kind: 'calculation',
+      title: t('analysis.progressPage.worklogItems.calculationQueued'),
       detail: item.taskType,
     })),
     ...(progress.pendingChartTasks ?? []).map((item) => ({
-      title: 'Chart in progress',
+      kind: 'chart',
+      title: t('analysis.progressPage.worklogItems.chartInProgress'),
       detail: item.title,
     })),
-  ].filter(Boolean) as Array<{ detail: string; title: string }>
+  ].filter(Boolean) as Array<{ detail: string; kind: 'focus' | 'search' | 'calculation' | 'chart'; title: string }>
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Analyzing"
-        title="Analysis in progress"
-        description="The system shows what it is doing, which stage is active, and what remains before the final report is ready."
+        eyebrow={t('analysis.progressPage.eyebrow')}
+        title={t('analysis.progressPage.title')}
+        description={t('analysis.progressPage.description')}
         actions={
           <>
             <Button variant="secondary" onClick={() => void navigate(`/sessions/${session.id}`)}>
-              Session detail
+              {t('analysis.progressPage.sessionDetail')}
             </Button>
             {session.status === 'FAILED' ? (
               <Button variant="secondary" onClick={() => void navigate(`/sessions/${session.id}/clarify`)}>
-                Re-open clarifications
+                {t('analysis.progressPage.reopenClarifications')}
               </Button>
             ) : null}
           </>
@@ -143,8 +154,8 @@ export function ProgressPage() {
       />
 
       <SectionCard
-        title="Progress stepper"
-        description="Clarification, search, calculation, and report drafting remain separate product states."
+        title={t('analysis.progressPage.stepperTitle')}
+        description={t('analysis.progressPage.stepperDescription')}
       >
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {stepLabels.map((label, index) => {
@@ -179,7 +190,7 @@ export function ProgressPage() {
                   ) : active ? (
                     <LoaderCircle className="size-4 animate-spin text-primary" />
                   ) : (
-                    <Badge tone="neutral">Pending</Badge>
+                    <Badge tone="neutral">{t('analysis.progressPage.pending')}</Badge>
                   )}
                 </div>
               </div>
@@ -192,34 +203,34 @@ export function ProgressPage() {
         <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
-              title="Questions answered"
+              title={t('analysis.progressPage.metrics.questionsAnswered.title')}
               value={String(session.questions.filter((item) => item.answered).length)}
-              detail="More answers usually mean fewer hidden assumptions."
+              detail={t('analysis.progressPage.metrics.questionsAnswered.detail')}
               tone="brand"
             />
             <MetricCard
-              title="Evidence collected"
+              title={t('analysis.progressPage.metrics.evidenceCollected.title')}
               value={String(session.evidence.length)}
-              detail="Source summaries already attached to this session."
+              detail={t('analysis.progressPage.metrics.evidenceCollected.detail')}
               tone="success"
             />
             <MetricCard
-              title="Calculations completed"
+              title={t('analysis.progressPage.metrics.calculationsCompleted.title')}
               value={String(session.calculations.length)}
-              detail="Deterministic outputs supporting the recommendation."
+              detail={t('analysis.progressPage.metrics.calculationsCompleted.detail')}
               tone="brand"
             />
             <MetricCard
-              title="Conclusions extracted"
+              title={t('analysis.progressPage.metrics.conclusionsExtracted.title')}
               value={String(session.conclusions.length)}
-              detail="Only surfaced conclusions are shown here."
+              detail={t('analysis.progressPage.metrics.conclusionsExtracted.detail')}
               tone="success"
             />
           </div>
 
           <SectionCard
-            title="Worklog"
-            description="A transparent timeline of what the system is doing right now."
+            title={t('analysis.progressPage.worklogTitle')}
+            description={t('analysis.progressPage.worklogDescription')}
           >
             {activityItems.length ? (
               <div className="space-y-3">
@@ -229,11 +240,11 @@ export function ProgressPage() {
                     title={item.title}
                     detail={item.detail}
                     icon={
-                      item.title.includes('Search') ? (
+                      item.kind === 'search' ? (
                         <FileSearch className="size-4" />
-                      ) : item.title.includes('Calculation') ? (
+                      ) : item.kind === 'calculation' ? (
                         <Sigma className="size-4" />
-                      ) : item.title.includes('Chart') ? (
+                      ) : item.kind === 'chart' ? (
                         <Sparkles className="size-4" />
                       ) : (
                         <CircleAlert className="size-4" />
@@ -244,34 +255,34 @@ export function ProgressPage() {
               </div>
             ) : (
               <EmptyState
-                title="No worklog entries yet"
-                description="The worklog will fill in as search, calculation, and chart tasks start running."
+                title={t('analysis.progressPage.worklogEmptyTitle')}
+                description={t('analysis.progressPage.worklogEmptyDescription')}
               />
             )}
           </SectionCard>
 
           {progress.status === 'FAILED' ? (
             <ErrorState
-              title="Part of the analysis failed"
+              title={t('analysis.progressPage.failedTitle')}
               description={
                 progress.errorMessage ??
-                'The workflow did not complete. The UI keeps the failure visible instead of leaving an empty state.'
+                t('analysis.progressPage.failedFallback')
               }
               action={
                 <Button variant="secondary" onClick={() => void navigate(`/sessions/${session.id}/clarify`)}>
-                  Return to clarifications
+                  {t('analysis.progressPage.returnToClarifications')}
                 </Button>
               }
             />
           ) : (
             <PreviewNote>
-              Progress surfaces keep active work, blockers, and remaining steps visible so the user can tell whether the report is converging or still waiting on signal.
+              {t('analysis.progressPage.previewNote')}
             </PreviewNote>
           )}
         </div>
 
         <div className="space-y-6 xl:sticky xl:top-28 xl:self-start">
-          <SectionCard title="Current conclusions preview" description="Only high-value conclusions already extracted are shown here.">
+          <SectionCard title={t('analysis.progressPage.conclusionsPreviewTitle')} description={t('analysis.progressPage.conclusionsPreviewDescription')}>
             {session.conclusions.length ? (
               <div className="space-y-3">
                 {session.conclusions.map((item) => (
@@ -286,47 +297,51 @@ export function ProgressPage() {
               </div>
             ) : (
               <EmptyState
-                title="No conclusions preview yet"
-                description="Conclusions appear here as soon as the analysis pipeline extracts stable findings."
+                title={t('analysis.progressPage.conclusionsPreviewEmptyTitle')}
+                description={t('analysis.progressPage.conclusionsPreviewEmptyDescription')}
               />
             )}
           </SectionCard>
 
-          <SectionCard title="Current status" description="The system keeps both the active focus and the fallback reason visible.">
+          <SectionCard title={t('analysis.progressPage.currentStatusTitle')} description={t('analysis.progressPage.currentStatusDescription')}>
             <div className="space-y-3">
               <div className="rounded-[20px] bg-app-bg-elevated p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-                  Active focus
+                  {t('analysis.progressPage.activeFocus')}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-text-primary">
-                  {progress.currentFocus ?? 'Waiting for the next orchestrated step.'}
+                  {progress.currentFocus ?? t('analysis.progressPage.waitingNextStep')}
                 </p>
               </div>
               <div className="rounded-[20px] bg-app-bg-elevated p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-                  What remains before report draft
+                  {t('analysis.progressPage.remainingBeforeDraft')}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-text-primary">
                   {progress.nextAction === 'complete'
-                    ? 'The report draft is ready.'
+                    ? t('analysis.progressPage.draftReady')
                     : progress.pendingSearchTasks?.length
-                      ? `${progress.pendingSearchTasks.length} evidence task(s) still open.`
+                      ? t('analysis.progressPage.evidenceTasksOpen', {
+                          count: progress.pendingSearchTasks.length,
+                        })
                       : progress.pendingCalculationTasks?.length
-                        ? `${progress.pendingCalculationTasks.length} calculation task(s) still open.`
-                        : 'The workflow is waiting for the next orchestrated step.'}
+                        ? t('analysis.progressPage.calculationTasksOpen', {
+                            count: progress.pendingCalculationTasks.length,
+                          })
+                        : t('analysis.progressPage.workflowWaiting')}
                 </p>
               </div>
               <div className="rounded-[20px] bg-app-bg-elevated p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-                  Last stop reason
+                  {t('analysis.progressPage.lastStopReason')}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-text-primary">
-                  {progress.lastStopReason ?? 'No fallback reason reported.'}
+                  {progress.lastStopReason ?? t('analysis.progressPage.noFallbackReason')}
                 </p>
               </div>
               <div className="rounded-[20px] bg-app-bg-elevated p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-                  Updated
+                  {t('analysis.progressPage.updated')}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-text-primary">
                   {formatRelativeTime(session.updatedAt)}

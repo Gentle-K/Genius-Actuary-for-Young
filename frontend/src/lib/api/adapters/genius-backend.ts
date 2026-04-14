@@ -58,9 +58,14 @@ import type {
   User,
   UserAnswer,
   WalletBalance,
+  LanguageCode,
 } from '@/types'
 import { createBrowserBoundUser } from '@/lib/auth/browser-account'
 import { i18n } from '@/lib/i18n'
+import {
+  normalizeLanguageCode,
+  toHongKongChinese,
+} from '@/lib/i18n/locale'
 
 export const COOKIE_SESSION_TOKEN = 'backend-cookie-session'
 
@@ -1464,7 +1469,9 @@ export interface BackendReserveBackingSummary {
 }
 
 export interface BackendReport {
+  title?: string
   summary: string
+  locale?: 'en' | 'zh-CN' | 'zh-HK'
   assumptions: string[]
   unknowns?: string[]
   warnings?: string[]
@@ -1516,7 +1523,7 @@ export interface BackendSession {
     | 'multi_option'
     | 'single_asset_allocation'
     | 'strategy_compare'
-  locale?: 'zh' | 'en'
+  locale?: 'en' | 'zh-CN' | 'zh-HK'
   problem_statement: string
   intake_context: BackendRwaIntakeContext
   status:
@@ -1661,8 +1668,25 @@ export interface DebugSessionDetail {
   session: BackendSession
 }
 
-function isChineseLocale() {
-  return i18n.language.startsWith('zh')
+function currentAppLocale(): LanguageCode {
+  return normalizeLanguageCode(i18n.language)
+}
+
+function localizedAppCopy(
+  values: {
+    en: string
+    zhCn: string
+    zhHk?: string
+  },
+  locale: LanguageCode = currentAppLocale(),
+) {
+  if (locale === 'zh-HK') {
+    return values.zhHk ?? toHongKongChinese(values.zhCn)
+  }
+  if (locale === 'zh-CN') {
+    return values.zhCn
+  }
+  return values.en
 }
 
 function stringList(value: unknown): string[] {
@@ -3196,26 +3220,56 @@ export function mapRwaBootstrap(
 }
 
 function normalizeActivityLabel(activityStatus?: string) {
-  const isZh = isChineseLocale()
+  const locale = currentAppLocale()
   const mapping: Record<string, string> = {
-    idle: isZh ? '等待启动' : 'Idle',
-    waiting_for_user_clarification_answers: isZh
-      ? '等待用户回答问题'
-      : 'Waiting for answers',
-    searching_web_for_evidence: isZh ? '搜索网页中' : 'Searching the web',
-    running_deterministic_calculations: isZh
-      ? '执行 RWA 收益、风险与净值计算'
-      : 'Running RWA calculations',
-    preparing_visualizations: isZh ? '生成图表中' : 'Preparing charts',
-    searching_and_synthesizing: isZh ? '搜索并综合证据中' : 'Searching and synthesizing',
-    running_analysis_pipeline: isZh ? '分析思考中' : 'Running analysis',
-    analyzing: isZh ? '分析思考中' : 'Analyzing',
-    completed: isZh ? '分析完成' : 'Completed',
-    failed: isZh ? '分析失败' : 'Failed',
+    idle: localizedAppCopy({ en: 'Idle', zhCn: '等待启动', zhHk: '等待啟動' }, locale),
+    waiting_for_user_clarification_answers: localizedAppCopy(
+      { en: 'Waiting for answers', zhCn: '等待用户回答问题', zhHk: '等待用戶回答問題' },
+      locale,
+    ),
+    searching_web_for_evidence: localizedAppCopy(
+      { en: 'Searching the web', zhCn: '搜索网页中', zhHk: '搜尋網頁中' },
+      locale,
+    ),
+    running_deterministic_calculations: localizedAppCopy(
+      {
+        en: 'Running RWA calculations',
+        zhCn: '执行 RWA 收益、风险与净值计算',
+        zhHk: '執行 RWA 收益、風險與淨值計算',
+      },
+      locale,
+    ),
+    preparing_visualizations: localizedAppCopy(
+      { en: 'Preparing charts', zhCn: '生成图表中', zhHk: '生成圖表中' },
+      locale,
+    ),
+    searching_and_synthesizing: localizedAppCopy(
+      { en: 'Searching and synthesizing', zhCn: '搜索并综合证据中', zhHk: '搜尋並綜合證據中' },
+      locale,
+    ),
+    running_analysis_pipeline: localizedAppCopy(
+      { en: 'Running analysis', zhCn: '分析思考中', zhHk: '分析思考中' },
+      locale,
+    ),
+    analyzing: localizedAppCopy(
+      { en: 'Analyzing', zhCn: '分析思考中', zhHk: '分析思考中' },
+      locale,
+    ),
+    completed: localizedAppCopy(
+      { en: 'Completed', zhCn: '分析完成', zhHk: '分析完成' },
+      locale,
+    ),
+    failed: localizedAppCopy(
+      { en: 'Failed', zhCn: '分析失败', zhHk: '分析失敗' },
+      locale,
+    ),
   }
 
   if (!activityStatus) {
-    return isZh ? '等待系统推进' : 'Waiting for orchestration'
+    return localizedAppCopy(
+      { en: 'Waiting for orchestration', zhCn: '等待系统推进', zhHk: '等待系統推進' },
+      locale,
+    )
   }
 
   return mapping[activityStatus] ?? activityStatus.replaceAll('_', ' ')
@@ -3279,21 +3333,25 @@ function mapBackendCalculationTask(
   sessionId: string,
   fallbackCreatedAt: string,
 ): CalculationTask {
+  const locale = currentAppLocale()
   const result =
     task.result_text?.trim() ||
     (typeof task.result_value === 'number' && Number.isFinite(task.result_value)
       ? String(task.result_value)
       : task.status === 'completed'
-        ? isChineseLocale()
-          ? '已完成计算'
-          : 'Completed'
+        ? localizedAppCopy(
+            { en: 'Completed', zhCn: '已完成计算', zhHk: '已完成計算' },
+            locale,
+          )
         : task.status === 'failed'
-          ? isChineseLocale()
-            ? '计算失败'
-            : 'Failed'
-          : isChineseLocale()
-            ? '等待计算'
-            : 'Pending')
+          ? localizedAppCopy(
+              { en: 'Failed', zhCn: '计算失败', zhHk: '計算失敗' },
+              locale,
+            )
+          : localizedAppCopy(
+              { en: 'Pending', zhCn: '等待计算', zhHk: '等待計算' },
+              locale,
+            ))
 
   return {
     id: task.task_id,
@@ -3363,7 +3421,7 @@ export function mapBackendChart(
   chart: BackendChartArtifact,
   sessionId: string,
 ): ChartArtifact {
-  const isZh = isChineseLocale()
+  const locale = currentAppLocale()
   const kind = mapChartKind(chart.chart_type)
   const fallbackValues = numberList(chart.spec.values)
   const categories = stringList(chart.spec.categories ?? chart.spec.labels)
@@ -3377,7 +3435,7 @@ export function mapBackendChart(
       name:
         typeof series?.name === 'string' && series.name.trim()
           ? series.name.trim()
-          : `${isZh ? '序列' : 'Series'} ${index + 1}`,
+          : `${localizedAppCopy({ en: 'Series', zhCn: '序列', zhHk: '序列' }, locale)} ${index + 1}`,
       data: numberList(series?.data),
     }))
     .filter((series) => series.data.length > 0)
@@ -3402,7 +3460,7 @@ export function mapBackendChart(
         ).map((label, index) => ({
           label,
           value: Number(fallbackValues[index] ?? 0),
-          group: isZh ? '当前' : 'Current',
+          group: localizedAppCopy({ en: 'Current', zhCn: '当前', zhHk: '目前' }, locale),
           nature: 'actual' as const,
           intensity: 0.7,
         }))
@@ -3422,7 +3480,10 @@ export function mapBackendChart(
     title: chart.title,
     unit: typeof chart.spec.unit === 'string' ? chart.spec.unit : undefined,
     note: chart.notes,
-    source: isZh ? '后端图表生成' : 'Backend chart generation',
+    source: localizedAppCopy(
+      { en: 'Backend chart generation', zhCn: '后端图表生成', zhHk: '後端圖表生成' },
+      locale,
+    ),
     compareSeries: kind === 'bar' || kind === 'pie' ? compareSeries : undefined,
     lineSeries:
       kind === 'line'
@@ -3430,7 +3491,8 @@ export function mapBackendChart(
             .filter(
               (item) =>
                 item.group ===
-                (normalizedSeries[0]?.name ?? (isZh ? '当前' : 'Current')),
+                (normalizedSeries[0]?.name ??
+                  localizedAppCopy({ en: 'Current', zhCn: '当前', zhHk: '目前' }, locale)),
             )
             .map(({ label, value, group, nature, intensity }) => ({
               label,
@@ -3464,7 +3526,7 @@ export function mapBackendChart(
       kind === 'heatmap'
         ? compareSeries.map((item, index) => ({
             x: item.label,
-            y: `${isZh ? '行' : 'Row'} ${index + 1}`,
+            y: `${localizedAppCopy({ en: 'Row', zhCn: '行', zhHk: '行' }, locale)} ${index + 1}`,
             value: item.value,
             nature: 'actual',
           }))
@@ -3558,44 +3620,89 @@ function mapReportTables(tables?: BackendReportTable[]): ReportTable[] {
 }
 
 function buildFallbackMarkdown(session: BackendSession): string {
-  const isZh = isChineseLocale()
+  const locale = currentAppLocale()
   const report = session.report
 
   if (!report) {
     return [
-      `# ${session.problem_statement}`,
+      `# ${buildReportSummaryTitle(session)}`,
       '',
-      isZh ? '报告仍在生成，请先回到分析界面查看当前状态。' : 'The report is still being prepared.',
+      localizedAppCopy(
+        {
+          en: 'The report is still being prepared.',
+          zhCn: '报告仍在生成，请先回到分析界面查看当前状态。',
+          zhHk: '報告仍在生成，請先回到分析介面查看目前狀態。',
+        },
+        locale,
+      ),
     ].join('\n')
   }
 
   return [
-    `# ${session.problem_statement}`,
+    `# ${buildReportSummaryTitle(session)}`,
     '',
     report.summary,
     '',
-    isZh ? '## 建议' : '## Recommendations',
+    localizedAppCopy({ en: '## Recommendations', zhCn: '## 建议', zhHk: '## 建議' }, locale),
     ...(report.recommendations.length
       ? report.recommendations.map((item) => `- ${item}`)
-      : [isZh ? '- 暂无明确建议。' : '- No recommendation available yet.']),
+      : [
+          localizedAppCopy(
+            {
+              en: '- No recommendation available yet.',
+              zhCn: '- 暂无明确建议。',
+              zhHk: '- 暫無明確建議。',
+            },
+            locale,
+          ),
+        ]),
     '',
-    isZh ? '## 假设' : '## Assumptions',
+    localizedAppCopy({ en: '## Assumptions', zhCn: '## 假设', zhHk: '## 假設' }, locale),
     ...(report.assumptions.length
       ? report.assumptions.map((item) => `- ${item}`)
-      : [isZh ? '- 暂无明确假设。' : '- No explicit assumptions returned.']),
+      : [
+          localizedAppCopy(
+            {
+              en: '- No explicit assumptions returned.',
+              zhCn: '- 暂无明确假设。',
+              zhHk: '- 暫無明確假設。',
+            },
+            locale,
+          ),
+        ]),
     '',
-    isZh ? '## 待确认问题' : '## Open Questions',
+    localizedAppCopy(
+      { en: '## Open Questions', zhCn: '## 待确认问题', zhHk: '## 待確認問題' },
+      locale,
+    ),
     ...(report.open_questions.length
       ? report.open_questions.map((item) => `- ${item}`)
-      : [isZh ? '- 当前没有额外待确认问题。' : '- No open questions remain.']),
+      : [
+          localizedAppCopy(
+            {
+              en: '- No open questions remain.',
+              zhCn: '- 当前没有额外待确认问题。',
+              zhHk: '- 目前沒有額外待確認問題。',
+            },
+            locale,
+          ),
+        ]),
   ].join('\n')
+}
+
+function buildReportSummaryTitle(session: BackendSession): string {
+  const report = session.report
+  if (report?.title?.trim()) {
+    return report.title.trim()
+  }
+  return session.problem_statement
 }
 
 function mapLastInsight(session: BackendSession) {
   return (
+    session.report?.summary ||
     session.current_focus ||
     session.major_conclusions.at(-1)?.content ||
-    session.report?.summary ||
     normalizeActivityLabel(session.activity_status)
   )
 }
@@ -3616,7 +3723,7 @@ export function mapBackendMode(
 export function mapModeDefinitions(
   bootstrap: BackendBootstrapResponse,
 ): ModeDefinition[] {
-  const isZh = isChineseLocale()
+  const locale = currentAppLocale()
 
   return bootstrap.supported_modes.map((mode) => {
     const id = mapBackendMode(mode)
@@ -3625,36 +3732,68 @@ export function mapModeDefinitions(
       id,
       title:
         id === 'single-asset-allocation'
-          ? isZh
-            ? '单资产配置'
-            : 'Single-asset allocation'
-          : isZh
-            ? '策略比较'
-            : 'Strategy compare',
+          ? localizedAppCopy(
+              {
+                en: 'Single-asset allocation',
+                zhCn: '单资产配置',
+                zhHk: '單資產配置',
+              },
+              locale,
+            )
+          : localizedAppCopy(
+              { en: 'Strategy compare', zhCn: '策略比较', zhHk: '策略比較' },
+              locale,
+            ),
       subtitle:
         id === 'single-asset-allocation'
-          ? isZh
-            ? '围绕单个 HashKey Chain RWA 目标资产生成资格结论、分析和执行计划。'
-            : 'Generate eligibility, analysis, and an execution plan for one target asset.'
-          : isZh
-            ? '比较多条 RWA 配置路径，输出对比矩阵、模拟和推荐执行路径。'
-            : 'Compare RWA strategies with matrix, simulations, and execution posture.',
+          ? localizedAppCopy(
+              {
+                en: 'Generate eligibility, analysis, and an execution plan for one target asset.',
+                zhCn: '围绕单个 HashKey Chain RWA 目标资产生成资格结论、分析和执行计划。',
+                zhHk: '圍繞單個 HashKey Chain RWA 目標資產生成資格結論、分析和執行計劃。',
+              },
+              locale,
+            )
+          : localizedAppCopy(
+              {
+                en: 'Compare RWA strategies with matrix, simulations, and execution posture.',
+                zhCn: '比较多条 RWA 配置路径，输出对比矩阵、模拟和推荐执行路径。',
+                zhHk: '比較多條 RWA 配置路徑，輸出對比矩陣、模擬和建議執行路徑。',
+              },
+              locale,
+            ),
       description:
         id === 'single-asset-allocation'
-          ? isZh
-            ? '适合从钱包与仓位出发审查某个稳定币、MMF、贵金属或其他 RWA 的可投性与执行步骤。'
-            : 'Best for wallet-first diligence of one stablecoin, MMF, precious-metal, or other RWA.'
-          : isZh
-            ? '适合做 HashKey Chain 上的多路径配置比较，比较收益、风险、流动性、资格与执行成本。'
-            : 'Best for portfolio-style comparisons across HashKey Chain assets.',
+          ? localizedAppCopy(
+              {
+                en: 'Best for wallet-first diligence of one stablecoin, MMF, precious-metal, or other RWA.',
+                zhCn: '适合从钱包与仓位出发审查某个稳定币、MMF、贵金属或其他 RWA 的可投性与执行步骤。',
+                zhHk: '適合從錢包與倉位出發審查某個穩定幣、MMF、貴金屬或其他 RWA 的可投性與執行步驟。',
+              },
+              locale,
+            )
+          : localizedAppCopy(
+              {
+                en: 'Best for portfolio-style comparisons across HashKey Chain assets.',
+                zhCn: '适合做 HashKey Chain 上的多路径配置比较，比较收益、风险、流动性、资格与执行成本。',
+                zhHk: '適合做 HashKey Chain 上的多路徑配置比較，比較收益、風險、流動性、資格與執行成本。',
+              },
+              locale,
+            ),
       valueLens:
         id === 'single-asset-allocation'
-          ? isZh
-            ? ['资格结论', '资产事实', '模拟结果', '执行计划']
-            : ['Eligibility', 'Asset facts', 'Simulation', 'Execution plan']
-          : isZh
-            ? ['策略对比', '持有期模拟', '推荐权重', '监控清单']
-            : ['Strategy comparison', 'Holding simulation', 'Weights', 'Monitoring'],
+          ? [
+              localizedAppCopy({ en: 'Eligibility', zhCn: '资格结论', zhHk: '資格結論' }, locale),
+              localizedAppCopy({ en: 'Asset facts', zhCn: '资产事实', zhHk: '資產事實' }, locale),
+              localizedAppCopy({ en: 'Simulation', zhCn: '模拟结果', zhHk: '模擬結果' }, locale),
+              localizedAppCopy({ en: 'Execution plan', zhCn: '执行计划', zhHk: '執行計劃' }, locale),
+            ]
+          : [
+              localizedAppCopy({ en: 'Strategy comparison', zhCn: '策略对比', zhHk: '策略對比' }, locale),
+              localizedAppCopy({ en: 'Holding simulation', zhCn: '持有期模拟', zhHk: '持有期模擬' }, locale),
+              localizedAppCopy({ en: 'Weights', zhCn: '推荐权重', zhHk: '建議權重' }, locale),
+              localizedAppCopy({ en: 'Monitoring', zhCn: '监控清单', zhHk: '監控清單' }, locale),
+            ],
       icon: id === 'single-asset-allocation' ? 'sparkles' : 'git-compare',
     }
   })
@@ -3752,7 +3891,7 @@ export function mapBackendSession(session: BackendSession): AnalysisSession {
 }
 
 function buildHighlights(session: BackendSession) {
-  const isZh = isChineseLocale()
+  const locale = currentAppLocale()
   const report = session.report
   const mode = mapBackendMode(session.mode)
   const budgetSummary = mapBudgetSummary(report?.budget_summary)
@@ -3768,27 +3907,55 @@ function buildHighlights(session: BackendSession) {
     return [
       {
         id: 'asset-count',
-        label: isZh ? '比较资产数' : 'Assets compared',
+        label: localizedAppCopy({ en: 'Assets compared', zhCn: '比较资产数', zhHk: '比較資產數' }, locale),
         value: String(assetCards.length),
-        detail: isZh ? '进入同口径比较与模拟的资产模板数量。' : 'Templates included in the normalized comparison.',
+        detail: localizedAppCopy(
+          {
+            en: 'Templates included in the normalized comparison.',
+            zhCn: '进入同口径比较与模拟的资产模板数量。',
+            zhHk: '進入同口徑比較與模擬的資產模板數量。',
+          },
+          locale,
+        ),
       },
       {
         id: 'lead-allocation',
-        label: isZh ? '核心配置腿' : 'Lead allocation',
-        value: bestAllocation?.assetName ?? (isZh ? '待判断' : 'Pending'),
-        detail: isZh ? '在当前约束下建议承担最高权重的资产。' : 'Asset currently carrying the highest suggested weight.',
+        label: localizedAppCopy({ en: 'Lead allocation', zhCn: '核心配置腿', zhHk: '核心配置腿' }, locale),
+        value: bestAllocation?.assetName ?? localizedAppCopy({ en: 'Pending', zhCn: '待判断', zhHk: '待判斷' }, locale),
+        detail: localizedAppCopy(
+          {
+            en: 'Asset currently carrying the highest suggested weight.',
+            zhCn: '在当前约束下建议承担最高权重的资产。',
+            zhHk: '在目前約束下建議承擔最高權重的資產。',
+          },
+          locale,
+        ),
       },
       {
         id: 'lowest-risk',
-        label: isZh ? '最低综合风险' : 'Lowest overall risk',
+        label: localizedAppCopy({ en: 'Lowest overall risk', zhCn: '最低综合风险', zhHk: '最低綜合風險' }, locale),
         value: lowestRisk ? `${lowestRisk.name} / ${lowestRisk.riskVector.overall.toFixed(1)}` : '—',
-        detail: isZh ? '便于快速识别流动性底仓和风险缓冲资产。' : 'Useful for identifying the liquidity anchor asset.',
+        detail: localizedAppCopy(
+          {
+            en: 'Useful for identifying the liquidity anchor asset.',
+            zhCn: '便于快速识别流动性底仓和风险缓冲资产。',
+            zhHk: '便於快速識別流動性底倉和風險緩衝資產。',
+          },
+          locale,
+        ),
       },
       {
         id: 'evidence-count',
-        label: isZh ? '证据条目' : 'Evidence items',
+        label: localizedAppCopy({ en: 'Evidence items', zhCn: '证据条目', zhHk: '證據條目' }, locale),
         value: String(session.evidence_items.length),
-        detail: isZh ? '报告中的关键判断都应能回到这些证据卡片。' : 'Key report claims should trace back to these evidence cards.',
+        detail: localizedAppCopy(
+          {
+            en: 'Key report claims should trace back to these evidence cards.',
+            zhCn: '报告中的关键判断都应能回到这些证据卡片。',
+            zhHk: '報告中的關鍵判斷都應能回到這些證據卡片。',
+          },
+          locale,
+        ),
       },
     ]
   }
@@ -3800,27 +3967,55 @@ function buildHighlights(session: BackendSession) {
     return [
       {
         id: 'budget-range',
-        label: isZh ? '预算范围' : 'Budget range',
+        label: localizedAppCopy({ en: 'Budget range', zhCn: '预算范围', zhHk: '預算範圍' }, locale),
         value: `${Math.round(budgetSummary.netLow)} - ${Math.round(budgetSummary.netHigh)} ${budgetSummary.currency}`,
-        detail: isZh ? '净预算区间，已计入潜在收入或回收。' : 'Net range including potential offsets.',
+        detail: localizedAppCopy(
+          {
+            en: 'Net range including potential offsets.',
+            zhCn: '净预算区间，已计入潜在收入或回收。',
+            zhHk: '淨預算區間，已計入潛在收入或回收。',
+          },
+          locale,
+        ),
       },
       {
         id: 'base-budget',
-        label: isZh ? '基准净预算' : 'Base net budget',
+        label: localizedAppCopy({ en: 'Base net budget', zhCn: '基准净预算', zhHk: '基準淨預算' }, locale),
         value: `${Math.round(budgetSummary.netBase)} ${budgetSummary.currency}`,
-        detail: isZh ? '最适合作为决策时的默认预算线。' : 'The most useful default planning figure.',
+        detail: localizedAppCopy(
+          {
+            en: 'The most useful default planning figure.',
+            zhCn: '最适合作为决策时的默认预算线。',
+            zhHk: '最適合作為決策時的默認預算線。',
+          },
+          locale,
+        ),
       },
       {
         id: 'budget-items',
-        label: isZh ? '预算项目数' : 'Budget items',
+        label: localizedAppCopy({ en: 'Budget items', zhCn: '预算项目数', zhHk: '預算項目數' }, locale),
         value: String(report?.budget_items?.length ?? 0),
-        detail: isZh ? '包含直接成本、机会成本、收入和回收项。' : 'Direct cost, opportunity cost, and revenue items.',
+        detail: localizedAppCopy(
+          {
+            en: 'Direct cost, opportunity cost, and revenue items.',
+            zhCn: '包含直接成本、机会成本、收入和回收项。',
+            zhHk: '包含直接成本、機會成本、收入和回收項。',
+          },
+          locale,
+        ),
       },
       {
         id: 'evidence-count',
-        label: isZh ? '证据条目' : 'Evidence items',
+        label: localizedAppCopy({ en: 'Evidence items', zhCn: '证据条目', zhHk: '證據條目' }, locale),
         value: String(session.evidence_items.length),
-        detail: isZh ? '用于支撑预算与风险判断的外部证据。' : 'Evidence backing the estimate.',
+        detail: localizedAppCopy(
+          {
+            en: 'Evidence backing the estimate.',
+            zhCn: '用于支撑预算与风险判断的外部证据。',
+            zhHk: '用於支撐預算與風險判斷的外部證據。',
+          },
+          locale,
+        ),
       },
     ]
   }
@@ -3836,32 +4031,58 @@ function buildHighlights(session: BackendSession) {
     return [
       {
         id: 'option-count',
-        label: isZh ? '识别方案数' : 'Options identified',
+        label: localizedAppCopy({ en: 'Options identified', zhCn: '识别方案数', zhHk: '識別方案數' }, locale),
         value: String(optionProfiles.length),
-        detail: isZh ? '系统根据问题识别并整理出的候选路径。' : 'Paths identified and compared in parallel.',
+        detail: localizedAppCopy(
+          {
+            en: 'Paths identified and compared in parallel.',
+            zhCn: '系统根据问题识别并整理出的候选路径。',
+            zhHk: '系統根據問題識別並整理出的候選路徑。',
+          },
+          locale,
+        ),
       },
       {
         id: 'best-option',
-        label: isZh ? '当前优先方案' : 'Current lead option',
-        value: bestOption?.name ?? (isZh ? '待判断' : 'Pending'),
-        detail: isZh ? '基于当前证据和偏好约束的领先选项。' : 'Lead option under current evidence and constraints.',
+        label: localizedAppCopy({ en: 'Current lead option', zhCn: '当前优先方案', zhHk: '目前優先方案' }, locale),
+        value: bestOption?.name ?? localizedAppCopy({ en: 'Pending', zhCn: '待判断', zhHk: '待判斷' }, locale),
+        detail: localizedAppCopy(
+          {
+            en: 'Lead option under current evidence and constraints.',
+            zhCn: '基于当前证据和偏好约束的领先选项。',
+            zhHk: '基於目前證據和偏好約束的領先選項。',
+          },
+          locale,
+        ),
       },
       {
         id: 'best-score',
-        label: isZh ? '综合评分' : 'Composite score',
+        label: localizedAppCopy({ en: 'Composite score', zhCn: '综合评分', zhHk: '綜合評分' }, locale),
         value:
           typeof bestOption?.score === 'number'
             ? `${bestOption.score.toFixed(1)}`
-            : isZh
-              ? '未评分'
-              : 'Unscored',
-        detail: isZh ? '仅用于排序辅助，不代表绝对结论。' : 'Useful for ranking, not an absolute truth.',
+            : localizedAppCopy({ en: 'Unscored', zhCn: '未评分', zhHk: '未評分' }, locale),
+        detail: localizedAppCopy(
+          {
+            en: 'Useful for ranking, not an absolute truth.',
+            zhCn: '仅用于排序辅助，不代表绝对结论。',
+            zhHk: '僅用於排序輔助，不代表絕對結論。',
+          },
+          locale,
+        ),
       },
       {
         id: 'evidence-count',
-        label: isZh ? '证据条目' : 'Evidence items',
+        label: localizedAppCopy({ en: 'Evidence items', zhCn: '证据条目', zhHk: '證據條目' }, locale),
         value: String(session.evidence_items.length),
-        detail: isZh ? '支撑方案比较和成本判断的证据数量。' : 'Evidence supporting the comparison.',
+        detail: localizedAppCopy(
+          {
+            en: 'Evidence supporting the comparison.',
+            zhCn: '支撑方案比较和成本判断的证据数量。',
+            zhHk: '支撐方案比較和成本判斷的證據數量。',
+          },
+          locale,
+        ),
       },
     ]
   }
@@ -3869,15 +4090,22 @@ function buildHighlights(session: BackendSession) {
   return [
     {
       id: 'session-status',
-      label: isZh ? '当前状态' : 'Current status',
+      label: localizedAppCopy({ en: 'Current status', zhCn: '当前状态', zhHk: '目前狀態' }, locale),
       value: session.status,
       detail: normalizeActivityLabel(session.activity_status),
     },
     {
       id: 'answer-count',
-      label: isZh ? '已回答问题' : 'Answered questions',
+      label: localizedAppCopy({ en: 'Answered questions', zhCn: '已回答问题', zhHk: '已回答問題' }, locale),
       value: String(session.answers.length),
-      detail: isZh ? '本轮会话中已记录的用户回答数量。' : 'Answers recorded in the session.',
+      detail: localizedAppCopy(
+        {
+          en: 'Answers recorded in the session.',
+          zhCn: '本轮会话中已记录的用户回答数量。',
+          zhHk: '本輪會話中已記錄的用戶回答數量。',
+        },
+        locale,
+      ),
     },
   ]
 }
@@ -3885,12 +4113,13 @@ function buildHighlights(session: BackendSession) {
 export function mapBackendReport(session: BackendSession): AnalysisReport {
   const mappedSession = mapBackendSession(session)
   const report = session.report
+  const locale = normalizeLanguageCode(report?.locale ?? session.locale ?? i18n.language)
 
   return {
     id: `report-${session.session_id}`,
     sessionId: session.session_id,
     mode: mappedSession.mode,
-    summaryTitle: session.problem_statement,
+    summaryTitle: buildReportSummaryTitle(session),
     markdown: report?.markdown?.trim() || buildFallbackMarkdown(session),
     highlights: buildHighlights(session),
     calculations: mappedSession.calculations.filter((task) => task.userVisible !== false),
@@ -3900,12 +4129,22 @@ export function mapBackendReport(session: BackendSession): AnalysisReport {
     unknowns: report?.unknowns ?? [],
     warnings: report?.warnings ?? [],
     disclaimers: [
-      isChineseLocale()
-        ? '预算、成本和方案评分都依赖当前输入与证据，若关键假设变化，结论也会同步变化。'
-        : 'Budget estimates and option scores only hold under the current assumptions and evidence.',
-      isChineseLocale()
-        ? '表格和图表用于帮助比较与沟通，不应代替你对原始条件、合同和外部政策的复核。'
-        : 'Tables and charts aid comparison and communication and should not replace source verification.',
+      localizedAppCopy(
+        {
+          en: 'Budget estimates and option scores only hold under the current assumptions and evidence.',
+          zhCn: '预算、成本和方案评分都依赖当前输入与证据，若关键假设变化，结论也会同步变化。',
+          zhHk: '預算、成本和方案評分都依賴目前輸入與證據；若關鍵假設改變，結論也會同步改變。',
+        },
+        locale,
+      ),
+      localizedAppCopy(
+        {
+          en: 'Tables and charts aid comparison and communication and should not replace source verification.',
+          zhCn: '表格和图表用于帮助比较与沟通，不应代替你对原始条件、合同和外部政策的复核。',
+          zhHk: '表格和圖表用於協助比較與溝通，不應取代你對原始條件、合約和外部政策的覆核。',
+        },
+        locale,
+      ),
     ],
     budgetSummary: mapBudgetSummary(report?.budget_summary),
     budgetItems: mapBudgetItems(report?.budget_items),
@@ -3938,52 +4177,78 @@ export function mapBackendReport(session: BackendSession): AnalysisReport {
     transactionReceipts: (report?.transaction_receipts ?? []).map(mapTransactionReceipt),
     reportAnchorRecords: (report?.report_anchor_records ?? []).map(mapReportAnchorRecord),
     positionSnapshots: (report?.position_snapshots ?? []).map(mapPositionSnapshot),
+    locale,
   }
 }
 
 function buildStages(mode: AnalysisMode): AnalysisProgress['stages'] {
-  const isZh = isChineseLocale()
+  const locale = currentAppLocale()
 
   if (mode === 'strategy-compare' || mode === 'multi-option') {
     return [
       {
         id: 'clarify',
-        title: isZh ? '澄清配置目标' : 'Clarify the allocation goal',
-        description: isZh
-          ? '补齐本金、持有期、流动性和 KYC 约束。'
-          : 'Clarify principal, holding period, liquidity, and KYC constraints.',
+        title: localizedAppCopy({ en: 'Clarify the allocation goal', zhCn: '澄清配置目标', zhHk: '澄清配置目標' }, locale),
+        description: localizedAppCopy(
+          {
+            en: 'Clarify principal, holding period, liquidity, and KYC constraints.',
+            zhCn: '补齐本金、持有期、流动性和 KYC 约束。',
+            zhHk: '補齊本金、持有期、流動性和 KYC 約束。',
+          },
+          locale,
+        ),
         status: 'pending',
       },
       {
         id: 'search',
-        title: isZh ? '搜集条款与证据' : 'Collect evidence and terms',
-        description: isZh
-          ? '对发行人、托管、申赎和官方链上资料做可追溯核对。'
-          : 'Check issuer, custody, redemption, and official onchain references.',
+        title: localizedAppCopy({ en: 'Collect evidence and terms', zhCn: '搜集条款与证据', zhHk: '搜集條款與證據' }, locale),
+        description: localizedAppCopy(
+          {
+            en: 'Check issuer, custody, redemption, and official onchain references.',
+            zhCn: '对发行人、托管、申赎和官方链上资料做可追溯核对。',
+            zhHk: '對發行人、託管、申贖和官方鏈上資料做可追溯核對。',
+          },
+          locale,
+        ),
         status: 'pending',
       },
       {
         id: 'compare',
-        title: isZh ? '计算风险与模拟' : 'Run risk and simulation',
-        description: isZh
-          ? '统一输出 RiskVector、持有期收益分布和退出摩擦。'
-          : 'Normalize RiskVector, holding distributions, and exit friction.',
+        title: localizedAppCopy({ en: 'Run risk and simulation', zhCn: '计算风险与模拟', zhHk: '計算風險與模擬' }, locale),
+        description: localizedAppCopy(
+          {
+            en: 'Normalize RiskVector, holding distributions, and exit friction.',
+            zhCn: '统一输出 RiskVector、持有期收益分布和退出摩擦。',
+            zhHk: '統一輸出 RiskVector、持有期收益分佈和退出摩擦。',
+          },
+          locale,
+        ),
         status: 'pending',
       },
       {
         id: 'visualize',
-        title: isZh ? '生成对比图表' : 'Generate comparison visuals',
-        description: isZh
-          ? '输出收益分布、雷达图和建议权重。'
-          : 'Generate return distributions, radar charts, and target weights.',
+        title: localizedAppCopy({ en: 'Generate comparison visuals', zhCn: '生成对比图表', zhHk: '生成對比圖表' }, locale),
+        description: localizedAppCopy(
+          {
+            en: 'Generate return distributions, radar charts, and target weights.',
+            zhCn: '输出收益分布、雷达图和建议权重。',
+            zhHk: '輸出收益分佈、雷達圖和建議權重。',
+          },
+          locale,
+        ),
         status: 'pending',
       },
       {
         id: 'report',
-        title: isZh ? '生成执行报告' : 'Draft the execution report',
-        description: isZh
-          ? '整理推荐权重、证据面板、交易草案与链上存证草案。'
-          : 'Assemble weights, evidence, tx draft, and attestation draft.',
+        title: localizedAppCopy({ en: 'Draft the execution report', zhCn: '生成执行报告', zhHk: '生成執行報告' }, locale),
+        description: localizedAppCopy(
+          {
+            en: 'Assemble weights, evidence, tx draft, and attestation draft.',
+            zhCn: '整理推荐权重、证据面板、交易草案与链上存证草案。',
+            zhHk: '整理建議權重、證據面板、交易草案與鏈上存證草案。',
+          },
+          locale,
+        ),
         status: 'pending',
       },
     ]
@@ -3992,42 +4257,67 @@ function buildStages(mode: AnalysisMode): AnalysisProgress['stages'] {
   return [
     {
       id: 'clarify',
-      title: isZh ? '澄清尽调边界' : 'Clarify diligence scope',
-      description: isZh
-        ? '补齐单资产尽调所需的收益目标、流动性和 KYC 约束。'
-        : 'Clarify the single-asset goal, liquidity, and KYC constraints.',
+      title: localizedAppCopy({ en: 'Clarify diligence scope', zhCn: '澄清尽调边界', zhHk: '澄清盡調邊界' }, locale),
+      description: localizedAppCopy(
+        {
+          en: 'Clarify the single-asset goal, liquidity, and KYC constraints.',
+          zhCn: '补齐单资产尽调所需的收益目标、流动性和 KYC 约束。',
+          zhHk: '補齊單資產盡調所需的收益目標、流動性和 KYC 約束。',
+        },
+        locale,
+      ),
       status: 'pending',
     },
     {
       id: 'search',
-      title: isZh ? '搜索条款证据' : 'Research term-sheet evidence',
-      description: isZh
-        ? '核对发行人、托管、申赎条款与官方链上资料。'
-        : 'Gather issuer, custody, redemption, and onchain evidence.',
+      title: localizedAppCopy({ en: 'Research term-sheet evidence', zhCn: '搜索条款证据', zhHk: '搜尋條款證據' }, locale),
+      description: localizedAppCopy(
+        {
+          en: 'Gather issuer, custody, redemption, and onchain evidence.',
+          zhCn: '核对发行人、托管、申赎条款与官方链上资料。',
+          zhHk: '核對發行人、託管、申贖條款與官方鏈上資料。',
+        },
+        locale,
+      ),
       status: 'pending',
     },
     {
       id: 'calculate',
-      title: isZh ? '运行风险与收益计算' : 'Run risk and return math',
-      description: isZh
-        ? '输出统一持有期下的净值、RiskVector 和压力测试。'
-        : 'Compute holding value, RiskVector, and stress scenarios.',
+      title: localizedAppCopy({ en: 'Run risk and return math', zhCn: '运行风险与收益计算', zhHk: '運行風險與收益計算' }, locale),
+      description: localizedAppCopy(
+        {
+          en: 'Compute holding value, RiskVector, and stress scenarios.',
+          zhCn: '输出统一持有期下的净值、RiskVector 和压力测试。',
+          zhHk: '輸出統一持有期下的淨值、RiskVector 和壓力測試。',
+        },
+        locale,
+      ),
       status: 'pending',
     },
     {
       id: 'visualize',
-      title: isZh ? '生成尽调图表' : 'Generate diligence visuals',
-      description: isZh
-        ? '把收益分布、风险雷达和执行权重绘制成图表。'
-        : 'Render distributions, radar charts, and execution weights.',
+      title: localizedAppCopy({ en: 'Generate diligence visuals', zhCn: '生成尽调图表', zhHk: '生成盡調圖表' }, locale),
+      description: localizedAppCopy(
+        {
+          en: 'Render distributions, radar charts, and execution weights.',
+          zhCn: '把收益分布、风险雷达和执行权重绘制成图表。',
+          zhHk: '把收益分佈、風險雷達和執行權重繪製成圖表。',
+        },
+        locale,
+      ),
       status: 'pending',
     },
     {
       id: 'report',
-      title: isZh ? '撰写资产报告' : 'Draft the asset report',
-      description: isZh
-        ? '输出结论、证据面板、交易草案与链上存证草案。'
-        : 'Produce the final narrative, evidence, tx draft, and attestation draft.',
+      title: localizedAppCopy({ en: 'Draft the asset report', zhCn: '撰写资产报告', zhHk: '撰寫資產報告' }, locale),
+      description: localizedAppCopy(
+        {
+          en: 'Produce the final narrative, evidence, tx draft, and attestation draft.',
+          zhCn: '输出结论、证据面板、交易草案与链上存证草案。',
+          zhHk: '輸出結論、證據面板、交易草案與鏈上存證草案。',
+        },
+        locale,
+      ),
       status: 'pending',
     },
   ]

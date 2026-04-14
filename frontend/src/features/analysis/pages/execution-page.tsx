@@ -15,7 +15,9 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
+import type { TFunction } from 'i18next'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { DetailDrawer } from '@/components/product/decision-ui'
@@ -25,27 +27,20 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/field'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
 import { useAppStore } from '@/lib/store/app-store'
+import { formatDateTime as formatDateTimeValue, formatMoney } from '@/lib/utils/format'
 import { shortAddress } from '@/lib/web3/hashkey'
 import { useHashKeyWallet } from '@/lib/web3/use-hashkey-wallet'
-import type { ExecutionAdapterKind, ExecutionReceipt } from '@/types'
+import type { ExecutionAdapterKind, ExecutionReceipt, LanguageCode } from '@/types'
 
-function formatUsd(value?: number) {
-  if (value == null || Number.isNaN(value)) return 'N/A'
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: value >= 1000 ? 0 : 2,
-  }).format(value)
+function formatUsd(value: number | undefined, locale: LanguageCode) {
+  return formatMoney(value, 'USD', locale, {
+    maximumFractionDigits: typeof value === 'number' && value >= 1000 ? 0 : 2,
+  })
 }
 
-function formatDateTime(value?: string) {
-  if (!value) return 'N/A'
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
+function formatDateTime(value: string | undefined, locale: LanguageCode) {
+  if (!value) return '--'
+  return formatDateTimeValue(value, locale)
 }
 
 function toneFor(value?: string) {
@@ -77,41 +72,46 @@ function toneFor(value?: string) {
   return 'info' as const
 }
 
-function adapterCopy(adapter?: ExecutionAdapterKind) {
+function labelForExecutionValue(t: TFunction, value?: string) {
+  if (!value) return t('common.notAvailable')
+  return t(`analysis.executionPage.labels.${value}`, value)
+}
+
+function adapterCopy(t: TFunction, adapter?: ExecutionAdapterKind) {
   if (adapter === 'direct_contract') {
     return {
-      title: 'Direct contract',
-      detail: 'The execution package includes allowance scope, calldata, target contract, and settlement status tracking.',
+      title: t('analysis.executionPage.adapterKinds.direct_contract.title'),
+      detail: t('analysis.executionPage.adapterKinds.direct_contract.detail'),
     }
   }
   if (adapter === 'issuer_portal') {
     return {
-      title: 'Issuer portal',
-      detail: 'The desk must create an issuer-side case, follow the redirect flow, and then track settlement asynchronously.',
+      title: t('analysis.executionPage.adapterKinds.issuer_portal.title'),
+      detail: t('analysis.executionPage.adapterKinds.issuer_portal.detail'),
     }
   }
   return {
-    title: 'View only',
-    detail: 'This asset is visible for proof and readiness checks but cannot enter the live submit path from this console.',
+    title: t('analysis.executionPage.adapterKinds.view_only.title'),
+    detail: t('analysis.executionPage.adapterKinds.view_only.detail'),
   }
 }
 
 export function ExecutionPage() {
+  const { t } = useTranslation()
   const { sessionId = '' } = useParams()
   const navigate = useNavigate()
   const adapter = useApiAdapter()
   const queryClient = useQueryClient()
   const locale = useAppStore((state) => state.locale)
-  const isZh = locale === 'zh'
 
   const sessionQuery = useQuery({
-    queryKey: ['analysis', sessionId],
+    queryKey: ['analysis', sessionId, 'execution-session', locale],
     queryFn: () => adapter.analysis.getById(sessionId),
     enabled: Boolean(sessionId),
   })
 
   const reportQuery = useQuery({
-    queryKey: ['analysis', sessionId, 'report'],
+    queryKey: ['analysis', sessionId, 'execution-report', locale],
     queryFn: () => adapter.analysis.getReport(sessionId),
     enabled: Boolean(sessionId),
   })
@@ -168,7 +168,7 @@ export function ExecutionPage() {
     ''
 
   const readinessQuery = useQuery({
-    queryKey: ['analysis', sessionId, 'execution-readiness', targetAsset, trackedWalletAddress, targetNetwork, ticketSize],
+    queryKey: ['analysis', sessionId, 'execution-readiness', targetAsset, trackedWalletAddress, targetNetwork, ticketSize, locale],
     queryFn: () =>
       adapter.rwa.getAssetReadiness({
         assetId: targetAsset,
@@ -183,13 +183,13 @@ export function ExecutionPage() {
   })
 
   const walletSummaryQuery = useQuery({
-    queryKey: ['analysis', sessionId, 'wallet-summary', trackedWalletAddress, targetNetwork],
+    queryKey: ['analysis', sessionId, 'wallet-summary', trackedWalletAddress, targetNetwork, locale],
     queryFn: () => adapter.rwa.getWalletSummary(trackedWalletAddress, targetNetwork),
     enabled: Boolean(trackedWalletAddress),
   })
 
   const prepareQuery = useQuery({
-    queryKey: ['analysis', sessionId, 'execution-prepare', targetAsset, sourceAsset, ticketSize, trackedWalletAddress, targetNetwork],
+    queryKey: ['analysis', sessionId, 'execution-prepare', targetAsset, sourceAsset, ticketSize, trackedWalletAddress, targetNetwork, locale],
     queryFn: () =>
       adapter.rwa.execute({
         sessionId,
@@ -207,14 +207,14 @@ export function ExecutionPage() {
   })
 
   const receiptsQuery = useQuery({
-    queryKey: ['analysis', sessionId, 'execution-receipts'],
+    queryKey: ['analysis', sessionId, 'execution-receipts', locale],
     queryFn: () => adapter.rwa.listExecutionReceipts({ sessionId }),
     enabled: Boolean(sessionId),
     refetchInterval: 30_000,
   })
 
   const monitorQuery = useQuery({
-    queryKey: ['analysis', sessionId, 'execution-monitor'],
+    queryKey: ['analysis', sessionId, 'execution-monitor', locale],
     queryFn: () => adapter.rwa.monitor(sessionId),
     enabled: Boolean(sessionId),
     refetchInterval: 30_000,
@@ -259,14 +259,14 @@ export function ExecutionPage() {
     receiptsQuery.data?.[0]
   const receiptList = receiptsQuery.data ?? []
   const readiness = readinessQuery.data
-  const adapterDescriptor = adapterCopy(currentPlan?.executionAdapterKind)
+  const adapterDescriptor = adapterCopy(t, currentPlan?.executionAdapterKind)
 
   if (sessionQuery.isLoading || reportQuery.isLoading || (prepareQuery.isLoading && !currentPlan)) {
     return (
       <Card className="p-6 text-sm text-text-secondary">
         <div className="flex items-center gap-2">
           <Loader2 className="size-4 animate-spin" />
-          {isZh ? '正在生成 execution package...' : 'Generating execution package...'}
+          {t('analysis.executionPage.loading')}
         </div>
       </Card>
     )
@@ -276,11 +276,11 @@ export function ExecutionPage() {
     return (
       <Card className="space-y-4 p-6">
         <p className="text-sm text-text-secondary">
-          {isZh ? '执行信息暂时不可用。' : 'Execution context is unavailable.'}
+          {t('analysis.executionPage.unavailable')}
         </p>
         <Button variant="secondary" onClick={() => void navigate(`/reports/${sessionId}`)}>
           <ArrowLeft className="size-4" />
-          {isZh ? '返回报告' : 'Back to report'}
+          {t('analysis.executionPage.backToReport')}
         </Button>
       </Card>
     )
@@ -299,18 +299,14 @@ export function ExecutionPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={isZh ? '机构执行入口' : 'Institutional execution desk'}
+        eyebrow={t('analysis.executionPage.eyebrow')}
         title={targetAssetCard?.name || currentPlan.targetAsset || report.summaryTitle}
-        description={
-          isZh
-            ? '先确认 investor / jurisdiction / KYC 和 settlement route，再决定是链上直达、发行方后处理，还是仅做 proof 验证。'
-            : 'Confirm investor, jurisdiction, KYC, and settlement route first, then separate direct contract execution from issuer handling and proof-only verification.'
-        }
+        description={t('analysis.executionPage.description')}
         actions={
           <>
             <Button variant="secondary" onClick={() => void navigate(`/reports/${sessionId}`)}>
               <ArrowLeft className="size-4" />
-              {isZh ? '返回报告' : 'Back to report'}
+              {t('analysis.executionPage.backToReport')}
             </Button>
             <Button
               variant="secondary"
@@ -321,21 +317,29 @@ export function ExecutionPage() {
               }
             >
               <Radio className="size-4" />
-              {isZh ? '投后监控' : 'Monitoring'}
+              {t('analysis.executionPage.monitoring')}
             </Button>
           </>
         }
       />
 
-      <section className="overflow-hidden rounded-[32px] border border-border-subtle bg-[linear-gradient(135deg,rgba(14,25,47,0.97),rgba(20,41,75,0.93)_52%,rgba(10,21,38,0.98))]">
+      <section className="hero-surface overflow-hidden rounded-[32px] border border-border-subtle">
         <div className="grid gap-7 px-6 py-7 lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)] lg:px-8">
           <div className="space-y-5">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge tone={toneFor(currentPlan.executionAdapterKind)}>{currentPlan.executionAdapterKind}</Badge>
-              <Badge tone={toneFor(currentPlan.executionReadiness)}>{currentPlan.executionReadiness}</Badge>
-              <Badge tone={toneFor(readiness.decision.status)}>{readiness.decision.status}</Badge>
+              <Badge tone={toneFor(currentPlan.executionAdapterKind)}>
+                {labelForExecutionValue(t, currentPlan.executionAdapterKind)}
+              </Badge>
+              <Badge tone={toneFor(currentPlan.executionReadiness)}>
+                {labelForExecutionValue(t, currentPlan.executionReadiness)}
+              </Badge>
+              <Badge tone={toneFor(readiness.decision.status)}>
+                {labelForExecutionValue(t, readiness.decision.status)}
+              </Badge>
               {currentReceipt ? (
-                <Badge tone={toneFor(currentReceipt.status)}>{currentReceipt.status}</Badge>
+                <Badge tone={toneFor(currentReceipt.status)}>
+                  {labelForExecutionValue(t, currentReceipt.status)}
+                </Badge>
               ) : null}
             </div>
             <div className="space-y-3">
@@ -347,9 +351,9 @@ export function ExecutionPage() {
               </p>
             </div>
             <div className="grid gap-3 md:grid-cols-4">
-              <div className="rounded-[22px] bg-[rgba(9,18,34,0.44)] p-4">
+              <div className="hero-stat-surface rounded-[22px] p-4">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                  {isZh ? 'Investor type' : 'Investor type'}
+                  {t('analysis.executionPage.fields.investorType')}
                 </p>
                 <p className="mt-2 text-base font-semibold text-text-primary">
                   {session.investorType || session.intakeContext.investorType || 'Institutional'}
@@ -358,9 +362,9 @@ export function ExecutionPage() {
                   {session.jurisdiction || session.intakeContext.jurisdiction || 'Global / unspecified'}
                 </p>
               </div>
-              <div className="rounded-[22px] bg-[rgba(9,18,34,0.44)] p-4">
+              <div className="hero-stat-surface rounded-[22px] p-4">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                  {isZh ? 'KYC level' : 'KYC level'}
+                  {t('analysis.executionPage.fields.kycLevel')}
                 </p>
                 <p className="mt-2 text-base font-semibold text-text-primary">
                   {walletSummaryQuery.data?.kyc.level ?? session.kycLevel ?? session.intakeContext.kycLevel ?? 0}
@@ -369,20 +373,22 @@ export function ExecutionPage() {
                   {walletSummaryQuery.data?.kyc.status || session.kycStatus || 'unknown'}
                 </p>
               </div>
-              <div className="rounded-[22px] bg-[rgba(9,18,34,0.44)] p-4">
+              <div className="hero-stat-surface rounded-[22px] p-4">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                  {isZh ? 'Min ticket / size' : 'Min ticket / size'}
+                  {t('analysis.executionPage.fields.minTicketSize')}
                 </p>
                 <p className="mt-2 text-base font-semibold text-text-primary">
                   {formatUsd(targetAssetCard?.minSubscriptionAmount || targetAssetCard?.minSubscriptionAmount === 0
                     ? targetAssetCard.minSubscriptionAmount
-                    : readiness.asset.minimumTicketUsd)}
+                    : readiness.asset.minimumTicketUsd, locale)}
                 </p>
-                <p className="mt-2 text-sm text-text-secondary">{formatUsd(ticketSize)} requested</p>
+                <p className="mt-2 text-sm text-text-secondary">
+                  {formatUsd(ticketSize, locale)} {t('analysis.executionPage.fields.requested')}
+                </p>
               </div>
-              <div className="rounded-[22px] bg-[rgba(9,18,34,0.44)] p-4">
+              <div className="hero-stat-surface rounded-[22px] p-4">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                  {isZh ? 'Settlement route' : 'Settlement route'}
+                  {t('analysis.executionPage.fields.settlementRoute')}
                 </p>
                 <p className="mt-2 text-base font-semibold text-text-primary">{sourceAsset} on {targetNetwork}</p>
                 <p className="mt-2 text-sm text-text-secondary">{readiness.routeSummary}</p>
@@ -390,33 +396,37 @@ export function ExecutionPage() {
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-border-subtle bg-[rgba(9,18,34,0.72)] p-5">
+          <div className="hero-aside-surface rounded-[28px] border border-border-subtle p-5">
             <div className="flex items-center gap-2">
               <Wallet className="size-5 text-accent-cyan" />
               <p className="text-lg font-semibold text-text-primary">
-                {isZh ? '操作主体' : 'Operator context'}
+                {t('analysis.executionPage.fields.operatorContext')}
               </p>
             </div>
             <div className="mt-4 space-y-4 text-sm text-text-secondary">
               <div className="rounded-[18px] bg-app-bg-elevated p-4">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                  {isZh ? 'Tracked wallet' : 'Tracked wallet'}
+                  {t('analysis.executionPage.fields.trackedWallet')}
                 </p>
                 <p className="mt-2 text-text-primary">
-                  {trackedWalletAddress ? shortAddress(trackedWalletAddress) : 'Not connected'}
+                  {trackedWalletAddress
+                    ? shortAddress(trackedWalletAddress)
+                    : t('analysis.executionPage.fields.notConnected')}
                 </p>
-                <p className="mt-2 break-all text-xs text-text-muted">{trackedWalletAddress || 'Connect a wallet to bind KYC and receipt tracking.'}</p>
+                <p className="mt-2 break-all text-xs text-text-muted">
+                  {trackedWalletAddress || t('analysis.executionPage.fields.trackedWalletHint')}
+                </p>
               </div>
               <div className="rounded-[18px] bg-app-bg-elevated p-4">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                  {isZh ? 'Prepare summary' : 'Prepare summary'}
+                  {t('analysis.executionPage.fields.prepareSummary')}
                 </p>
                 <p className="mt-2 leading-6 text-text-primary">{prepareQuery.data?.prepareSummary || currentPlan.readinessReason}</p>
               </div>
               {!wallet.isConnected ? (
                 <Button onClick={() => void wallet.connectWallet()} disabled={!wallet.hasProvider || wallet.isWalletBusy}>
                   <Wallet className="size-4" />
-                  {isZh ? '连接钱包' : 'Connect wallet'}
+                  {t('analysis.executionPage.fields.connectWallet')}
                 </Button>
               ) : null}
               <Button
@@ -429,7 +439,7 @@ export function ExecutionPage() {
                 }
               >
                 <RefreshCw className="size-4" />
-                {isZh ? '刷新执行包' : 'Refresh package'}
+                {t('analysis.executionPage.fields.refreshPackage')}
               </Button>
             </div>
           </div>
@@ -442,7 +452,7 @@ export function ExecutionPage() {
             <div className="flex items-center gap-2">
               <ShieldCheck className="size-5 text-accent-cyan" />
               <p className="text-lg font-semibold text-text-primary">
-                {isZh ? 'Adapter 分流' : 'Adapter split'}
+                {t('analysis.executionPage.adapterSplit')}
               </p>
             </div>
             <div className="grid gap-3 lg:grid-cols-3">
@@ -456,10 +466,12 @@ export function ExecutionPage() {
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold text-text-primary">{adapterCopy(kind).title}</p>
-                    {currentPlan.executionAdapterKind === kind ? <Badge tone="info">Active</Badge> : null}
+                    <p className="font-semibold text-text-primary">{adapterCopy(t, kind).title}</p>
+                    {currentPlan.executionAdapterKind === kind ? (
+                      <Badge tone="info">{t('analysis.executionPage.labels.active')}</Badge>
+                    ) : null}
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-text-secondary">{adapterCopy(kind).detail}</p>
+                  <p className="mt-3 text-sm leading-6 text-text-secondary">{adapterCopy(t, kind).detail}</p>
                 </div>
               ))}
             </div>
@@ -469,13 +481,13 @@ export function ExecutionPage() {
             <div className="flex items-center gap-2">
               <FileText className="size-5 text-accent-cyan" />
               <p className="text-lg font-semibold text-text-primary">
-                {isZh ? 'Required docs / approvals / checklist' : 'Required docs / approvals / checklist'}
+                {t('analysis.executionPage.requiredDocs')}
               </p>
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-3">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                  {isZh ? 'Checklist' : 'Checklist'}
+                  {t('analysis.executionPage.checklist')}
                 </p>
                 {(currentPlan.checklist.length ? currentPlan.checklist : prepareQuery.data?.checklist ?? []).map((item) => (
                   <div key={item} className="rounded-[18px] bg-app-bg-elevated px-4 py-3 text-sm leading-6 text-text-secondary">
@@ -485,17 +497,19 @@ export function ExecutionPage() {
               </div>
               <div className="space-y-3">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                  {isZh ? 'Approvals / blockers' : 'Approvals / blockers'}
+                  {t('analysis.executionPage.approvalsBlockers')}
                 </p>
                 {currentPlan.requiredApprovals.length ? (
                   currentPlan.requiredApprovals.map((approval) => (
                     <div key={`${approval.approvalType}-${approval.spender}`} className="rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge tone="info">{approval.approvalType}</Badge>
-                        {approval.allowanceRequired ? <Badge tone="gold">allowance</Badge> : null}
+                        {approval.allowanceRequired ? (
+                          <Badge tone="gold">{t('analysis.executionPage.allowance')}</Badge>
+                        ) : null}
                       </div>
                       <p className="mt-3 text-sm text-text-primary">
-                        {approval.tokenSymbol || 'Settlement asset'} {approval.amount ? formatUsd(approval.amount) : ''}
+                        {approval.tokenSymbol || t('analysis.executionPage.settlementAsset')} {approval.amount ? formatUsd(approval.amount, locale) : ''}
                       </p>
                       <p className="mt-2 text-sm leading-6 text-text-secondary">{approval.note || approval.approvalTarget || approval.spender}</p>
                     </div>
@@ -515,7 +529,7 @@ export function ExecutionPage() {
             <div className="flex items-center gap-2">
               <Network className="size-5 text-accent-cyan" />
               <p className="text-lg font-semibold text-text-primary">
-                {isZh ? 'External step tracker' : 'External step tracker'}
+                {t('analysis.executionPage.externalStepTracker')}
               </p>
             </div>
             <div className="space-y-3">
@@ -527,7 +541,9 @@ export function ExecutionPage() {
                   <div className="space-y-1.5">
                     <p className="font-semibold text-text-primary">{step}</p>
                     <p className="text-sm leading-6 text-text-secondary">
-                      {currentPlan.steps[index]?.description || currentPlan.steps[index]?.title || 'Execution workflow step.'}
+                      {currentPlan.steps[index]?.description ||
+                        currentPlan.steps[index]?.title ||
+                        t('analysis.executionPage.workflowStepFallback')}
                     </p>
                   </div>
                 </div>
@@ -541,29 +557,35 @@ export function ExecutionPage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-lg font-semibold text-text-primary">
-                  {isZh ? 'Submit / receipt / status' : 'Submit / receipt / status'}
+                  {t('analysis.executionPage.submitTitle')}
                 </p>
                 <p className="text-sm text-text-secondary">
-                  {isZh ? 'prepare -> submit -> receipt -> settlement 的状态全部在这里回执。' : 'Prepare, submit, receipt, and settlement are all tracked here.'}
+                  {t('analysis.executionPage.submitDescription')}
                 </p>
               </div>
               {currentReceipt ? (
-                <Badge tone={toneFor(currentReceipt.status)}>{currentReceipt.status}</Badge>
+                <Badge tone={toneFor(currentReceipt.status)}>
+                  {labelForExecutionValue(t, currentReceipt.status)}
+                </Badge>
               ) : null}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[20px] bg-app-bg-elevated p-4">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                  {isZh ? 'Receipt ID' : 'Receipt ID'}
+                  {t('analysis.executionPage.receiptId')}
                 </p>
-                <p className="mt-2 break-all text-sm text-text-primary">{currentReceipt?.id || currentPlan.receiptId || 'Will be created on submit'}</p>
+                <p className="mt-2 break-all text-sm text-text-primary">
+                  {currentReceipt?.id || currentPlan.receiptId || t('analysis.executionPage.receiptPending')}
+                </p>
               </div>
               <div className="rounded-[20px] bg-app-bg-elevated p-4">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                  {isZh ? 'Settlement' : 'Settlement'}
+                  {t('analysis.executionPage.settlement')}
                 </p>
-                <p className="mt-2 text-sm text-text-primary">{currentReceipt?.settlementStatus || 'not_started'}</p>
+                <p className="mt-2 text-sm text-text-primary">
+                  {labelForExecutionValue(t, currentReceipt?.settlementStatus || 'not_started')}
+                </p>
               </div>
             </div>
 
@@ -571,15 +593,15 @@ export function ExecutionPage() {
               <Button onClick={() => void submitMutation.mutateAsync({})} disabled={submitDisabled}>
                 <ArrowRight className="size-4" />
                 {currentPlan.executionAdapterKind === 'issuer_portal'
-                  ? isZh ? '创建 issuer request' : 'Create issuer request'
-                  : isZh ? '生成 submit 回执' : 'Generate submit receipt'}
+                  ? t('analysis.executionPage.createIssuerRequest')
+                  : t('analysis.executionPage.generateSubmitReceipt')}
               </Button>
               <Button
                 variant="secondary"
                 disabled={!currentReceipt}
                 onClick={() => currentReceipt && setSelectedReceipt(currentReceipt)}
               >
-                {isZh ? '打开 receipt' : 'Open receipt'}
+                {t('analysis.executionPage.openReceipt')}
               </Button>
               {submitMutation.data?.redirectUrl ? (
                 <Button
@@ -587,7 +609,7 @@ export function ExecutionPage() {
                   onClick={() => window.open(submitMutation.data?.redirectUrl, '_blank', 'noopener,noreferrer')}
                 >
                   <ExternalLink className="size-4" />
-                  {isZh ? '打开 issuer flow' : 'Open issuer flow'}
+                  {t('analysis.executionPage.openIssuerFlow')}
                 </Button>
               ) : null}
             </div>
@@ -595,7 +617,7 @@ export function ExecutionPage() {
             {currentPlan.executionAdapterKind === 'direct_contract' ? (
               <div className="space-y-3 rounded-[22px] border border-border-subtle bg-app-bg-elevated p-4">
                 <p className="font-semibold text-text-primary">
-                  {isZh ? '记录链上 tx / 回执推进状态' : 'Record chain tx to advance the receipt state'}
+                  {t('analysis.executionPage.recordChainTx')}
                 </p>
                 <div className="grid gap-3">
                   <Input
@@ -606,7 +628,7 @@ export function ExecutionPage() {
                   <Input
                     value={blockNumberInput}
                     onChange={(event) => setBlockNumberInput(event.target.value)}
-                    placeholder={isZh ? '可选 block number' : 'Optional block number'}
+                    placeholder={t('analysis.executionPage.optionalBlockNumber')}
                     inputMode="numeric"
                   />
                 </div>
@@ -621,7 +643,7 @@ export function ExecutionPage() {
                   }
                 >
                   <CheckCircle2 className="size-4" />
-                  {isZh ? '记录 tx hash / block' : 'Record tx hash / block'}
+                  {t('analysis.executionPage.recordTxHashBlock')}
                 </Button>
               </div>
             ) : null}
@@ -629,8 +651,8 @@ export function ExecutionPage() {
             {currentPlan.executionReadiness === 'blocked' || currentPlan.executionAdapterKind === 'view_only' ? (
               <div className="rounded-[20px] border border-[rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.08)] p-4 text-sm leading-6 text-text-secondary">
                 {currentPlan.executionReadiness === 'blocked'
-                  ? currentPlan.complianceBlockers.join(' ') || 'Current eligibility prevents submission.'
-                  : 'This asset is intentionally proof-only and any submit request must remain blocked.'}
+                  ? currentPlan.complianceBlockers.join(' ') || t('analysis.executionPage.blockedFallback')
+                  : t('analysis.executionPage.proofOnlyFallback')}
               </div>
             ) : null}
           </Card>
@@ -639,7 +661,7 @@ export function ExecutionPage() {
             <div className="flex items-center gap-2">
               <Building2 className="size-5 text-accent-cyan" />
               <p className="text-lg font-semibold text-text-primary">
-                {isZh ? 'Receipt timeline' : 'Receipt timeline'}
+                {t('analysis.executionPage.receiptTimeline')}
               </p>
             </div>
             <div className="space-y-3">
@@ -654,19 +676,19 @@ export function ExecutionPage() {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="space-y-1.5">
                         <p className="font-semibold text-text-primary">{receipt.assetId}</p>
-                        <p className="text-sm text-text-secondary">{formatDateTime(receipt.updatedAt)}</p>
+                        <p className="text-sm text-text-secondary">{formatDateTime(receipt.updatedAt, locale)}</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Badge tone={toneFor(receipt.adapterKind)}>{receipt.adapterKind}</Badge>
-                        <Badge tone={toneFor(receipt.status)}>{receipt.status}</Badge>
-                        <Badge tone={toneFor(receipt.settlementStatus)}>{receipt.settlementStatus}</Badge>
+                        <Badge tone={toneFor(receipt.adapterKind)}>{labelForExecutionValue(t, receipt.adapterKind)}</Badge>
+                        <Badge tone={toneFor(receipt.status)}>{labelForExecutionValue(t, receipt.status)}</Badge>
+                        <Badge tone={toneFor(receipt.settlementStatus)}>{labelForExecutionValue(t, receipt.settlementStatus)}</Badge>
                       </div>
                     </div>
                   </button>
                 ))
               ) : (
                 <div className="rounded-[20px] bg-app-bg-elevated p-4 text-sm leading-6 text-text-secondary">
-                  {isZh ? '还没有 receipt。先生成 submit payload。' : 'No receipt yet. Generate the submit payload first.'}
+                  {t('analysis.executionPage.noReceiptYet')}
                 </div>
               )}
             </div>
@@ -676,24 +698,24 @@ export function ExecutionPage() {
             <div className="flex items-center gap-2">
               <AlertTriangle className="size-5 text-accent-cyan" />
               <p className="text-lg font-semibold text-text-primary">
-                {isZh ? 'Post-submit monitoring' : 'Post-submit monitoring'}
+                {t('analysis.executionPage.postSubmitMonitoring')}
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[20px] bg-app-bg-elevated p-4">
-                <p className="text-xs uppercase tracking-[0.12em] text-text-muted">Allocation mix</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-text-muted">{t('analysis.executionPage.allocationMix')}</p>
                 <p className="mt-2 text-sm text-text-primary">
                   {Object.keys(monitorQuery.data?.allocationMix ?? {}).length
                     ? Object.entries(monitorQuery.data?.allocationMix ?? {})
                         .map(([assetId, weight]) => `${assetId}: ${Math.round(weight * 100)}%`)
                         .join(' · ')
-                    : 'N/A'}
+                    : t('common.notAvailable')}
                 </p>
               </div>
               <div className="rounded-[20px] bg-app-bg-elevated p-4">
-                <p className="text-xs uppercase tracking-[0.12em] text-text-muted">Yield / redemption</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-text-muted">{t('analysis.executionPage.yieldRedemption')}</p>
                 <p className="mt-2 text-sm text-text-primary">
-                  {formatUsd(monitorQuery.data?.accruedYield)} accrued · {formatUsd(monitorQuery.data?.redemptionForecast)} forecast
+                  {formatUsd(monitorQuery.data?.accruedYield, locale)} {t('analysis.executionPage.accrued')} · {formatUsd(monitorQuery.data?.redemptionForecast, locale)} {t('analysis.executionPage.forecast')}
                 </p>
               </div>
             </div>
@@ -701,7 +723,7 @@ export function ExecutionPage() {
               {(monitorQuery.data?.portfolioAlerts ?? []).slice(0, 4).map((alert) => (
                 <div key={alert.id} className="rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={toneFor(alert.severity)}>{alert.severity}</Badge>
+                    <Badge tone={toneFor(alert.severity)}>{labelForExecutionValue(t, alert.severity)}</Badge>
                     <span className="text-sm font-semibold text-text-primary">{alert.title}</span>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-text-secondary">{alert.detail}</p>
@@ -715,8 +737,19 @@ export function ExecutionPage() {
       <DetailDrawer
         open={Boolean(selectedReceipt)}
         onClose={() => setSelectedReceipt(null)}
-        title={selectedReceipt ? `${selectedReceipt.assetId} receipt` : 'Receipt'}
-        description={selectedReceipt ? `Status ${selectedReceipt.status} · settlement ${selectedReceipt.settlementStatus}` : ''}
+        title={
+          selectedReceipt
+            ? t('analysis.executionPage.drawerTitleAsset', { asset: selectedReceipt.assetId })
+            : t('analysis.executionPage.drawerTitle')
+        }
+        description={
+          selectedReceipt
+            ? t('analysis.executionPage.drawerDescription', {
+                status: labelForExecutionValue(t, selectedReceipt.status),
+                settlement: labelForExecutionValue(t, selectedReceipt.settlementStatus),
+              })
+            : ''
+        }
         actions={
           selectedReceipt?.redirectUrl ? (
             <Button
@@ -724,7 +757,7 @@ export function ExecutionPage() {
               onClick={() => window.open(selectedReceipt.redirectUrl, '_blank', 'noopener,noreferrer')}
             >
               <ExternalLink className="size-4" />
-              {isZh ? '打开 redirect' : 'Open redirect'}
+              {t('analysis.executionPage.openRedirect')}
             </Button>
           ) : undefined
         }
@@ -733,29 +766,33 @@ export function ExecutionPage() {
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
               <div className="rounded-[20px] bg-app-bg-elevated p-4">
-                <p className="text-xs uppercase tracking-[0.12em] text-text-muted">Receipt</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-text-muted">{t('analysis.executionPage.receipt')}</p>
                 <p className="mt-2 break-all text-sm text-text-primary">{selectedReceipt.id}</p>
-                <p className="mt-2 text-sm text-text-secondary">{selectedReceipt.adapterKind}</p>
+                <p className="mt-2 text-sm text-text-secondary">
+                  {labelForExecutionValue(t, selectedReceipt.adapterKind)}
+                </p>
               </div>
               <div className="rounded-[20px] bg-app-bg-elevated p-4">
-                <p className="text-xs uppercase tracking-[0.12em] text-text-muted">Tx / request</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-text-muted">{t('analysis.executionPage.txOrRequest')}</p>
                 <p className="mt-2 break-all text-sm text-text-primary">
-                  {selectedReceipt.txHash || selectedReceipt.externalRequestId || 'Awaiting submission'}
+                  {selectedReceipt.txHash || selectedReceipt.externalRequestId || t('analysis.executionPage.awaitingSubmission')}
                 </p>
                 <p className="mt-2 text-sm text-text-secondary">
-                  Updated {formatDateTime(selectedReceipt.updatedAt)}
+                  {t('analysis.executionPage.updatedAt', {
+                    value: formatDateTime(selectedReceipt.updatedAt, locale),
+                  })}
                 </p>
               </div>
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
-                <p className="font-semibold text-text-primary">Prepared payload</p>
+                <p className="font-semibold text-text-primary">{t('analysis.executionPage.preparedPayload')}</p>
                 <pre className="overflow-x-auto rounded-[20px] bg-app-bg-elevated p-4 text-xs leading-6 text-text-secondary">
                   {JSON.stringify(selectedReceipt.preparedPayload, null, 2)}
                 </pre>
               </div>
               <div className="space-y-2">
-                <p className="font-semibold text-text-primary">Submit payload</p>
+                <p className="font-semibold text-text-primary">{t('analysis.executionPage.submitPayload')}</p>
                 <pre className="overflow-x-auto rounded-[20px] bg-app-bg-elevated p-4 text-xs leading-6 text-text-secondary">
                   {JSON.stringify(selectedReceipt.submitPayload, null, 2)}
                 </pre>

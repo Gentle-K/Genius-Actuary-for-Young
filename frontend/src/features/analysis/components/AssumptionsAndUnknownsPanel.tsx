@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import type { LanguageCode } from '@/types'
@@ -13,9 +15,9 @@ export function AssumptionsAndUnknownsPanel({
   assumptions = [],
   unknowns = [],
   warnings = [],
-  locale = 'en',
+  locale: _locale = 'en',
 }: AssumptionsAndUnknownsPanelProps) {
-  const isZh = locale === 'zh'
+  const { t } = useTranslation()
 
   if (!assumptions.length && !unknowns.length && !warnings.length) {
     return null
@@ -25,14 +27,14 @@ export function AssumptionsAndUnknownsPanel({
     <Card className="space-y-4 p-6">
       <div>
         <h2 className="text-lg font-semibold text-text-primary">
-          {isZh ? '假设、未知项与提醒' : 'Assumptions, unknowns, and warnings'}
+          {t('analysis.assumptionsPanel.title')}
         </h2>
       </div>
 
       {assumptions.length ? (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-medium text-text-primary">{isZh ? '假设' : 'Assumptions'}</p>
+            <p className="text-sm font-medium text-text-primary">{t('analysis.assumptionsPanel.assumptions')}</p>
             <Badge tone="neutral">{assumptions.length}</Badge>
           </div>
           {assumptions.map((item) => (
@@ -46,7 +48,7 @@ export function AssumptionsAndUnknownsPanel({
       {unknowns.length ? (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-medium text-text-primary">{isZh ? '未知项' : 'Unknowns'}</p>
+            <p className="text-sm font-medium text-text-primary">{t('analysis.assumptionsPanel.unknowns')}</p>
             <Badge tone="warning">{unknowns.length}</Badge>
           </div>
           {unknowns.map((item) => (
@@ -60,7 +62,7 @@ export function AssumptionsAndUnknownsPanel({
       {warnings.length ? (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-medium text-text-primary">{isZh ? '提醒' : 'Warnings'}</p>
+            <p className="text-sm font-medium text-text-primary">{t('analysis.assumptionsPanel.warnings')}</p>
             <Badge tone="danger">{warnings.length}</Badge>
           </div>
           {warnings.map((item) => (

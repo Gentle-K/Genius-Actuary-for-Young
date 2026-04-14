@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Copy, ArrowRight, FileText, MoreHorizontal, Sigma, ShieldCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
@@ -23,25 +24,28 @@ import {
   sessionConfidence,
   sessionPath,
 } from '@/features/analysis/lib/view-models'
+import { useAppStore } from '@/lib/store/app-store'
 import type { AnalysisMode } from '@/types'
 
 function SessionOverflow({
   onDelete,
+  label,
 }: {
   onDelete: () => void
+  label: string
 }) {
   return (
     <details className="relative">
       <summary className="interactive-lift flex size-9 cursor-pointer list-none items-center justify-center rounded-[14px] border border-border-subtle bg-app-bg-elevated text-text-secondary">
         <MoreHorizontal className="size-4" />
       </summary>
-      <div className="absolute right-0 top-11 z-20 min-w-[168px] rounded-[18px] border border-border-subtle bg-panel p-2 shadow-[0_18px_40px_rgba(2,10,24,0.4)]">
+      <div className="menu-surface absolute right-0 top-11 z-20 min-w-[168px] rounded-[18px] border border-border-subtle p-2">
         <button
           type="button"
-          className="interactive-lift flex w-full items-center rounded-[14px] px-3 py-2 text-left text-sm text-danger hover:bg-[rgba(244,63,94,0.12)]"
+          className="menu-danger-item interactive-lift flex w-full items-center rounded-[14px] px-3 py-2 text-left text-sm text-danger"
           onClick={onDelete}
         >
-          Delete session
+          {label}
         </button>
       </div>
     </details>
@@ -49,8 +53,10 @@ function SessionOverflow({
 }
 
 export function SessionsPage() {
+  const { t } = useTranslation()
   const adapter = useApiAdapter()
   const navigate = useNavigate()
+  const locale = useAppStore((state) => state.locale)
   const [search, setSearch] = useState('')
   const [mode, setMode] = useState('all')
   const [status, setStatus] = useState('all')
@@ -61,7 +67,7 @@ export function SessionsPage() {
   const deferredSearch = useDeferredValue(search)
 
   const catalogQuery = useQuery({
-    queryKey: ['analysis', 'catalog', 'sessions'],
+    queryKey: ['analysis', 'catalog', 'sessions', locale],
     queryFn: () => fetchAnalysisCatalog(adapter),
   })
 
@@ -69,8 +75,8 @@ export function SessionsPage() {
     mutationFn: (payload: { mode: AnalysisMode; problemStatement: string }) =>
       adapter.analysis.create({
         mode: payload.mode,
-        locale: 'en',
-        problemStatement: `${payload.problemStatement} (copy)`,
+        locale,
+        problemStatement: payload.problemStatement,
         intakeContext: {
           budgetRange: '$8k - $15k',
           timeHorizonLabel: '6-12 months',
@@ -91,7 +97,7 @@ export function SessionsPage() {
         },
       }),
     onSuccess: async (session) => {
-      toast.success('Session duplicated')
+      toast.success(t('analysis.sessionsPage.duplicateSuccess'))
       await navigate(`/sessions/${session.id}/clarify`)
     },
   })
@@ -140,7 +146,7 @@ export function SessionsPage() {
     startTransition(() => {
       setDeletedIds((current) => [...current, sessionId])
     })
-    toast.success('Session removed from this demo view')
+    toast.success(t('analysis.sessionsPage.removeDemoSuccess'))
   }
 
   const calculationCount = (sessionId: string) =>
@@ -151,11 +157,13 @@ export function SessionsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Sessions"
-        title="Analysis sessions"
-        description="Review every active or completed decision analysis in one place, continue unfinished work, and scan confidence, evidence, and calculation coverage quickly."
+        eyebrow={t('analysis.sessionsPage.eyebrow')}
+        title={t('analysis.sessionsPage.title')}
+        description={t('analysis.sessionsPage.description')}
         actions={
-          <Button onClick={() => void navigate('/new-analysis')}>Start new analysis</Button>
+          <Button onClick={() => void navigate('/new-analysis')}>
+            {t('analysis.sessionsPage.startNewAnalysis')}
+          </Button>
         }
       />
 
@@ -163,65 +171,74 @@ export function SessionsPage() {
         <SearchInput
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search sessions"
+          placeholder={t('analysis.sessionsPage.searchPlaceholder')}
         />
         <Select value={mode} onChange={(event) => setMode(event.target.value)}>
-          <option value="all">All modes</option>
-          <option value="single-asset-allocation">Single-asset allocation</option>
-          <option value="strategy-compare">Strategy compare</option>
+          <option value="all">{t('analysis.sessionsPage.filters.allModes')}</option>
+          <option value="single-asset-allocation">
+            {t('analysis.sessionsPage.filters.singleAssetAllocation')}
+          </option>
+          <option value="strategy-compare">
+            {t('analysis.sessionsPage.filters.strategyCompare')}
+          </option>
         </Select>
         <Select value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="all">All statuses</option>
-          <option value="CLARIFYING">Clarifying</option>
-          <option value="ANALYZING">Analyzing</option>
-          <option value="READY_FOR_EXECUTION">Ready for execution</option>
-          <option value="EXECUTING">Executing</option>
-          <option value="MONITORING">Monitoring</option>
-          <option value="COMPLETED">Completed</option>
-          <option value="FAILED">Failed</option>
+          <option value="all">{t('analysis.sessionsPage.filters.allStatuses')}</option>
+          <option value="CLARIFYING">{t('analysis.sessionsPage.filters.clarifying')}</option>
+          <option value="ANALYZING">{t('analysis.sessionsPage.filters.analyzing')}</option>
+          <option value="READY_FOR_EXECUTION">
+            {t('analysis.sessionsPage.filters.readyForExecution')}
+          </option>
+          <option value="EXECUTING">{t('analysis.sessionsPage.filters.executing')}</option>
+          <option value="MONITORING">{t('analysis.sessionsPage.filters.monitoring')}</option>
+          <option value="COMPLETED">{t('analysis.sessionsPage.filters.completed')}</option>
+          <option value="FAILED">{t('analysis.sessionsPage.filters.failed')}</option>
         </Select>
-        <Select
-          value={confidence}
-          onChange={(event) => setConfidence(event.target.value)}
-        >
-          <option value="all">All confidence</option>
-          <option value="high">High confidence</option>
-          <option value="medium">Medium confidence</option>
-          <option value="low">Low confidence</option>
+        <Select value={confidence} onChange={(event) => setConfidence(event.target.value)}>
+          <option value="all">{t('analysis.sessionsPage.filters.allConfidence')}</option>
+          <option value="high">{t('analysis.sessionsPage.filters.highConfidence')}</option>
+          <option value="medium">{t('analysis.sessionsPage.filters.mediumConfidence')}</option>
+          <option value="low">{t('analysis.sessionsPage.filters.lowConfidence')}</option>
         </Select>
         <Select value={sort} onChange={(event) => setSort(event.target.value)}>
-          <option value="updated">Sort by last updated</option>
-          <option value="created">Sort by created</option>
-          <option value="title">Sort by title</option>
+          <option value="updated">{t('analysis.sessionsPage.filters.sortUpdated')}</option>
+          <option value="created">{t('analysis.sessionsPage.filters.sortCreated')}</option>
+          <option value="title">{t('analysis.sessionsPage.filters.sortTitle')}</option>
         </Select>
       </FilterBar>
 
       {catalogQuery.isLoading ? (
         <LoadingState
-          title="Loading sessions"
-          description="Preparing session summaries, confidence signals, and report links."
+          title={t('analysis.sessionsPage.loadingTitle')}
+          description={t('analysis.sessionsPage.loadingDescription')}
         />
       ) : catalogQuery.isError ? (
         <ErrorState
-          title="Could not load analysis sessions"
+          title={t('analysis.sessionsPage.errorTitle')}
           description={(catalogQuery.error as Error).message}
           action={
             <Button variant="secondary" onClick={() => void catalogQuery.refetch()}>
-              Retry
+              {t('common.retry')}
             </Button>
           }
         />
       ) : visibleSessions.length === 0 ? (
         <EmptyState
-          title={search ? 'No matching sessions' : 'No analysis sessions yet'}
+          title={
+            search
+              ? t('analysis.sessionsPage.noMatchingTitle')
+              : t('analysis.sessionsPage.emptyTitle')
+          }
           description={
             search
-              ? 'Try a different search or relax one of the filters.'
-              : 'Start your first analysis to compare options, surface risks, and generate a structured report.'
+              ? t('analysis.sessionsPage.noMatchingDescription')
+              : t('analysis.sessionsPage.emptyDescription')
           }
           action={
             !search ? (
-              <Button onClick={() => void navigate('/new-analysis')}>Start new analysis</Button>
+              <Button onClick={() => void navigate('/new-analysis')}>
+                {t('analysis.sessionsPage.startNewAnalysis')}
+              </Button>
             ) : undefined
           }
         />
@@ -229,15 +246,15 @@ export function SessionsPage() {
         <>
           <div className="hidden xl:block">
             <div className="mb-3 grid gap-4 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-text-muted xl:grid-cols-[2.4fr_1fr_1fr_1fr_1.8fr_1.3fr_0.8fr_0.8fr_auto]">
-              <span>Session</span>
-              <span>Mode</span>
-              <span>Status</span>
-              <span>Last updated</span>
-              <span>Key conclusion</span>
-              <span>Confidence</span>
-              <span>Evidence</span>
-              <span>Calcs</span>
-              <span>Actions</span>
+              <span>{t('analysis.sessionsPage.table.session')}</span>
+              <span>{t('analysis.sessionsPage.table.mode')}</span>
+              <span>{t('analysis.sessionsPage.table.status')}</span>
+              <span>{t('analysis.sessionsPage.table.lastUpdated')}</span>
+              <span>{t('analysis.sessionsPage.table.keyConclusion')}</span>
+              <span>{t('analysis.sessionsPage.table.confidence')}</span>
+              <span>{t('analysis.sessionsPage.table.evidence')}</span>
+              <span>{t('analysis.sessionsPage.table.calcs')}</span>
+              <span>{t('analysis.sessionsPage.table.actions')}</span>
             </div>
             <div className="space-y-3">
               {visibleSessions.map((session) => (
@@ -270,12 +287,12 @@ export function SessionsPage() {
                         {catalogQuery.data?.reportsBySession[session.id] ? (
                           <>
                             <FileText className="size-4" />
-                            View report
+                            {t('analysis.sessionsPage.viewReport')}
                           </>
                         ) : (
                           <>
                             <ArrowRight className="size-4" />
-                            Continue
+                            {t('analysis.sessionsPage.continue')}
                           </>
                         )}
                       </Button>
@@ -290,9 +307,12 @@ export function SessionsPage() {
                         }
                       >
                         <Copy className="size-4" />
-                        Duplicate
+                        {t('analysis.sessionsPage.duplicate')}
                       </Button>
-                      <SessionOverflow onDelete={() => handleDelete(session.id)} />
+                      <SessionOverflow
+                        onDelete={() => handleDelete(session.id)}
+                        label={t('analysis.sessionsPage.deleteSession')}
+                      />
                     </>
                   }
                 />
@@ -328,7 +348,9 @@ export function SessionsPage() {
                         )
                       }
                     >
-                      {catalogQuery.data?.reportsBySession[session.id] ? 'View report' : 'Continue'}
+                      {catalogQuery.data?.reportsBySession[session.id]
+                        ? t('analysis.sessionsPage.viewReport')
+                        : t('analysis.sessionsPage.continue')}
                     </Button>
                     <Button
                       size="sm"
@@ -340,9 +362,12 @@ export function SessionsPage() {
                         })
                       }
                     >
-                      Duplicate
+                      {t('analysis.sessionsPage.duplicate')}
                     </Button>
-                    <SessionOverflow onDelete={() => handleDelete(session.id)} />
+                    <SessionOverflow
+                      onDelete={() => handleDelete(session.id)}
+                      label={t('analysis.sessionsPage.deleteSession')}
+                    />
                   </>
                 }
               />
@@ -356,9 +381,11 @@ export function SessionsPage() {
                   <ShieldCheck className="size-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-text-primary">Decision signal density</p>
+                  <p className="text-sm font-semibold text-text-primary">
+                    {t('analysis.sessionsPage.decisionSignalDensityTitle')}
+                  </p>
                   <p className="mt-1 text-sm leading-6 text-text-secondary">
-                    Each session keeps conclusion preview, evidence count, confidence, and calculation coverage in the same scan line.
+                    {t('analysis.sessionsPage.decisionSignalDensityDescription')}
                   </p>
                 </div>
               </div>
@@ -369,9 +396,11 @@ export function SessionsPage() {
                   <Sigma className="size-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-text-primary">Dense catalog, not stacked cards</p>
+                  <p className="text-sm font-semibold text-text-primary">
+                    {t('analysis.sessionsPage.denseCatalogTitle')}
+                  </p>
                   <p className="mt-1 text-sm leading-6 text-text-secondary">
-                    The table hybrid is tuned for ongoing session management rather than decorative dashboard blocks.
+                    {t('analysis.sessionsPage.denseCatalogDescription')}
                   </p>
                 </div>
               </div>

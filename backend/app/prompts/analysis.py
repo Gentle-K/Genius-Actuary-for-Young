@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from app.domain.models import AnalysisMode, AnalysisSession
-from app.i18n import is_zh_locale
+from app.i18n import normalize_locale
 from app.services.calculation_tasks import sanitize_calculation_tasks
 
 
@@ -33,7 +33,12 @@ def _mode_brief(session: AnalysisSession) -> str:
 
 
 def _output_language(session: AnalysisSession) -> str:
-    return "Chinese" if is_zh_locale(session.locale) else "English"
+    normalized = normalize_locale(session.locale)
+    if normalized == "zh-HK":
+        return "Traditional Chinese (Hong Kong)"
+    if normalized == "zh-CN":
+        return "Simplified Chinese"
+    return "English"
 
 
 def build_clarification_prompts(session: AnalysisSession) -> tuple[str, str]:

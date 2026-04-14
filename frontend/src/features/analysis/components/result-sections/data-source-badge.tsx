@@ -1,46 +1,42 @@
 import { clsx } from 'clsx'
 
-import type { DataSourceTag } from '@/types'
+import { i18n } from '@/lib/i18n'
+import { normalizeLanguageCode } from '@/lib/i18n/locale'
+import type { DataSourceTag, LanguageCode } from '@/types'
 
 const tagConfig: Record<
   DataSourceTag,
-  { label: string; labelZh: string; color: string }
+  { key: string; color: string }
 > = {
   onchain_verified: {
-    label: 'On-chain Verified',
-    labelZh: '链上验证',
+    key: 'onChainVerified',
     color: 'bg-emerald-500/15 text-emerald-400 ring-emerald-500/30',
   },
   oracle_fed: {
-    label: 'Oracle-fed',
-    labelZh: '预言机喂价',
+    key: 'oracleFed',
     color: 'bg-blue-500/15 text-blue-400 ring-blue-500/30',
   },
   issuer_disclosed: {
-    label: 'Issuer Disclosed',
-    labelZh: '发行方披露',
+    key: 'issuerDisclosed',
     color: 'bg-amber-500/15 text-amber-400 ring-amber-500/30',
   },
   third_party_source: {
-    label: 'Third-party Source',
-    labelZh: '第三方来源',
+    key: 'thirdPartySource',
     color: 'bg-cyan-500/15 text-cyan-400 ring-cyan-500/30',
   },
   model_inference: {
-    label: 'Model Inference',
-    labelZh: '模型推断',
+    key: 'modelInference',
     color: 'bg-violet-500/15 text-violet-400 ring-violet-500/30',
   },
   user_assumption: {
-    label: 'User Assumption',
-    labelZh: '用户假设',
+    key: 'userAssumption',
     color: 'bg-gray-500/15 text-gray-400 ring-gray-500/30',
   },
 }
 
 interface DataSourceBadgeProps {
   tag: DataSourceTag
-  locale?: 'zh' | 'en'
+  locale?: LanguageCode
   className?: string
 }
 
@@ -53,6 +49,7 @@ export function DataSourceBadge({
   if (!config) {
     return null
   }
+  const t = i18n.getFixedT(normalizeLanguageCode(locale))
 
   return (
     <span
@@ -62,7 +59,7 @@ export function DataSourceBadge({
         className,
       )}
     >
-      {locale === 'zh' ? config.labelZh : config.label}
+      {t(`analysis.dataSourceBadge.${config.key}`)}
     </span>
   )
 }

@@ -3,3 +3,4 @@ uvicorn[standard]==0.35.0
 pydantic==2.11.7
 httpx==0.28.1
 coverage==7.10.6
+opencc-python-reimplemented==0.1.7

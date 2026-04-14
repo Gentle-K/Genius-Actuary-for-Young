@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, LoaderCircle, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -20,6 +21,7 @@ import {
 } from '@/components/product/decision-ui'
 import { Button } from '@/components/ui/button'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
+import { useAppStore } from '@/lib/store/app-store'
 import {
   getLocalStorageItem,
   removeLocalStorageItem,
@@ -88,15 +90,17 @@ function toAnswers(
 }
 
 export function AnalysisSessionPage() {
+  const { t } = useTranslation()
   const { sessionId = '' } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const adapter = useApiAdapter()
+  const locale = useAppStore((state) => state.locale)
   const [drafts, setDrafts] = useState<Record<string, ClarificationDraftValue>>({})
   const [lastSavedAt, setLastSavedAt] = useState<string>('')
 
   const sessionQuery = useQuery({
-    queryKey: ['analysis', sessionId, 'clarify'],
+    queryKey: ['analysis', sessionId, 'clarify', locale],
     queryFn: () => adapter.analysis.getById(sessionId),
   })
 
@@ -129,11 +133,11 @@ export function AnalysisSessionPage() {
   if (sessionQuery.isError) {
     return (
       <ErrorState
-        title="Could not load clarification round"
+        title={t('analysis.analysisSessionPage.errorTitle')}
         description={(sessionQuery.error as Error).message}
         action={
           <Button variant="secondary" onClick={() => void sessionQuery.refetch()}>
-            Retry
+            {t('common.retry')}
           </Button>
         }
       />
@@ -145,8 +149,8 @@ export function AnalysisSessionPage() {
   if (sessionQuery.isLoading || !session) {
     return (
       <LoadingState
-        title="Loading clarification round"
-        description="Preparing the current understanding, follow-up questions, and saved draft answers."
+        title={t('analysis.analysisSessionPage.loadingTitle')}
+        description={t('analysis.analysisSessionPage.loadingDescription')}
       />
     )
   }
@@ -159,25 +163,27 @@ export function AnalysisSessionPage() {
   const saveDraft = () => {
     setLocalStorageItem(`ga-clarify-${sessionId}`, JSON.stringify(drafts))
     setLastSavedAt(new Date().toISOString())
-    toast.success('Draft answers saved')
+    toast.success(t('analysis.analysisSessionPage.draftSaved'))
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Clarification"
+        eyebrow={t('analysis.analysisSessionPage.eyebrow')}
         title={session.problemStatement}
-        description="Dynamic follow-up questions make the recommendation more specific. Every answer should either sharpen a constraint, close an unknown, or change the trade-off."
+        description={t('analysis.analysisSessionPage.description')}
         actions={
           <>
             <Button variant="secondary" onClick={() => void navigate(`/sessions/${session.id}`)}>
-              Session detail
+              {t('analysis.analysisSessionPage.sessionDetail')}
             </Button>
             <Button
               onClick={() => void submitMutation.mutateAsync(answers)}
               disabled={!answers.length || submitMutation.isPending}
             >
-              {submitMutation.isPending ? 'Continuing analysis...' : 'Continue analysis'}
+              {submitMutation.isPending
+                ? t('analysis.analysisSessionPage.continuingAnalysis')
+                : t('analysis.analysisSessionPage.continueAnalysis')}
               {submitMutation.isPending ? (
                 <LoaderCircle className="size-4 animate-spin" />
               ) : (
@@ -190,11 +196,11 @@ export function AnalysisSessionPage() {
 
       <SmallMetaList
         items={[
-          { label: 'Mode', value: modeLabel(session.mode) },
-          { label: 'Status', value: session.status },
-          { label: 'Updated', value: formatRelativeTime(session.updatedAt) },
+          { label: t('analysis.analysisSessionPage.meta.mode'), value: modeLabel(session.mode) },
+          { label: t('analysis.analysisSessionPage.meta.status'), value: session.status },
+          { label: t('analysis.analysisSessionPage.meta.updated'), value: formatRelativeTime(session.updatedAt) },
           {
-            label: 'Current round',
+            label: t('analysis.analysisSessionPage.meta.currentRound'),
             value: `${session.followUpRoundsUsed ?? 0} / ${session.followUpRoundLimit ?? 0}`,
           },
         ]}
@@ -203,8 +209,8 @@ export function AnalysisSessionPage() {
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
           <SectionCard
-            title="Current understanding"
-            description="This is the context the system already has before the next analysis round."
+            title={t('analysis.analysisSessionPage.understandingTitle')}
+            description={t('analysis.analysisSessionPage.understandingDescription')}
           >
             {understanding.length ? (
               <div className="grid gap-3">
@@ -216,15 +222,15 @@ export function AnalysisSessionPage() {
               </div>
             ) : (
               <EmptyState
-                title="No structured context captured yet"
-                description="Use this round to make the decision constraints explicit."
+                title={t('analysis.analysisSessionPage.understandingEmptyTitle')}
+                description={t('analysis.analysisSessionPage.understandingEmptyDescription')}
               />
             )}
           </SectionCard>
 
           <SectionCard
-            title="Clarification questions"
-            description="Each question explains why it matters, supports custom input, and can be skipped for now."
+            title={t('analysis.analysisSessionPage.questionsTitle')}
+            description={t('analysis.analysisSessionPage.questionsDescription')}
           >
             {pendingQuestions.length ? (
               <div className="space-y-4">
@@ -250,11 +256,11 @@ export function AnalysisSessionPage() {
               </div>
             ) : (
               <EmptyState
-                title="No open clarification questions"
-                description="This session has no pending follow-up questions right now. Continue into analysis to see the next stage."
+                title={t('analysis.analysisSessionPage.questionsEmptyTitle')}
+                description={t('analysis.analysisSessionPage.questionsEmptyDescription')}
                 action={
                   <Button onClick={() => void navigate(`/sessions/${session.id}/analyzing`)}>
-                    Go to analysis in progress
+                    {t('analysis.analysisSessionPage.goToAnalysis')}
                   </Button>
                 }
               />
@@ -263,30 +269,45 @@ export function AnalysisSessionPage() {
 
           <StickyActionBar>
             <div>
-              <p className="text-sm font-semibold text-text-primary">Round progress</p>
+              <p className="text-sm font-semibold text-text-primary">{t('analysis.analysisSessionPage.roundProgressTitle')}</p>
               <p className="text-sm text-text-secondary">
                 {answers.length
-                  ? `${answers.length} answer${answers.length === 1 ? '' : 's'} ready. ${lastSavedAt ? `Autosaved at ${new Date(lastSavedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` : 'Save locally at any time.'}`
-                  : 'Answer at least one high-value question before continuing.'}
+                  ? t(
+                      answers.length === 1
+                        ? 'analysis.analysisSessionPage.answersReadyOne'
+                        : 'analysis.analysisSessionPage.answersReadyMany',
+                      {
+                        count: answers.length,
+                        autosave: lastSavedAt
+                          ? t('analysis.analysisSessionPage.autosavedAt', {
+                              value: new Date(lastSavedAt).toLocaleTimeString([], {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                              }),
+                            })
+                          : t('analysis.analysisSessionPage.saveLocally'),
+                      },
+                    )
+                  : t('analysis.analysisSessionPage.answerAtLeastOne')}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" onClick={saveDraft}>
                 <Save className="size-4" />
-                Save answers
+                {t('analysis.analysisSessionPage.saveAnswers')}
               </Button>
               <Button
                 onClick={() => void submitMutation.mutateAsync(answers)}
                 disabled={!answers.length || submitMutation.isPending}
               >
-                Continue analysis
+                {t('analysis.analysisSessionPage.continueAnalysis')}
               </Button>
             </div>
           </StickyActionBar>
         </div>
 
         <div className="space-y-6 xl:sticky xl:top-28 xl:self-start">
-          <SectionCard title="Major conclusions so far" description="Only visible if the current session already has conclusion objects.">
+          <SectionCard title={t('analysis.analysisSessionPage.conclusionsTitle')} description={t('analysis.analysisSessionPage.conclusionsDescription')}>
             {session.conclusions.length ? (
               <div className="space-y-3">
                 {session.conclusions.map((item) => (
@@ -301,13 +322,13 @@ export function AnalysisSessionPage() {
               </div>
             ) : (
               <EmptyState
-                title="No conclusions yet"
-                description="The first conclusions usually appear after evidence and calculation steps start."
+                title={t('analysis.analysisSessionPage.conclusionsEmptyTitle')}
+                description={t('analysis.analysisSessionPage.conclusionsEmptyDescription')}
               />
             )}
           </SectionCard>
 
-          <SectionCard title="Unresolved uncertainties" description="These are the gaps the system still wants to close.">
+          <SectionCard title={t('analysis.analysisSessionPage.unresolvedTitle')} description={t('analysis.analysisSessionPage.unresolvedDescription')}>
             {unresolved.length ? (
               <div className="space-y-3">
                 {unresolved.map((item) => (
@@ -318,29 +339,31 @@ export function AnalysisSessionPage() {
               </div>
             ) : (
               <EmptyState
-                title="No unresolved uncertainties listed"
-                description="This round does not show any open uncertainty list."
+                title={t('analysis.analysisSessionPage.unresolvedEmptyTitle')}
+                description={t('analysis.analysisSessionPage.unresolvedEmptyDescription')}
               />
             )}
           </SectionCard>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
             <MetricCard
-              title="Evidence progress"
-              value={`${session.evidence.length} sources`}
-              detail="Evidence collection continues after you submit this round."
+              title={t('analysis.analysisSessionPage.evidenceProgressTitle')}
+              value={t('analysis.analysisSessionPage.evidenceProgressValue', { count: session.evidence.length })}
+              detail={t('analysis.analysisSessionPage.evidenceProgressDetail')}
               tone="brand"
             />
             <MetricCard
-              title="Calculation progress"
-              value={`${session.calculations.length} tasks`}
-              detail="Calculations will refresh once the system has enough structured input."
+              title={t('analysis.analysisSessionPage.calculationProgressTitle')}
+              value={t('analysis.analysisSessionPage.calculationProgressValue', {
+                count: session.calculations.length,
+              })}
+              detail={t('analysis.analysisSessionPage.calculationProgressDetail')}
               tone="success"
             />
           </div>
 
           <PreviewNote>
-            Answered cards collapse after they have enough signal. You can reopen them at any time if a later question changes the trade-off.
+            {t('analysis.analysisSessionPage.previewNote')}
           </PreviewNote>
         </div>
       </div>

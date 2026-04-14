@@ -7,9 +7,11 @@ import { RealtimeBridge } from '@/app/providers/realtime-bridge'
 import { i18n } from '@/lib/i18n'
 import { useAppStore } from '@/lib/store/app-store'
 import { ThemeProvider } from '@/lib/theme/theme-provider'
+import { normalizeLanguageCode } from '@/lib/i18n/locale'
 
 export function AppProviders({ children }: PropsWithChildren) {
   const locale = useAppStore((state) => state.locale)
+  const resolvedTheme = useAppStore((state) => state.resolvedTheme)
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -24,7 +26,7 @@ export function AppProviders({ children }: PropsWithChildren) {
   )
 
   useEffect(() => {
-    void i18n.changeLanguage(locale)
+    void i18n.changeLanguage(normalizeLanguageCode(locale))
   }, [locale])
 
   return (
@@ -33,7 +35,7 @@ export function AppProviders({ children }: PropsWithChildren) {
         <ThemeProvider>
           <RealtimeBridge>
             {children}
-            <Toaster richColors position="top-right" />
+            <Toaster richColors position="top-right" theme={resolvedTheme} />
           </RealtimeBridge>
         </ThemeProvider>
       </QueryClientProvider>

@@ -53,11 +53,11 @@ describe('LoginPage', () => {
     )
 
     expect(await screen.findByRole('heading', { name: /continue to your workspace/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /connect wallet/i })).toBeInTheDocument()
-    expect(screen.getByLabelText('Safe address')).toBeInTheDocument()
-    expect(screen.getByLabelText('Secondary entry: work email')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Continue with wallet' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Safe / multisig')).toBeInTheDocument()
+    expect(screen.getByLabelText('Email access')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Continue with email' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Try demo workspace' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open demo workspace' })).toBeInTheDocument()
     expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /google/i })).not.toBeInTheDocument()
   })
@@ -73,7 +73,7 @@ describe('LoginPage', () => {
       { route: '/login', locale: 'en', apiMode: 'rest' },
     )
 
-    await user.type(await screen.findByLabelText('Secondary entry: work email'), 'ada@example.com')
+    await user.type(await screen.findByLabelText('Email access'), 'ada@example.com')
     await user.click(screen.getByRole('button', { name: 'Continue with email' }))
 
     await waitFor(() => {
@@ -100,7 +100,7 @@ describe('LoginPage', () => {
       { route: '/login', locale: 'en', apiMode: 'rest' },
     )
 
-    await user.click(await screen.findByRole('button', { name: 'Try demo workspace' }))
+    await user.click(await screen.findByRole('button', { name: 'Open demo workspace' }))
 
     await waitFor(() => {
       expect(login).toHaveBeenCalledWith(

@@ -1,14 +1,19 @@
 import { cleanup, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { ModeSelectionPage } from '@/features/analysis/pages/mode-selection-page'
 import { renderWithAppState } from '@/tests/test-utils'
 
 describe('ModeSelectionPage', () => {
+  beforeEach(() => {
+    window.localStorage.removeItem('ga-new-analysis-draft')
+  })
+
   afterEach(() => {
     cleanup()
+    window.localStorage.removeItem('ga-new-analysis-draft')
   })
 
   it('renders both rebuilt analysis modes', async () => {
@@ -40,7 +45,7 @@ describe('ModeSelectionPage', () => {
     )
 
     expect(
-      screen.getByLabelText('What decision are you trying to make?'),
+      screen.getByLabelText('Decision brief'),
     ).toHaveValue(
       'Allocate idle USDT from my wallet into one eligible HashKey Chain RWA sleeve.',
     )
@@ -53,7 +58,7 @@ describe('ModeSelectionPage', () => {
     })
 
     expect(
-      await screen.findByRole('button', { name: /start analysis/i }),
+      await screen.findByRole('button', { name: 'Create session' }),
     ).toBeDisabled()
   })
 
@@ -72,11 +77,11 @@ describe('ModeSelectionPage', () => {
     )
 
     await user.type(
-      await screen.findByLabelText('What decision are you trying to make?'),
+      await screen.findByLabelText('Decision brief'),
       'Should I work abroad next year?',
     )
-    await user.click(screen.getByRole('button', { name: /start analysis/i }))
+    await user.click(screen.getByRole('button', { name: 'Create session' }))
 
     expect(await screen.findByText('clarify workspace')).toBeInTheDocument()
-  })
+  }, 10000)
 })

@@ -6,12 +6,15 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 from app.bootstrap import get_app_services
 from app.config import Settings
+from app.domain.models import AnalysisMode, NextAction, SessionStatus, UserAnswer
 from app.domain.schemas import (
     AuditLogListResponse,
     AuditLogResponse,
     ContinueSessionRequest,
     DebugOperationReceiptResponse,
     DebugAuthStatusResponse,
+    DebugSeedReadySessionRequest,
+    DebugSeedReadySessionResponse,
     DebugSessionListResponse,
     FrontendBootstrapResponse,
     KycCheckResponse,
@@ -35,6 +38,7 @@ from app.rwa.catalog import build_asset_library, build_chain_config
 from app.rwa.demo import build_demo_scenarios
 from app.rwa.kyc_service import read_kyc_from_chain
 from app.rwa.oracle_service import fetch_oracle_snapshots
+from app.session_projection import project_session_for_locale
 
 router = APIRouter()
 CLIENT_COOKIE_NAME = "genius_actuary_client_id"
@@ -75,8 +79,12 @@ def resolve_request_locale(request: Request) -> str:
     return normalize_locale(
         request.headers.get("x-app-locale")
         or request.headers.get("accept-language")
-        or "zh"
+        or "zh-CN"
     )
+
+
+def localized_session_response(session, locale: str) -> SessionResponse:
+    return SessionResponse.model_validate(project_session_for_locale(session, locale))
 
 
 def require_debug_auth(
@@ -104,6 +112,13 @@ def clear_client_cookie(response: Response) -> None:
     )
 
 
+def require_test_fixture_env() -> Settings:
+    settings = Settings.from_env()
+    if settings.app_env.strip().lower() != "test":
+        raise HTTPException(status_code=404, detail="Not found.")
+    return settings
+
+
 @router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -124,7 +139,7 @@ def frontend_bootstrap(request: Request, response: Response) -> FrontendBootstra
     locale = normalize_locale(
         request.headers.get("x-app-locale")
         or request.headers.get("accept-language")
-        or "zh"
+        or "zh-CN"
     )
     asset_library = build_asset_library(
         chain_config,
@@ -190,7 +205,8 @@ def get_session(
     session = services.session_service.get_session(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
-    session_response = SessionResponse.model_validate(session)
+    locale = resolve_request_locale(request)
+    session_response = localized_session_response(session, locale)
     assert_session_owner(session_response, client_id)
     return session_response
 
@@ -199,8 +215,9 @@ def get_session(
 def list_my_sessions(request: Request, response: Response) -> list[SessionResponse]:
     services = get_app_services()
     client_id = ensure_client_cookie(request, response)
+    locale = resolve_request_locale(request)
     sessions = services.session_service.list_sessions_by_owner(client_id)
-    return [SessionResponse.model_validate(session) for session in sessions]
+    return [localized_session_response(session, locale) for session in sessions]
 
 
 @router.post("/api/sessions/{session_id}/step", response_model=SessionStepResponse)
@@ -246,7 +263,7 @@ def record_attestation(
     )
     if updated is None:
         raise HTTPException(status_code=400, detail="Attestation draft is unavailable for this session.")
-    return SessionResponse.model_validate(updated)
+    return localized_session_response(updated, resolve_request_locale(request))
 
 
 @router.post(
@@ -275,7 +292,7 @@ def request_more_follow_up(
         raise HTTPException(status_code=404, detail="Session not found.")
 
     return RequestMoreFollowUpResponse(
-        session=SessionResponse.model_validate(refreshed),
+        session=localized_session_response(refreshed, resolve_request_locale(request)),
         step=step,
     )
 
@@ -359,6 +376,109 @@ def get_debug_session(
         summary="Viewed a protected backend session payload.",
     )
     return SessionResponse.model_validate(session)
+
+
+@router.post(
+    "/api/debug/e2e/seed-ready-session",
+    response_model=DebugSeedReadySessionResponse,
+)
+def seed_debug_ready_session(
+    payload: DebugSeedReadySessionRequest,
+    request: Request,
+    response: Response,
+    username: str = Depends(require_debug_auth),
+) -> DebugSeedReadySessionResponse:
+    require_test_fixture_env()
+    services = get_app_services()
+    client_id = ensure_client_cookie(request, response)
+    locale = normalize_locale(payload.locale or resolve_request_locale(request))
+    intake_context = payload.intake_context.model_copy(
+        update={
+            "wants_onchain_attestation": True,
+            "ticket_size": payload.intake_context.ticket_size
+            or payload.intake_context.investment_amount,
+        }
+    )
+    session = services.session_service.create_session(
+        mode=AnalysisMode(payload.mode),
+        locale=locale,
+        problem_statement=payload.problem_statement,
+        owner_client_id=client_id,
+        intake_context=intake_context,
+        ip_address=get_request_ip(request),
+    )
+    step = services.orchestrator.advance_session(session.session_id)
+    terminal_statuses = {
+        SessionStatus.READY_FOR_EXECUTION,
+        SessionStatus.EXECUTING,
+        SessionStatus.MONITORING,
+        SessionStatus.COMPLETED,
+    }
+
+    for _ in range(payload.max_rounds):
+        current = services.session_service.get_session(session.session_id)
+        if current is None:
+            raise HTTPException(status_code=404, detail="Session not found.")
+        if current.status in terminal_statuses:
+            break
+        if current.status == SessionStatus.FAILED:
+            raise HTTPException(
+                status_code=500,
+                detail=current.error_message or "Fixture session failed.",
+            )
+
+        unanswered = [
+            question
+            for question in current.clarification_questions
+            if not question.answered
+        ]
+        if unanswered:
+            services.session_service.record_answers(
+                current.session_id,
+                [
+                    UserAnswer(
+                        question_id=question.question_id,
+                        value=payload.answer_value,
+                        source="debug_fixture",
+                    )
+                    for question in unanswered
+                ],
+            )
+        step = services.orchestrator.advance_session(current.session_id)
+
+    refreshed = services.session_service.get_session(session.session_id)
+    if refreshed is None:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    if refreshed.status not in terminal_statuses:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Fixture session did not reach a ready report state "
+                f"within {payload.max_rounds} rounds."
+            ),
+        )
+
+    services.audit_log_service.write(
+        action="DEBUG_E2E_SESSION_SEEDED",
+        actor=username,
+        target=refreshed.session_id,
+        ip_address=get_request_ip(request),
+        summary="Seeded a ready backend session for Playwright E2E coverage.",
+        metadata={
+            "locale": locale,
+            "mode": refreshed.mode.value,
+            "status": refreshed.status.value,
+        },
+    )
+    return DebugSeedReadySessionResponse(
+        session_id=refreshed.session_id,
+        status=refreshed.status,
+        next_action=step.next_action,
+        prompt_to_user=step.prompt_to_user,
+        report_ready=refreshed.report is not None,
+        report_url=f"/reports/{refreshed.session_id}",
+        execute_url=f"/sessions/{refreshed.session_id}/execute",
+    )
 
 
 @router.delete("/api/me/data", response_model=PersonalDataDeletionResponse)

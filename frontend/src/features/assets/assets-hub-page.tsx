@@ -2,8 +2,13 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowRight, ExternalLink, ShieldCheck, Wallet } from 'lucide-react'
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
-import { PageHeader } from '@/components/layout/page-header'
+import {
+  PageContainer,
+  PageHeader,
+  PageSection,
+} from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -24,14 +29,14 @@ function readinessTone(readiness?: string) {
 }
 
 export function AssetsHubPage() {
+  const { t } = useTranslation()
   const adapter = useApiAdapter()
   const navigate = useNavigate()
   const locale = useAppStore((state) => state.locale)
-  const isZh = locale === 'zh'
   const walletAddress = useAppStore((state) => state.walletAddress)
 
   const bootstrapQuery = useQuery({
-    queryKey: ['rwa', 'bootstrap', 'assets-hub'],
+    queryKey: ['rwa', 'bootstrap', 'assets-hub', locale],
     queryFn: () => adapter.rwa.getBootstrap(),
   })
 
@@ -41,66 +46,63 @@ export function AssetsHubPage() {
   }, [bootstrapQuery.data?.assetLibrary]) as NonNullable<typeof bootstrapQuery.data>['assetLibrary']
 
   return (
-    <div className="space-y-6">
+    <PageContainer>
       <PageHeader
-        eyebrow={isZh ? 'Verifiable RWA Hub' : 'Verifiable RWA Hub'}
-        title={isZh ? 'HashKey RWA 资产中心' : 'HashKey RWA Asset Hub'}
-        description={
-          isZh
-            ? '先看资产真实性、准入资格、执行方式和赎回窗口，再决定是否进入分析或执行流。'
-            : 'Review authenticity, eligibility, execution route, and redemption terms before treating any asset as executable.'
-        }
+        eyebrow={t('assets.eyebrow')}
+        title={t('assets.title')}
+        description={t('assets.description')}
         actions={
           <>
-            <Button variant="secondary" onClick={() => void navigate('/new-analysis')}>
-              {isZh ? '新建分析' : 'New analysis'}
+            <Button
+              variant="secondary"
+              className="max-sm:w-full"
+              onClick={() => void navigate('/new-analysis')}
+            >
+              {t('actions.newAnalysis')}
             </Button>
-            <Button onClick={() => void navigate(walletAddress ? `/portfolio/${walletAddress}` : '/portfolio')}>
+            <Button
+              className="max-sm:w-full"
+              onClick={() => void navigate(walletAddress ? `/portfolio/${walletAddress}` : '/portfolio')}
+            >
               <Wallet className="size-4" />
-              {isZh ? '打开组合监控' : 'Open portfolio'}
+              {t('actions.openPortfolio')}
             </Button>
           </>
         }
       />
 
-      <Card className="grid gap-4 p-5 lg:grid-cols-3">
-        <div className="rounded-[22px] bg-app-bg-elevated p-4">
+      <PageSection className="grid gap-4 xl:grid-cols-3">
+        <Card className="rounded-[24px] p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-            {isZh ? 'v1 证明范围' : 'v1 proof scope'}
+            {t('assets.cards.proofScopeTitle')}
           </p>
           <p className="mt-3 text-sm leading-6 text-text-secondary">
-            {isZh
-              ? '当前只把 4 个 HashKey 单链锚定资产拉进可验证证明中心，避免 demo 资产和 benchmark 误导用户。'
-              : 'Only four HashKey single-chain anchor assets are treated as proof-first live targets in this release.'}
+            {t('assets.cards.proofScopeDescription')}
           </p>
-        </div>
-        <div className="rounded-[22px] bg-app-bg-elevated p-4">
+        </Card>
+        <Card className="rounded-[24px] p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-            {isZh ? '执行分层' : 'Execution layering'}
+            {t('assets.cards.executionLayeringTitle')}
           </p>
           <p className="mt-3 text-sm leading-6 text-text-secondary">
-            {isZh
-              ? '页面会明确区分 direct contract、issuer portal 和 view only，不再把展示型资产伪装成可执行。'
-              : 'Each asset is explicitly categorized as direct contract, issuer portal, or view only.'}
+            {t('assets.cards.executionLayeringDescription')}
           </p>
-        </div>
-        <div className="rounded-[22px] bg-app-bg-elevated p-4">
+        </Card>
+        <Card className="rounded-[24px] p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-            {isZh ? '产品主线' : 'Product spine'}
+            {t('assets.cards.productSpineTitle')}
           </p>
           <p className="mt-3 text-sm leading-6 text-text-secondary">
-            {isZh
-              ? '分析报告现在是入口，不是终点。真正的主路径是 资产证明 -> 执行 -> 监控。'
-              : 'Analysis is now the entry point, not the final destination: proof -> execution -> monitoring.'}
+            {t('assets.cards.productSpineDescription')}
           </p>
-        </div>
-      </Card>
+        </Card>
+      </PageSection>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <PageSection className="grid gap-4 2xl:grid-cols-2">
         {focusedAssets.map((asset) => (
-          <Card key={asset.id} className="space-y-4 p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
+          <Card key={asset.id} className="space-y-5 p-5 md:p-6">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone="info">{asset.symbol}</Badge>
                   <Badge tone={readinessTone(asset.liveReadiness)}>{asset.liveReadiness}</Badge>
@@ -109,37 +111,37 @@ export function AssetsHubPage() {
                 <p className="mt-3 text-lg font-semibold text-text-primary">{asset.name}</p>
                 <p className="mt-2 text-sm leading-6 text-text-secondary">{asset.description}</p>
               </div>
-              <ShieldCheck className="size-5 text-accent-cyan" />
+              <ShieldCheck className="size-5 shrink-0 text-accent-cyan" />
             </div>
 
-            <div className="grid gap-3 text-sm text-text-secondary md:grid-cols-2">
-              <div>
+            <div className="grid gap-4 text-sm text-text-secondary sm:grid-cols-2 xl:grid-cols-4">
+              <div className="min-w-0">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                  {isZh ? '结算资产' : 'Settlement'}
+                  {t('assets.fields.settlement')}
                 </p>
-                <p className="mt-2 text-text-primary">{asset.settlementAsset}</p>
+                <p className="mt-2 break-words text-text-primary">{asset.settlementAsset}</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                  {isZh ? 'KYC 要求' : 'KYC'}
+                  {t('assets.fields.kyc')}
                 </p>
-                <p className="mt-2 text-text-primary">
+                <p className="mt-2 break-words text-text-primary">
                   {asset.requiresKycLevel != null ? `L${asset.requiresKycLevel}` : 'Open'}
                 </p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                  {isZh ? '赎回窗口' : 'Redemption'}
+                  {t('assets.fields.redemption')}
                 </p>
-                <p className="mt-2 text-text-primary">
+                <p className="mt-2 break-words text-text-primary">
                   {asset.redemptionWindow || (asset.redemptionDays ? `T+${asset.redemptionDays}` : 'T+0')}
                 </p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs uppercase tracking-[0.12em] text-text-muted">
-                  {isZh ? '执行方式' : 'Execution style'}
+                  {t('assets.fields.executionStyle')}
                 </p>
-                <p className="mt-2 text-text-primary">{asset.executionStyle}</p>
+                <p className="mt-2 break-words text-text-primary">{asset.executionStyle}</p>
               </div>
             </div>
 
@@ -147,24 +149,35 @@ export function AssetsHubPage() {
               {asset.statusExplanation || asset.fitSummary}
             </p>
 
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={() => void navigate(`/assets/${asset.id}/proof`)}>
+            {asset.tags.length ? (
+              <div className="flex flex-wrap gap-2">
+                {asset.tags.map((tag) => (
+                  <Badge key={`${asset.id}-${tag}`} tone="neutral">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap gap-2 max-sm:flex-col">
+              <Button className="max-sm:w-full" onClick={() => void navigate(`/assets/${asset.id}/proof`)}>
                 <ArrowRight className="size-4" />
-                {isZh ? '查看证明' : 'View proof'}
+                {t('actions.viewProof')}
               </Button>
               {asset.primarySourceUrl ? (
                 <Button
                   variant="secondary"
+                  className="max-sm:w-full"
                   onClick={() => window.open(asset.primarySourceUrl, '_blank', 'noopener,noreferrer')}
                 >
                   <ExternalLink className="size-4" />
-                  {isZh ? '官方来源' : 'Primary source'}
+                  {t('actions.openSource')}
                 </Button>
               ) : null}
             </div>
           </Card>
         ))}
-      </div>
-    </div>
+      </PageSection>
+    </PageContainer>
   )
 }

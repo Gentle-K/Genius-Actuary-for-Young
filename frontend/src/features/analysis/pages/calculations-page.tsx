@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
@@ -16,27 +17,31 @@ import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/field'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
 import { fetchAnalysisCatalog, flattenCalculations } from '@/features/analysis/lib/catalog'
-import { calculationTitle } from '@/features/analysis/lib/view-models'
+import { calculationTitle, sessionDisplayTitle } from '@/features/analysis/lib/view-models'
+import { useAppStore } from '@/lib/store/app-store'
 import { useState } from 'react'
 
 function matchCalculationValue(
   calculations: Array<{ task: import('@/types').CalculationTask }>,
   patterns: string[],
+  unavailableLabel: string,
 ) {
   return (
     calculations.find(({ task }) =>
       patterns.some((pattern) => task.taskType.toLowerCase().includes(pattern)),
-    )?.task.result ?? 'Unavailable'
+    )?.task.result ?? unavailableLabel
   )
 }
 
 export function CalculationsPage() {
+  const { t } = useTranslation()
   const adapter = useApiAdapter()
+  const locale = useAppStore((state) => state.locale)
   const [search, setSearch] = useState('')
   const [sessionFilter, setSessionFilter] = useState('all')
 
   const catalogQuery = useQuery({
-    queryKey: ['analysis', 'catalog', 'calculations'],
+    queryKey: ['analysis', 'catalog', 'calculations', locale],
     queryFn: () => fetchAnalysisCatalog(adapter),
   })
 
@@ -57,34 +62,34 @@ export function CalculationsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Calculations"
-        title="Calculations"
-        description="Inspect deterministic RWA and execution calculations, including yield, fees, slippage, gas, break-even, and where each result is used in the report or execution plan."
+        eyebrow={t('analysis.calculationsPage.eyebrow')}
+        title={t('analysis.calculationsPage.title')}
+        description={t('analysis.calculationsPage.description')}
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          title="Expected yield"
-          value={matchCalculationValue(calculations, ['yield', 'apy', 'apr'])}
-          detail="Derived yield assumptions stay separate from narrative recommendation text."
+          title={t('analysis.calculationsPage.metrics.expectedYield.title')}
+          value={matchCalculationValue(calculations, ['yield', 'apy', 'apr'], t('common.notAvailable'))}
+          detail={t('analysis.calculationsPage.metrics.expectedYield.detail')}
           tone="brand"
         />
         <MetricCard
-          title="Fee breakdown"
-          value={matchCalculationValue(calculations, ['fee', 'cost'])}
-          detail="Shows the deterministic fee leg used for quote, execution, or redemption math."
+          title={t('analysis.calculationsPage.metrics.feeBreakdown.title')}
+          value={matchCalculationValue(calculations, ['fee', 'cost'], t('common.notAvailable'))}
+          detail={t('analysis.calculationsPage.metrics.feeBreakdown.detail')}
           tone="success"
         />
         <MetricCard
-          title="Slippage / gas"
-          value={matchCalculationValue(calculations, ['slippage', 'gas'])}
-          detail="Execution friction stays inspectable instead of being folded into the recommendation."
+          title={t('analysis.calculationsPage.metrics.slippageGas.title')}
+          value={matchCalculationValue(calculations, ['slippage', 'gas'], t('common.notAvailable'))}
+          detail={t('analysis.calculationsPage.metrics.slippageGas.detail')}
           tone="warning"
         />
         <MetricCard
-          title="Redemption break-even"
-          value={matchCalculationValue(calculations, ['break-even', 'breakeven', 'redemption'])}
-          detail="Highlights the crossover or redemption threshold when exit timing matters."
+          title={t('analysis.calculationsPage.metrics.redemptionBreakeven.title')}
+          value={matchCalculationValue(calculations, ['break-even', 'breakeven', 'redemption'], t('common.notAvailable'))}
+          detail={t('analysis.calculationsPage.metrics.redemptionBreakeven.detail')}
           tone="success"
         />
       </div>
@@ -93,16 +98,16 @@ export function CalculationsPage() {
         <SearchInput
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search calculations"
+          placeholder={t('analysis.calculationsPage.searchPlaceholder')}
         />
         <Select
           value={sessionFilter}
           onChange={(event) => setSessionFilter(event.target.value)}
         >
-          <option value="all">All sessions</option>
+          <option value="all">{t('analysis.calculationsPage.allSessions')}</option>
           {(catalogQuery.data?.sessions ?? []).map((session) => (
             <option key={session.id} value={session.id}>
-              {session.problemStatement}
+              {sessionDisplayTitle(session, catalogQuery.data?.reportsBySession[session.id])}
             </option>
           ))}
         </Select>
@@ -112,16 +117,16 @@ export function CalculationsPage() {
 
       {catalogQuery.isLoading ? (
         <LoadingState
-          title="Loading calculations"
-          description="Preparing formulas, input parameters, and result values."
+          title={t('analysis.calculationsPage.loadingTitle')}
+          description={t('analysis.calculationsPage.loadingDescription')}
         />
       ) : catalogQuery.isError ? (
         <ErrorState
-          title="Could not load calculations"
+          title={t('analysis.calculationsPage.errorTitle')}
           description={(catalogQuery.error as Error).message}
           action={
             <Button variant="secondary" onClick={() => void catalogQuery.refetch()}>
-              Retry
+              {t('common.retry')}
             </Button>
           }
         />
@@ -129,27 +134,30 @@ export function CalculationsPage() {
         <div className="space-y-4">
           {calculations.map(({ session, task }) => (
             <div key={task.id} className="space-y-3">
-              <CalculationCard task={task} sessionTitle={session.problemStatement} />
+              <CalculationCard
+                task={task}
+                sessionTitle={sessionDisplayTitle(session, catalogQuery.data?.reportsBySession[session.id])}
+              />
               <div className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4 text-sm text-text-secondary">
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-                      Report linkage
+                      {t('analysis.calculationsPage.reportLinkage')}
                     </p>
                     <p className="mt-2">
                       {task.reportSectionKeys?.length
                         ? task.reportSectionKeys.join(' · ')
-                        : 'Not linked to a report section yet.'}
+                        : t('analysis.calculationsPage.notLinkedToReport')}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-                      Execution linkage
+                      {t('analysis.calculationsPage.executionLinkage')}
                     </p>
                     <p className="mt-2">
                       {task.executionStepIds?.length
                         ? task.executionStepIds.join(' · ')
-                        : 'Not linked to an execution step yet.'}
+                        : t('analysis.calculationsPage.notLinkedToExecution')}
                     </p>
                   </div>
                 </div>
@@ -158,13 +166,13 @@ export function CalculationsPage() {
                     href={`/reports/${session.id}`}
                     className="inline-flex items-center gap-2 rounded-full border border-border-subtle bg-bg-surface px-3 py-1.5 text-sm text-text-primary transition hover:border-border-strong hover:bg-panel-strong"
                   >
-                    Open report
+                    {t('analysis.calculationsPage.openReport')}
                   </a>
                   <a
                     href={`/sessions/${session.id}/execute`}
                     className="inline-flex items-center gap-2 rounded-full border border-border-subtle bg-bg-surface px-3 py-1.5 text-sm text-text-primary transition hover:border-border-strong hover:bg-panel-strong"
                   >
-                    Open execute page
+                    {t('analysis.calculationsPage.openExecutePage')}
                   </a>
                 </div>
               </div>
@@ -172,23 +180,23 @@ export function CalculationsPage() {
           ))}
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="panel-card rounded-[24px] p-5">
-              <p className="text-sm font-semibold text-text-primary">Supported calculation surfaces</p>
+              <p className="text-sm font-semibold text-text-primary">{t('analysis.calculationsPage.supportedSurfacesTitle')}</p>
               <p className="mt-2 text-sm leading-6 text-text-secondary">
-                Breakeven, budget range, opportunity cost, sensitivity, fee drag, and liquidity-window calculations should read as first-class analytical outputs.
+                {t('analysis.calculationsPage.supportedSurfacesDescription')}
               </p>
             </div>
             <div className="panel-card rounded-[24px] p-5">
-              <p className="text-sm font-semibold text-text-primary">Trust rule</p>
+              <p className="text-sm font-semibold text-text-primary">{t('analysis.calculationsPage.trustRuleTitle')}</p>
               <p className="mt-2 text-sm leading-6 text-text-secondary">
-                If the structured input is too weak, the page keeps the empty or warning state visible instead of overstating result readiness.
+                {t('analysis.calculationsPage.trustRuleDescription')}
               </p>
             </div>
           </div>
         </div>
       ) : (
         <EmptyState
-          title="No calculations available"
-          description="There is not enough structured data yet to show deterministic results for the current filters."
+          title={t('analysis.calculationsPage.emptyTitle')}
+          description={t('analysis.calculationsPage.emptyDescription')}
         />
       )}
     </div>

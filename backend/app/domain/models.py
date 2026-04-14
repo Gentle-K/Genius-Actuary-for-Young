@@ -256,7 +256,9 @@ class AnalysisLoopPlan(BaseModel):
 
 
 class AnalysisReport(BaseModel):
+    title: str = ""
     summary: str
+    locale: str = "zh-CN"
     assumptions: list[str] = Field(default_factory=list)
     unknowns: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
@@ -316,7 +318,7 @@ class AnalysisSession(BaseModel):
     session_id: str = Field(default_factory=lambda: str(uuid4()))
     owner_client_id: str
     mode: AnalysisMode
-    locale: str = "zh"
+    locale: str = "zh-CN"
     problem_statement: str
     intake_context: RwaIntakeContext = Field(default_factory=RwaIntakeContext)
     status: SessionStatus = SessionStatus.INIT

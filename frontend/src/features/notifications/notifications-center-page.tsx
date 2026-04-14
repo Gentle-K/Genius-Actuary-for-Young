@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
+import { isChineseLocale } from '@/lib/i18n/locale'
 import { formatDateTime } from '@/lib/utils/format'
 import { useAppStore } from '@/lib/store/app-store'
 
@@ -15,7 +16,7 @@ export function NotificationsCenterPage() {
   const adapter = useApiAdapter()
   const queryClient = useQueryClient()
   const locale = useAppStore((state) => state.locale)
-  const isZh = i18n.language.startsWith('zh')
+  const isZh = isChineseLocale(i18n.language)
 
   const notificationsQuery = useQuery({
     queryKey: ['notifications'],

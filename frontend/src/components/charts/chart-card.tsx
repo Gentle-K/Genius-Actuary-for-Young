@@ -33,10 +33,9 @@ function chartHeight(chart: ChartArtifact) {
 }
 
 export function ChartCard({ chart }: ChartCardProps) {
-  const { i18n } = useTranslation()
+  const { t } = useTranslation()
   const resolvedTheme = useAppStore((state) => state.resolvedTheme)
   const option = buildChartOption(chart)
-  const isZh = i18n.language.startsWith('zh')
 
   return (
     <Card className="overflow-hidden p-5" data-testid={`chart-card-${chart.id}`}>
@@ -59,18 +58,18 @@ export function ChartCard({ chart }: ChartCardProps) {
         />
       ) : (
         <EmptyState
-          title={isZh ? '图表数据不足' : 'Insufficient chart data'}
-          description={
-            isZh
-              ? '当前数据还不足以形成可靠图表，因此这里先保留为空状态。'
-              : 'This visualization was intentionally withheld because the underlying dataset is incomplete.'
-          }
+          title={t('analysis.chartCard.insufficientDataTitle')}
+          description={t('analysis.chartCard.insufficientDataDescription')}
         />
       )}
 
       <div className="mt-4 flex flex-wrap gap-3 text-xs text-text-muted">
-        {chart.source ? <span>{isZh ? '来源' : 'Source'}: {chart.source}</span> : null}
-        <span>{isZh ? '编码' : 'Encoding'}: actual = cyan/blue, estimated = violet, inferred = amber</span>
+        {chart.source ? (
+          <span>
+            {t('analysis.chartCard.source')}: {chart.source}
+          </span>
+        ) : null}
+        <span>{t('analysis.chartCard.encodingLegend')}</span>
         {chart.note ? <span>{chart.note}</span> : null}
       </div>
     </Card>

@@ -1,5 +1,6 @@
 import { Children, useEffect, useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { Dialog, DialogBackdrop, DialogPanel } from '@headlessui/react'
+import { useTranslation } from 'react-i18next'
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -14,6 +15,7 @@ import {
   Sigma,
   Sparkles,
 } from 'lucide-react'
+import type { TFunction } from 'i18next'
 
 import { Skeleton } from '@/components/feedback/skeleton'
 import { Badge, type BadgeProps } from '@/components/ui/badge'
@@ -21,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Input, Textarea } from '@/components/ui/field'
+import { useAppStore } from '@/lib/store/app-store'
 import { cn } from '@/lib/utils/cn'
 import { formatDateTime } from '@/lib/utils/format'
 import {
@@ -67,13 +70,16 @@ function badgeWithDot(tone: BadgeProps['tone'], label: string) {
   )
 }
 
-function sourceTypeMeta(item: EvidenceItem): { label: string; tone: BadgeProps['tone'] } {
+function sourceTypeMeta(
+  item: EvidenceItem,
+  t: TFunction,
+): { label: string; tone: BadgeProps['tone'] } {
   if (item.sourceType === 'user') {
-    return { label: 'User provided', tone: 'primary' }
+    return { label: t('analysis.decisionUi.sourceTypes.userProvided'), tone: 'primary' }
   }
 
   if (item.sourceType === 'internal') {
-    return { label: 'Research', tone: 'gold' }
+    return { label: t('analysis.decisionUi.sourceTypes.research'), tone: 'gold' }
   }
 
   const hostname = evidenceDomain(item.sourceUrl)
@@ -87,7 +93,7 @@ function sourceTypeMeta(item: EvidenceItem): { label: string; tone: BadgeProps['
     hostname.includes('solscan') ||
     hostname.includes('defillama')
   ) {
-    return { label: 'On-chain', tone: 'info' }
+    return { label: t('analysis.decisionUi.sourceTypes.onChain'), tone: 'info' }
   }
 
   if (
@@ -95,7 +101,7 @@ function sourceTypeMeta(item: EvidenceItem): { label: string; tone: BadgeProps['
     hostname.startsWith('docs.') ||
     hostname.includes('hashkeychain.net')
   ) {
-    return { label: 'Protocol docs', tone: 'primary' }
+    return { label: t('analysis.decisionUi.sourceTypes.protocolDocs'), tone: 'primary' }
   }
 
   if (
@@ -106,7 +112,7 @@ function sourceTypeMeta(item: EvidenceItem): { label: string; tone: BadgeProps['
     hostname.includes('fca.org') ||
     hostname.includes('esma.europa')
   ) {
-    return { label: 'Official / regulator', tone: 'info' }
+    return { label: t('analysis.decisionUi.sourceTypes.officialRegulator'), tone: 'info' }
   }
 
   if (
@@ -115,7 +121,7 @@ function sourceTypeMeta(item: EvidenceItem): { label: string; tone: BadgeProps['
     hostname.includes('galaxy.com') ||
     hostname.includes('binance.com/en/research')
   ) {
-    return { label: 'Research', tone: 'gold' }
+    return { label: t('analysis.decisionUi.sourceTypes.research'), tone: 'gold' }
   }
 
   if (
@@ -126,46 +132,46 @@ function sourceTypeMeta(item: EvidenceItem): { label: string; tone: BadgeProps['
     hostname.includes('bloomberg') ||
     hostname.includes('prnewswire')
   ) {
-    return { label: 'News', tone: 'warning' }
+    return { label: t('analysis.decisionUi.sourceTypes.news'), tone: 'warning' }
   }
 
-  return { label: 'Research', tone: 'neutral' }
+  return { label: t('analysis.decisionUi.sourceTypes.research'), tone: 'neutral' }
 }
 
-function calculationCategory(taskType: string) {
+function calculationCategory(taskType: string, t: TFunction) {
   const lower = taskType.toLowerCase()
   if (lower.includes('break-even') || lower.includes('breakeven')) {
-    return { label: 'Breakeven', tone: 'info' as const }
+    return { label: t('analysis.decisionUi.calculationCategories.breakeven'), tone: 'info' as const }
   }
   if (lower.includes('budget')) {
-    return { label: 'Budget range', tone: 'primary' as const }
+    return { label: t('analysis.decisionUi.calculationCategories.budgetRange'), tone: 'primary' as const }
   }
   if (lower.includes('opportunity')) {
-    return { label: 'Opportunity cost', tone: 'gold' as const }
+    return { label: t('analysis.decisionUi.calculationCategories.opportunityCost'), tone: 'gold' as const }
   }
   if (lower.includes('sensitivity')) {
-    return { label: 'Sensitivity', tone: 'warning' as const }
+    return { label: t('analysis.decisionUi.calculationCategories.sensitivity'), tone: 'warning' as const }
   }
   if (lower.includes('fee')) {
-    return { label: 'Fee drag', tone: 'warning' as const }
+    return { label: t('analysis.decisionUi.calculationCategories.feeDrag'), tone: 'warning' as const }
   }
   if (lower.includes('lock') || lower.includes('liquid')) {
-    return { label: 'Liquidity window', tone: 'info' as const }
+    return { label: t('analysis.decisionUi.calculationCategories.liquidityWindow'), tone: 'info' as const }
   }
   return { label: taskType.replace(/-/g, ' '), tone: 'neutral' as const }
 }
 
-function calculationStatusMeta(task: CalculationTask) {
+function calculationStatusMeta(task: CalculationTask, t: TFunction) {
   if (task.status === 'failed' || task.validationState === 'rejected') {
-    return { label: 'Needs review', tone: 'danger' as const }
+    return { label: t('analysis.decisionUi.calculationStates.needsReview'), tone: 'danger' as const }
   }
   if (task.validationState === 'pending') {
-    return { label: 'Pending validation', tone: 'warning' as const }
+    return { label: t('analysis.decisionUi.calculationStates.pendingValidation'), tone: 'warning' as const }
   }
   if (task.status === 'running') {
-    return { label: 'Running', tone: 'primary' as const }
+    return { label: t('analysis.decisionUi.calculationStates.running'), tone: 'primary' as const }
   }
-  return { label: 'Ready', tone: 'success' as const }
+  return { label: t('analysis.decisionUi.calculationStates.ready'), tone: 'success' as const }
 }
 
 function conclusionTone(type: ConclusionType) {
@@ -174,17 +180,17 @@ function conclusionTone(type: ConclusionType) {
   return 'warning' as const
 }
 
-function clarificationStateMeta(value: ClarificationDraftValue) {
+function clarificationStateMeta(value: ClarificationDraftValue, t: TFunction) {
   if (value.answerStatus === 'answered') {
-    return { label: 'Answered', tone: 'success' as const }
+    return { label: t('analysis.decisionUi.clarificationStates.answered'), tone: 'success' as const }
   }
   if (value.answerStatus === 'uncertain') {
-    return { label: 'Uncertain', tone: 'warning' as const }
+    return { label: t('analysis.decisionUi.clarificationStates.uncertain'), tone: 'warning' as const }
   }
   if (value.answerStatus === 'skipped') {
-    return { label: 'Skipped', tone: 'neutral' as const }
+    return { label: t('analysis.decisionUi.clarificationStates.skipped'), tone: 'neutral' as const }
   }
-  return { label: 'Pending', tone: 'primary' as const }
+  return { label: t('analysis.decisionUi.clarificationStates.pending'), tone: 'primary' as const }
 }
 
 function clarificationSummary(
@@ -245,6 +251,7 @@ export function FilterBar({
   children: ReactNode
   className?: string
 }) {
+  const { t } = useTranslation()
   const [mobileOpen, setMobileOpen] = useState(false)
   const items = Children.toArray(children)
   const primaryItem = items[0]
@@ -262,7 +269,7 @@ export function FilterBar({
         {hasSecondary ? (
           <div className="panel-card rounded-[24px] p-3">
             <Button variant="secondary" className="w-full justify-between" onClick={() => setMobileOpen(true)}>
-              Filters
+              {t('analysis.decisionUi.filters')}
               <Filter className="size-4" />
             </Button>
           </div>
@@ -272,8 +279,8 @@ export function FilterBar({
       <DetailDrawer
         open={mobileOpen}
         onClose={() => setMobileOpen(false)}
-        title="Filters"
-        description="Adjust the current view without losing your place in the page."
+        title={t('analysis.decisionUi.filters')}
+        description={t('analysis.decisionUi.filtersDescription')}
       >
         <div className="space-y-3">
           {items.map((item, index) => (
@@ -282,7 +289,7 @@ export function FilterBar({
             </div>
           ))}
           <Button className="w-full" onClick={() => setMobileOpen(false)}>
-            Apply filters
+            {t('analysis.decisionUi.applyFilters')}
           </Button>
         </div>
       </DetailDrawer>
@@ -355,11 +362,18 @@ export function LoadingState({
   description?: string
   title?: string
 }) {
+  const { t } = useTranslation()
   return (
     <Card className="space-y-4 p-6">
       <div className="space-y-2">
-        <h3 className="text-base font-semibold text-text-primary">{title}</h3>
-        <p className="text-sm text-text-secondary">{description}</p>
+        <h3 className="text-base font-semibold text-text-primary">
+          {title === 'Loading' ? t('common.loading') : title}
+        </h3>
+        <p className="text-sm text-text-secondary">
+          {description === 'Pulling the latest analysis state.'
+            ? t('analysis.decisionUi.loadingDescription')
+            : description}
+        </p>
       </div>
       <div className="space-y-3">
         <Skeleton className="h-12 w-full rounded-[18px]" />
@@ -396,7 +410,8 @@ export function ErrorState({
 }
 
 export function SourceBadge({ item }: { item: EvidenceItem }) {
-  const sourceType = sourceTypeMeta(item)
+  const { t } = useTranslation()
+  const sourceType = sourceTypeMeta(item, t)
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Badge tone={sourceType.tone}>{sourceType.label}</Badge>
@@ -416,6 +431,7 @@ export function SourceCard({
   onOpen?: () => void
   sessionTitle?: string
 }) {
+  const { t } = useTranslation()
   const freshness = evidenceFreshnessMeta(item)
 
   return (
@@ -429,12 +445,12 @@ export function SourceCard({
           </div>
           <h3 className="text-base font-semibold text-text-primary">{item.title}</h3>
           <p className="text-sm text-text-secondary">
-            {item.sourceName} · Fetched {formatRelativeTime(item.fetchedAt)}
+            {item.sourceName} · {t('analysis.decisionUi.sourceCard.fetched', { value: formatRelativeTime(item.fetchedAt) })}
           </p>
         </div>
         {onOpen ? (
           <Button variant="secondary" size="sm" onClick={onOpen}>
-            View details
+            {t('analysis.decisionUi.sourceCard.viewDetails')}
             <ArrowUpRight className="size-4" />
           </Button>
         ) : null}
@@ -442,10 +458,10 @@ export function SourceCard({
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-3 rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Source summary</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">{t('analysis.decisionUi.sourceCard.sourceSummary')}</p>
           <p className="text-sm leading-6 text-text-secondary">{item.summary}</p>
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Extracted facts</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">{t('analysis.decisionUi.sourceCard.extractedFacts')}</p>
             <ul className="space-y-2 text-sm leading-6 text-text-secondary">
               {item.extractedFacts.slice(0, 3).map((fact) => (
                 <li key={fact} className="flex gap-2">
@@ -457,11 +473,11 @@ export function SourceCard({
           </div>
         </div>
         <div className="space-y-3 rounded-[20px] border border-border-subtle bg-bg-surface p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Usage and freshness</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">{t('analysis.decisionUi.sourceCard.usageFreshness')}</p>
           <div className="space-y-2 text-sm leading-6 text-text-secondary">
-            <p>Session: {sessionTitle ?? 'Unassigned'}</p>
-            <p>Linked conclusions: {linkedConclusionCount}</p>
-            <p>Freshness note: {item.freshness?.staleWarning ?? freshness.label}</p>
+            <p>{t('analysis.decisionUi.sourceCard.session')}: {sessionTitle ?? t('analysis.decisionUi.sourceCard.unassigned')}</p>
+            <p>{t('analysis.decisionUi.sourceCard.linkedConclusions')}: {linkedConclusionCount}</p>
+            <p>{t('analysis.decisionUi.sourceCard.freshnessNote')}: {item.freshness?.staleWarning ?? freshness.label}</p>
           </div>
           <a
             href={item.sourceUrl}
@@ -469,7 +485,7 @@ export function SourceCard({
             rel="noreferrer"
             className="inline-flex items-center gap-1 text-sm font-semibold text-accent-cyan hover:text-text-primary"
           >
-            Open original source
+            {t('analysis.decisionUi.sourceCard.openOriginalSource')}
             <ExternalLink className="size-4" />
           </a>
         </div>
@@ -491,7 +507,13 @@ export function ConclusionCard({
   title: string
   type: 'fact' | 'estimate' | 'inference'
 }) {
-  const label = type === 'fact' ? 'Fact' : type === 'estimate' ? 'Estimate' : 'Inference'
+  const { t } = useTranslation()
+  const label =
+    type === 'fact'
+      ? t('analysis.decisionUi.conclusionTypes.fact')
+      : type === 'estimate'
+        ? t('analysis.decisionUi.conclusionTypes.estimate')
+        : t('analysis.decisionUi.conclusionTypes.inference')
 
   return (
     <Card className="space-y-3 p-4">
@@ -500,7 +522,7 @@ export function ConclusionCard({
         <ConfidenceBadge confidence={confidence} />
       </div>
       <p className="text-sm leading-6 text-text-primary">{title}</p>
-      <p className="text-xs text-text-muted">Evidence links: {basisCount}</p>
+      <p className="text-xs text-text-muted">{t('analysis.decisionUi.evidenceLinks')}: {basisCount}</p>
     </Card>
   )
 }
@@ -512,8 +534,9 @@ export function CalculationCard({
   sessionTitle?: string
   task: CalculationTask
 }) {
-  const category = calculationCategory(task.taskType)
-  const status = calculationStatusMeta(task)
+  const { t } = useTranslation()
+  const category = calculationCategory(task.taskType, t)
+  const status = calculationStatusMeta(task, t)
 
   return (
     <Card className="space-y-4 p-5">
@@ -525,14 +548,14 @@ export function CalculationCard({
           </div>
           <h3 className="text-base font-semibold text-text-primary">{calculationTitle(task)}</h3>
           <p className="text-sm text-text-secondary">
-            {sessionTitle ?? 'Analysis calculation'} · {formatRelativeTime(task.createdAt)}
+            {sessionTitle ?? t('analysis.decisionUi.calculationCard.analysisCalculation')} · {formatRelativeTime(task.createdAt)}
           </p>
         </div>
       </div>
 
       <div className="grid gap-3 xl:grid-cols-[1.25fr_0.75fr]">
         <div className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Formula</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">{t('analysis.decisionUi.calculationCard.formula')}</p>
           <p className="mono mt-3 text-sm leading-6 text-text-primary">{task.formulaExpression}</p>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {Object.entries(task.inputParams).map(([key, value]) => (
@@ -545,11 +568,11 @@ export function CalculationCard({
         </div>
 
         <div className="rounded-[20px] border border-border-subtle bg-bg-surface p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Result</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">{t('analysis.decisionUi.calculationCard.result')}</p>
           <p className="metric-value mt-3 text-[1.9rem] font-semibold text-text-primary">{task.result}</p>
           <p className="mt-1 text-sm text-text-secondary">{task.units}</p>
           <p className="mt-4 text-sm leading-6 text-text-secondary">
-            {task.errorMargin ?? task.notes ?? task.failureReason ?? 'No additional note provided.'}
+            {task.errorMargin ?? task.notes ?? task.failureReason ?? t('analysis.decisionUi.calculationCard.noAdditionalNote')}
           </p>
         </div>
       </div>
@@ -572,6 +595,7 @@ export function SessionCard({
   onOpen?: () => void
   session: AnalysisSession
 }) {
+  const { t } = useTranslation()
   const resolvedEvidenceCount = evidenceCount ?? session.evidence.length
   const resolvedCalculationCount = calculationCount ?? session.calculations.length
 
@@ -587,11 +611,11 @@ export function SessionCard({
           <h3 className="line-clamp-2 text-lg font-semibold tracking-[-0.03em] text-text-primary">
             {session.problemStatement}
           </h3>
-          <p className="text-sm text-text-secondary">Updated {formatRelativeTime(session.updatedAt)}</p>
+          <p className="text-sm text-text-secondary">{t('analysis.decisionUi.sessionCard.updated', { value: formatRelativeTime(session.updatedAt) })}</p>
         </div>
         {onOpen ? (
           <Button variant="secondary" size="sm" onClick={onOpen}>
-            Open session
+            {t('analysis.decisionUi.sessionCard.openSession')}
             <ArrowUpRight className="size-4" />
           </Button>
         ) : null}
@@ -599,12 +623,12 @@ export function SessionCard({
 
       <div className="grid gap-3">
         <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Key conclusion</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">{t('analysis.decisionUi.sessionCard.keyConclusion')}</p>
           <p className="mt-2 text-sm leading-6 text-text-primary">{sessionKeyConclusion(session)}</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-[18px] border border-border-subtle bg-bg-surface p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Current understanding</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">{t('analysis.decisionUi.sessionCard.currentUnderstanding')}</p>
             <ul className="mt-2 space-y-1.5 text-sm leading-6 text-text-secondary">
               {currentUnderstanding(session).slice(0, 2).map((item) => (
                 <li key={item}>{item}</li>
@@ -612,10 +636,10 @@ export function SessionCard({
             </ul>
           </div>
           <div className="rounded-[18px] border border-border-subtle bg-bg-surface p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Signal coverage</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">{t('analysis.decisionUi.sessionCard.signalCoverage')}</p>
             <div className="mt-2 space-y-1.5 text-sm leading-6 text-text-secondary">
-              <p>{resolvedEvidenceCount} evidence items</p>
-              <p>{resolvedCalculationCount} calculations</p>
+              <p>{t('analysis.decisionUi.sessionCard.evidenceItems', { count: resolvedEvidenceCount })}</p>
+              <p>{t('analysis.decisionUi.sessionCard.calculations', { count: resolvedCalculationCount })}</p>
             </div>
           </div>
         </div>
@@ -687,8 +711,9 @@ export function ClarificationQuestionCard({
   question: ClarificationQuestion
   value: ClarificationDraftValue
 }) {
+  const { t } = useTranslation()
   const currentSliderValue = Number(value.selectedOptions[0] ?? question.recommended?.[0] ?? question.min ?? 5)
-  const meta = clarificationStateMeta(value)
+  const meta = clarificationStateMeta(value, t)
   const summary = clarificationSummary(question, value)
   const [expanded, setExpanded] = useState(value.answerStatus !== 'answered' || !summary)
 
@@ -725,7 +750,7 @@ export function ClarificationQuestionCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="neutral">Question</Badge>
+            <Badge tone="neutral">{t('analysis.decisionUi.clarificationCard.question')}</Badge>
             <Badge tone={meta.tone}>{meta.label}</Badge>
           </div>
           <h3 className="text-base font-semibold text-text-primary">{question.question}</h3>
@@ -736,7 +761,7 @@ export function ClarificationQuestionCard({
         </div>
         {summary ? (
           <Button variant="ghost" size="sm" onClick={() => setExpanded((current) => !current)}>
-            {expanded ? 'Hide' : 'Edit'}
+            {expanded ? t('analysis.decisionUi.clarificationCard.hide') : t('analysis.decisionUi.clarificationCard.edit')}
             <ChevronRight className={cn('size-4 transition', expanded ? 'rotate-90' : '')} />
           </Button>
         ) : null}
@@ -753,7 +778,7 @@ export function ClarificationQuestionCard({
           {question.fieldType === 'slider' ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-text-secondary">Current answer</span>
+                <span className="text-text-secondary">{t('analysis.decisionUi.clarificationCard.currentAnswer')}</span>
                 <span className="mono rounded-full bg-primary-soft px-3 py-1 text-text-primary">
                   {currentSliderValue}
                   {question.unit ?? ''}
@@ -803,7 +828,7 @@ export function ClarificationQuestionCard({
             question.fieldType === 'text' ? (
               <Input
                 value={value.customInput}
-                placeholder={question.inputHint || 'Add custom context'}
+                placeholder={question.inputHint || t('analysis.decisionUi.clarificationCard.addCustomContext')}
                 onChange={(event) =>
                   onChange({
                     ...value,
@@ -818,7 +843,7 @@ export function ClarificationQuestionCard({
                 placeholder={
                   question.inputHint ||
                   question.exampleAnswer ||
-                  'Add anything that changes the recommendation.'
+                  t('analysis.decisionUi.clarificationCard.addAnythingThatChangesRecommendation')
                 }
                 className="min-h-24"
                 onChange={(event) =>
@@ -836,7 +861,7 @@ export function ClarificationQuestionCard({
 
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="secondary" size="sm" onClick={() => onChange({ ...value, answerStatus: 'uncertain' })}>
-          Mark uncertain
+          {t('analysis.decisionUi.clarificationCard.markUncertain')}
         </Button>
         {question.allowSkip ? (
           <Button
@@ -851,7 +876,7 @@ export function ClarificationQuestionCard({
               })
             }
           >
-            Skip for now
+            {t('analysis.decisionUi.clarificationCard.skipForNow')}
           </Button>
         ) : null}
       </div>
@@ -1029,11 +1054,12 @@ export function ResourceKicker({
   fetchedAt: string
   url: string
 }) {
+  const locale = useAppStore((state) => state.locale)
   return (
     <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted">
       <span className="inline-flex items-center gap-1">
         <Clock3 className="size-3.5" />
-        {formatDateTime(fetchedAt, 'en')}
+        {formatDateTime(fetchedAt, locale)}
       </span>
       <span className="inline-flex items-center gap-1">
         <FileSearch className="size-3.5" />
@@ -1044,11 +1070,12 @@ export function ResourceKicker({
 }
 
 export function CalculationEmptyHint() {
+  const { t } = useTranslation()
   return (
     <div className="flex items-start gap-3 rounded-[20px] border border-border-subtle bg-app-bg-elevated px-4 py-4 text-sm leading-6 text-text-secondary">
       <Sigma className="mt-0.5 size-4 shrink-0 text-info" />
       <span>
-        Calculations appear only when the system has enough structured inputs to compute a decision-relevant result.
+        {t('analysis.decisionUi.calculationEmptyHint')}
       </span>
     </div>
   )

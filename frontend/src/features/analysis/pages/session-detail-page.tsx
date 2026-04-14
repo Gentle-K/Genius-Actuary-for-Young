@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { ArrowRight, CircleHelp, FileSearch, Sigma } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -18,28 +19,32 @@ import {
 } from '@/components/product/decision-ui'
 import { Button } from '@/components/ui/button'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
+import { useAppStore } from '@/lib/store/app-store'
 import { mergeCalculations, mergeEvidence } from '@/features/analysis/lib/catalog'
 import {
   continuePath,
   currentUnderstanding,
   formatRelativeTime,
   modeLabel,
+  sessionDisplayTitle,
   sessionConfidence,
   statusMeta,
 } from '@/features/analysis/lib/view-models'
 
 export function SessionDetailPage() {
+  const { t } = useTranslation()
   const { sessionId = '' } = useParams()
   const adapter = useApiAdapter()
   const navigate = useNavigate()
+  const locale = useAppStore((state) => state.locale)
 
   const sessionQuery = useQuery({
-    queryKey: ['analysis', sessionId, 'detail'],
+    queryKey: ['analysis', sessionId, 'detail', locale],
     queryFn: () => adapter.analysis.getById(sessionId),
   })
 
   const reportQuery = useQuery({
-    queryKey: ['analysis', sessionId, 'detail-report'],
+    queryKey: ['analysis', sessionId, 'detail-report', locale],
     queryFn: () => adapter.analysis.getReport(sessionId),
     enabled:
       sessionQuery.data?.status === 'READY_FOR_EXECUTION' ||
@@ -51,8 +56,8 @@ export function SessionDetailPage() {
   if (sessionQuery.isLoading) {
     return (
       <LoadingState
-        title="Loading session detail"
-        description="Preparing the current understanding, evidence coverage, and pending uncertainties."
+        title={t('analysis.sessionDetailPage.loadingTitle')}
+        description={t('analysis.sessionDetailPage.loadingDescription')}
       />
     )
   }
@@ -60,14 +65,14 @@ export function SessionDetailPage() {
   if (sessionQuery.isError || !sessionQuery.data) {
     return (
       <ErrorState
-        title="Could not load this session"
+        title={t('analysis.sessionDetailPage.errorTitle')}
         description={
           (sessionQuery.error as Error | undefined)?.message ??
-          'The requested session is unavailable.'
+          t('analysis.sessionDetailPage.errorFallback')
         }
         action={
           <Button variant="secondary" onClick={() => void sessionQuery.refetch()}>
-            Retry
+            {t('common.retry')}
           </Button>
         }
       />
@@ -76,6 +81,7 @@ export function SessionDetailPage() {
 
   const session = sessionQuery.data
   const report = reportQuery.data
+  const sessionTitle = sessionDisplayTitle(session, report)
   const understanding = currentUnderstanding(session)
   const evidence = mergeEvidence(session, report)
   const calculations = mergeCalculations(session, report)
@@ -89,21 +95,21 @@ export function SessionDetailPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Session detail"
-        title={session.problemStatement}
-        description="This page captures the current state of the decision, including what the system already understands, what remains unresolved, and what the next action should be."
+        eyebrow={t('analysis.sessionDetailPage.eyebrow')}
+        title={sessionTitle}
+        description={t('analysis.sessionDetailPage.description')}
         actions={
           <>
             <Button variant="secondary" onClick={() => void navigate('/sessions')}>
-              Back to sessions
+              {t('analysis.sessionDetailPage.backToSessions')}
             </Button>
             <Button onClick={() => void navigate(continuePath(session))}>
               {session.status === 'READY_FOR_EXECUTION' ||
               session.status === 'EXECUTING' ||
               session.status === 'MONITORING' ||
               session.status === 'COMPLETED'
-                ? 'Open report'
-                : 'Continue analysis'}
+                ? t('analysis.sessionDetailPage.openReport')
+                : t('analysis.sessionDetailPage.continueAnalysis')}
               <ArrowRight className="size-4" />
             </Button>
           </>
@@ -112,11 +118,11 @@ export function SessionDetailPage() {
 
       <SmallMetaList
         items={[
-          { label: 'Mode', value: modeLabel(session.mode) },
-          { label: 'Status', value: statusMeta(session.status).label },
-          { label: 'Updated', value: formatRelativeTime(session.updatedAt) },
+          { label: t('analysis.sessionDetailPage.meta.mode'), value: modeLabel(session.mode) },
+          { label: t('analysis.sessionDetailPage.meta.status'), value: statusMeta(session.status).label },
+          { label: t('analysis.sessionDetailPage.meta.updated'), value: formatRelativeTime(session.updatedAt) },
           {
-            label: 'Current round',
+            label: t('analysis.sessionDetailPage.meta.currentRound'),
             value: `${session.followUpRoundsUsed ?? 0} / ${session.followUpRoundLimit ?? 0}`,
           },
         ]}
@@ -125,8 +131,8 @@ export function SessionDetailPage() {
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
           <SectionCard
-            title="Current understanding"
-            description="These are the facts and constraints already visible before the next analysis step."
+            title={t('analysis.sessionDetailPage.understandingTitle')}
+            description={t('analysis.sessionDetailPage.understandingDescription')}
             actions={
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={session.status} />
@@ -144,50 +150,50 @@ export function SessionDetailPage() {
               </div>
             ) : (
               <EmptyState
-                title="Understanding not captured yet"
-                description="Start with clarifications so the system can anchor the recommendation in concrete constraints."
+                title={t('analysis.sessionDetailPage.understandingEmptyTitle')}
+                description={t('analysis.sessionDetailPage.understandingEmptyDescription')}
               />
             )}
           </SectionCard>
 
           <SectionCard
-            title="Current status and next action"
-            description="Dynamic follow-up questions and evidence synthesis are the main levers for improving recommendation quality."
+            title={t('analysis.sessionDetailPage.statusActionTitle')}
+            description={t('analysis.sessionDetailPage.statusActionDescription')}
           >
             <div className="grid gap-4 md:grid-cols-3">
               <MetricCard
-                title="Questions answered"
+                title={t('analysis.sessionDetailPage.metrics.questionsAnswered.title')}
                 value={String(session.questions.filter((item) => item.answered).length)}
-                detail="Answered questions sharpen assumptions and reduce unknowns."
+                detail={t('analysis.sessionDetailPage.metrics.questionsAnswered.detail')}
                 tone="brand"
               />
               <MetricCard
-                title="Pending questions"
+                title={t('analysis.sessionDetailPage.metrics.pendingQuestions.title')}
                 value={String(session.questions.filter((item) => !item.answered).length)}
-                detail="These are still blocking a higher-confidence recommendation."
+                detail={t('analysis.sessionDetailPage.metrics.pendingQuestions.detail')}
                 tone="warning"
               />
               <MetricCard
-                title="Evidence collected"
+                title={t('analysis.sessionDetailPage.metrics.evidenceCollected.title')}
                 value={String(evidence.length)}
-                detail="Sources already linked to this session."
+                detail={t('analysis.sessionDetailPage.metrics.evidenceCollected.detail')}
                 tone="success"
               />
             </div>
             <PreviewNote icon={<CircleHelp className="mt-0.5 size-4 shrink-0 text-info" />}>
-              Next action:{' '}
+              {t('analysis.sessionDetailPage.nextActionLabel')}:{' '}
               {session.status === 'READY_FOR_EXECUTION' ||
               session.status === 'EXECUTING' ||
               session.status === 'MONITORING' ||
               session.status === 'COMPLETED'
-                ? 'Review the report, execution plan, and monitoring state.'
-                : 'Continue the session to close blockers and raise confidence.'}
+                ? t('analysis.sessionDetailPage.nextActionReview')
+                : t('analysis.sessionDetailPage.nextActionContinue')}
             </PreviewNote>
           </SectionCard>
 
           <SectionCard
-            title="Evidence already linked"
-            description="These sources are available even before the final report is assembled."
+            title={t('analysis.sessionDetailPage.evidenceTitle')}
+            description={t('analysis.sessionDetailPage.evidenceDescription')}
           >
             {evidence.length ? (
               <div className="grid gap-3 md:grid-cols-2">
@@ -205,33 +211,33 @@ export function SessionDetailPage() {
               </div>
             ) : (
               <EmptyState
-                title="No evidence linked yet"
-                description="Evidence cards will appear here after search tasks start returning source summaries."
+                title={t('analysis.sessionDetailPage.evidenceEmptyTitle')}
+                description={t('analysis.sessionDetailPage.evidenceEmptyDescription')}
               />
             )}
           </SectionCard>
 
           <SectionCard
-            title="Calculation snapshot"
-            description="Visible calculations are deterministic outputs that support the recommendation."
+            title={t('analysis.sessionDetailPage.calculationsTitle')}
+            description={t('analysis.sessionDetailPage.calculationsDescription')}
           >
             {calculations.length ? (
               <div className="space-y-4">
                 {calculations.slice(0, 2).map((task) => (
-                  <CalculationCard key={task.id} task={task} sessionTitle={session.problemStatement} />
+                  <CalculationCard key={task.id} task={task} sessionTitle={sessionTitle} />
                 ))}
               </div>
             ) : (
               <EmptyState
-                title="No calculations yet"
-                description="The analysis will start surfacing calculations once there is enough structured input."
+                title={t('analysis.sessionDetailPage.calculationsEmptyTitle')}
+                description={t('analysis.sessionDetailPage.calculationsEmptyDescription')}
               />
             )}
           </SectionCard>
         </div>
 
         <div className="space-y-6 xl:sticky xl:top-28 xl:self-start">
-          <SectionCard title="Major conclusions so far" description="Facts, estimates, and inferences remain visibly labeled.">
+          <SectionCard title={t('analysis.sessionDetailPage.conclusionsTitle')} description={t('analysis.sessionDetailPage.conclusionsDescription')}>
             {session.conclusions.length ? (
               <div className="space-y-3">
                 {session.conclusions.map((item) => (
@@ -246,13 +252,13 @@ export function SessionDetailPage() {
               </div>
             ) : (
               <EmptyState
-                title="No conclusions yet"
-                description="The system will add conclusions after clarification or evidence synthesis starts."
+                title={t('analysis.sessionDetailPage.conclusionsEmptyTitle')}
+                description={t('analysis.sessionDetailPage.conclusionsEmptyDescription')}
               />
             )}
           </SectionCard>
 
-          <SectionCard title="Unresolved uncertainties" description="Unknowns are explicit product output, not hidden footnotes.">
+          <SectionCard title={t('analysis.sessionDetailPage.unresolvedTitle')} description={t('analysis.sessionDetailPage.unresolvedDescription')}>
             {unresolved.length ? (
               <div className="space-y-3">
                 {unresolved.map((item) => (
@@ -263,29 +269,29 @@ export function SessionDetailPage() {
               </div>
             ) : (
               <EmptyState
-                title="No unresolved uncertainties shown"
-                description="This session currently has no open uncertainty list in the frontend view."
+                title={t('analysis.sessionDetailPage.unresolvedEmptyTitle')}
+                description={t('analysis.sessionDetailPage.unresolvedEmptyDescription')}
               />
             )}
           </SectionCard>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
             <MetricCard
-              title="Evidence progress"
-              value={`${evidence.length} sources`}
-              detail="Source count is visible even before the report is finalized."
+              title={t('analysis.sessionDetailPage.evidenceProgressTitle')}
+              value={t('analysis.sessionDetailPage.evidenceProgressValue', { count: evidence.length })}
+              detail={t('analysis.sessionDetailPage.evidenceProgressDetail')}
               tone="brand"
             />
             <MetricCard
-              title="Calculation progress"
-              value={`${calculations.length} results`}
-              detail="Only deterministic outputs with display value are shown here."
+              title={t('analysis.sessionDetailPage.calculationProgressTitle')}
+              value={t('analysis.sessionDetailPage.calculationProgressValue', { count: calculations.length })}
+              detail={t('analysis.sessionDetailPage.calculationProgressDetail')}
               tone="success"
             />
           </div>
 
           <PreviewNote icon={<Sigma className="mt-0.5 size-4 shrink-0 text-info" />}>
-            Confidence should rise only when assumptions, evidence, and calculations converge. The UI keeps those boundaries visible instead of flattening them into one summary score.
+            {t('analysis.sessionDetailPage.confidenceBoundary')}
           </PreviewNote>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { Info } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
@@ -26,9 +27,9 @@ function badgeTone(tone: string) {
 
 export function ComparisonMatrix({
   matrix,
-  locale = 'en',
+  locale: _locale = 'en',
 }: ComparisonMatrixProps) {
-  const isZh = locale === 'zh'
+  const { t } = useTranslation()
 
   if (!matrix?.rows?.length || !matrix.metrics.length) {
     return null
@@ -53,7 +54,7 @@ export function ComparisonMatrix({
           <thead>
             <tr className="border-b border-border-subtle text-left align-bottom">
               <th className="sticky left-0 z-10 bg-app-panel px-3 py-3 text-xs font-medium uppercase tracking-[0.08em] text-text-muted">
-                {isZh ? '资产' : 'Asset'}
+                {t('analysis.comparisonMatrix.asset')}
               </th>
               {matrix.metrics.map((metric) => (
                 <th
@@ -84,12 +85,12 @@ export function ComparisonMatrix({
                     <div className="flex flex-wrap gap-2">
                       {(row.statuses ?? []).map((status) => (
                         <Badge key={`${row.assetId}-${status}`} tone={status === 'demo' ? 'warning' : status === 'verified' ? 'success' : 'neutral'}>
-                          {status}
+                          {t(`analysis.comparisonMatrix.statuses.${status}`, status)}
                         </Badge>
                       ))}
                       {!row.defaultRankEligible ? (
                         <Badge tone="warning">
-                          {isZh ? '默认排除' : 'Default-excluded'}
+                          {t('analysis.comparisonMatrix.defaultExcluded')}
                         </Badge>
                       ) : null}
                     </div>

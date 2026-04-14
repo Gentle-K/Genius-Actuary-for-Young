@@ -96,6 +96,71 @@ class SessionApiFlowTests(unittest.TestCase):
                 record_response.json()["report"]["attestation_draft"]["transaction_hash"],
             )
 
+    def test_rwa_sessions_project_report_locale_without_mojibake(self):
+        services = build_test_services()
+
+        with patched_test_client(services, oracle_snapshots=[]) as client:
+            create_response = client.post(
+                "/api/sessions",
+                json={
+                    "mode": AnalysisMode.MULTI_OPTION.value,
+                    "locale": "zh-CN",
+                    "problem_statement": "比较 USDC、代币化 MMF 和白银 RWA，做一笔 30 天的 HashKey Chain 配置。",
+                    "intake_context": {
+                        "investment_amount": 10000,
+                        "base_currency": "USDT",
+                        "preferred_asset_ids": [],
+                        "holding_period_days": 30,
+                        "risk_tolerance": "balanced",
+                        "liquidity_need": "t_plus_3",
+                        "minimum_kyc_level": 0,
+                        "wallet_address": "",
+                        "wants_onchain_attestation": True,
+                        "additional_constraints": "",
+                    },
+                },
+            )
+            self.assertEqual(200, create_response.status_code)
+            session_id = create_response.json()["session_id"]
+
+            complete_session_via_api(
+                client,
+                session_id,
+                answer_value="偏好低回撤，并保持 T+3 内流动性。",
+            )
+
+            zh_cn_response = client.get(
+                f"/api/sessions/{session_id}",
+                headers={"X-App-Locale": "zh-CN"},
+            )
+            en_response = client.get(
+                f"/api/sessions/{session_id}",
+                headers={"X-App-Locale": "en"},
+            )
+            zh_hk_response = client.get(
+                f"/api/sessions/{session_id}",
+                headers={"X-App-Locale": "zh-HK"},
+            )
+
+            for response in (zh_cn_response, en_response, zh_hk_response):
+                self.assertEqual(200, response.status_code, response.text)
+                self.assertNotIn("鏄", response.text)
+                self.assertNotIn("鍩", response.text)
+                self.assertNotIn("缁", response.text)
+
+            zh_cn_report = zh_cn_response.json()["report"]
+            en_report = en_response.json()["report"]
+            zh_hk_report = zh_hk_response.json()["report"]
+
+            self.assertEqual("zh-CN", zh_cn_report["locale"])
+            self.assertEqual("en", en_report["locale"])
+            self.assertEqual("zh-HK", zh_hk_report["locale"])
+            self.assertIn("Compare", en_report["title"])
+            self.assertNotRegex(en_report["title"], r"[\u4e00-\u9fff]")
+            self.assertIn("风险", zh_cn_report["asset_cards"][1]["fit_summary"])
+            self.assertIn("風險", zh_hk_report["asset_cards"][1]["fit_summary"])
+            self.assertNotIn("风险", zh_hk_report["asset_cards"][1]["fit_summary"])
+
     def test_unknown_session_returns_404_json(self):
         services = build_test_services()
 

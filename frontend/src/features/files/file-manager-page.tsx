@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
+import { isChineseLocale } from '@/lib/i18n/locale'
 import { formatBytes, formatDateTime } from '@/lib/utils/format'
 import { useAppStore } from '@/lib/store/app-store'
 
@@ -14,7 +15,7 @@ export function FileManagerPage() {
   const adapter = useApiAdapter()
   const queryClient = useQueryClient()
   const locale = useAppStore((state) => state.locale)
-  const isZh = i18n.language.startsWith('zh')
+  const isZh = isChineseLocale(i18n.language)
 
   const filesQuery = useQuery({
     queryKey: ['files'],

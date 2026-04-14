@@ -1,7 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
-  ArrowRight,
-  Building2,
   CheckCircle2,
   FileSearch,
   Mail,
@@ -11,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -27,8 +26,10 @@ const initialForm = {
 }
 
 export function LoginPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const adapter = useApiAdapter()
+  const locale = useAppStore((state) => state.locale)
   const setAuthSession = useAppStore((state) => state.setAuthSession)
   const [form, setForm] = useState(initialForm)
   const [inlineError, setInlineError] = useState('')
@@ -58,36 +59,36 @@ export function LoginPage() {
     () => [
       {
         icon: <FileSearch className="size-4" />,
-        title: 'Evidence-led output',
-        description: 'Freshness, confidence, and extracted facts stay visible from intake to report.',
+        title: t('auth.login.trustPoints.evidenceTitle'),
+        description: t('auth.login.trustPoints.evidenceDescription'),
       },
       {
         icon: <Sigma className="size-4" />,
-        title: 'Calculation discipline',
-        description: 'Deterministic math sits beside narrative reasoning instead of disappearing into prose.',
+        title: t('auth.login.trustPoints.calculationTitle'),
+        description: t('auth.login.trustPoints.calculationDescription'),
       },
       {
         icon: <ShieldCheck className="size-4" />,
-        title: 'Bounded recommendations',
-        description: 'The product separates facts, estimates, inferences, and unresolved unknowns.',
+        title: t('auth.login.trustPoints.boundedTitle'),
+        description: t('auth.login.trustPoints.boundedDescription'),
       },
     ],
-    [],
+    [t],
   )
 
   const handleEmailContinue = async () => {
     setInfoMessage('')
     if (!form.email.trim()) {
-      setInlineError('Enter your work email to continue.')
+      setInlineError(t('auth.login.emailRequired'))
       return
     }
     if (!/.+@.+\..+/.test(form.email.trim())) {
-      setInlineError('Enter a valid email address.')
+      setInlineError(t('auth.login.emailInvalid'))
       return
     }
 
     setInlineError('')
-    setInfoMessage('This release uses an email-first access flow with a browser-scoped session.')
+    setInfoMessage(t('auth.login.emailInfo'))
     await mutation.mutateAsync({
       email: form.email.trim(),
       password: 'email-access',
@@ -107,8 +108,8 @@ export function LoginPage() {
           id: `wallet:${nextState.address}`,
           name: `Wallet ${shortAddress(nextState.address)}`,
           email: `${nextState.address.toLowerCase()}@wallet.local`,
-          title: 'Connected wallet',
-          locale: 'en',
+          title: t('auth.login.walletTitle'),
+          locale,
           roles: ['analyst'],
           lastActiveAt: new Date().toISOString(),
         },
@@ -124,7 +125,7 @@ export function LoginPage() {
     setInlineError('')
     setInfoMessage('')
     if (!/^0x[a-fA-F0-9]{40}$/.test(safeAddress)) {
-      setInlineError('Enter a valid Safe address.')
+      setInlineError(t('auth.login.safeInvalid'))
       return
     }
 
@@ -135,8 +136,8 @@ export function LoginPage() {
         id: `safe:${safeAddress}`,
         name: `Safe ${shortAddress(safeAddress)}`,
         email: `${safeAddress.toLowerCase()}@safe.local`,
-        title: 'Safe workspace',
-        locale: 'en',
+        title: t('auth.login.safeTitle'),
+        locale,
         roles: ['analyst'],
         lastActiveAt: new Date().toISOString(),
       },
@@ -146,7 +147,7 @@ export function LoginPage() {
 
   const handleDemo = async () => {
     setInlineError('')
-    setInfoMessage('Demo access opens a curated workspace with sample sessions, evidence, calculations, and reports.')
+    setInfoMessage(t('auth.login.demoInfo'))
     await mutation.mutateAsync({
       email: 'demo@geniusactuary.ai',
       password: 'demo-access',
@@ -158,25 +159,25 @@ export function LoginPage() {
     <div className="app-grid min-h-screen bg-bg-canvas p-4 md:p-6">
       <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-[1440px] gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <Card className="relative overflow-hidden p-6 md:p-8 lg:p-10">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_24%),radial-gradient(circle_at_center_right,rgba(79,124,255,0.16),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(139,92,246,0.12),transparent_26%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_24%),radial-gradient(circle_at_center_right,rgba(79,124,255,0.16),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(124,92,255,0.12),transparent_26%)]" />
 
           <div className="relative flex h-full flex-col justify-between gap-10">
             <div className="space-y-6">
               <div className="space-y-4">
-                <p className="apple-kicker">Genius Actuary</p>
+                <p className="apple-kicker">{t('auth.login.heroEyebrow')}</p>
                 <div className="space-y-3">
-                  <h1 className="text-balance max-w-[11ch] text-[3rem] font-semibold leading-[0.92] tracking-[-0.07em] text-text-primary md:text-[4.9rem]">
-                    Institutional AI decision analysis for crypto and RWA workflows.
+                  <h1 className="text-balance max-w-[11ch] text-[clamp(2.8rem,8vw,4.9rem)] font-semibold leading-[0.92] tracking-[-0.07em] text-text-primary">
+                    {t('auth.login.heroTitle')}
                   </h1>
                   <p className="max-w-2xl text-[15px] leading-7 text-text-secondary md:text-[17px]">
-                    Evaluate costs, liquidity, evidence quality, scenario risk, and recommendation boundaries in one release-ready workspace.
+                    {t('auth.login.heroDescription')}
                   </p>
                 </div>
               </div>
 
               <div className="grid gap-3 md:grid-cols-3">
                 {trustPoints.map((item) => (
-                  <div key={item.title} className="rounded-[22px] border border-border-subtle bg-[rgba(19,34,58,0.74)] p-4">
+                  <div key={item.title} className="rounded-[22px] border border-border-subtle bg-panel-strong p-4">
                     <div className="inline-flex size-9 items-center justify-center rounded-full bg-primary-soft text-primary">
                       {item.icon}
                     </div>
@@ -187,55 +188,48 @@ export function LoginPage() {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-border-subtle bg-[rgba(15,27,49,0.82)] p-5 md:p-6">
+            <div className="rounded-[28px] border border-border-subtle bg-panel p-5 md:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-text-primary">Live report preview</p>
-                  <p className="mt-1 text-sm text-text-secondary">Should treasury idle cash remain in USDT or rotate into a tokenized MMF?</p>
+                  <p className="text-sm font-semibold text-text-primary">{t('auth.login.previewTitle')}</p>
+                  <p className="mt-1 text-sm text-text-secondary">{t('auth.login.previewSubtitle')}</p>
                 </div>
-                <Badge tone="primary">Report preview</Badge>
+                <Badge tone="primary">{t('auth.login.previewBadge')}</Badge>
               </div>
 
               <div className="mt-5 grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
                 <div className="space-y-3 rounded-[22px] border border-border-subtle bg-app-bg-elevated p-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone="info">Fact-led</Badge>
-                    <Badge tone="gold">Estimated range</Badge>
-                    <Badge tone="success">Confidence 84%</Badge>
+                    <Badge tone="info">{t('auth.login.previewFact')}</Badge>
+                    <Badge tone="gold">{t('auth.login.previewEstimated')}</Badge>
+                    <Badge tone="success">{t('auth.login.previewConfidence')}</Badge>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm font-semibold text-text-primary">Recommendation direction</p>
-                    <p className="text-sm leading-6 text-text-secondary">
-                      The MMF path improves yield, but only if redemption timing and KYC friction fit the operating cash window.
-                    </p>
+                    <p className="text-sm font-semibold text-text-primary">{t('auth.login.previewRecommendationTitle')}</p>
+                    <p className="text-sm leading-6 text-text-secondary">{t('auth.login.previewRecommendationBody')}</p>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="rounded-[18px] border border-border-subtle bg-bg-surface p-3">
-                      <p className="text-xs uppercase tracking-[0.12em] text-text-muted">Evidence</p>
-                      <p className="mt-2 text-sm text-text-primary">7 sources, 2 on-chain, 1 official disclosure</p>
+                      <p className="text-xs uppercase tracking-[0.12em] text-text-muted">{t('auth.login.previewEvidenceTitle')}</p>
+                      <p className="mt-2 text-sm text-text-primary">{t('auth.login.previewEvidenceBody')}</p>
                     </div>
                     <div className="rounded-[18px] border border-border-subtle bg-bg-surface p-3">
-                      <p className="text-xs uppercase tracking-[0.12em] text-text-muted">Calculation</p>
-                      <p className="mt-2 text-sm text-text-primary">Fee drag vs yield spread, 90-day breakeven</p>
+                      <p className="text-xs uppercase tracking-[0.12em] text-text-muted">{t('auth.login.previewCalculationTitle')}</p>
+                      <p className="mt-2 text-sm text-text-primary">{t('auth.login.previewCalculationBody')}</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="rounded-[22px] border border-border-subtle bg-bg-surface p-4">
-                  <p className="text-sm font-semibold text-text-primary">Trust cues</p>
+                  <p className="text-sm font-semibold text-text-primary">{t('auth.login.trustCueTitle')}</p>
                   <div className="mt-4 space-y-3">
-                    {[
-                      'Last updated and freshness stay visible.',
-                      'Facts and inferred states are styled differently.',
-                      'Assumptions and unknowns remain explicit.',
-                      'Recommendation stays bounded by constraints.',
-                    ].map((step) => (
+                    {['trustCue1', 'trustCue2', 'trustCue3', 'trustCue4'].map((key) => (
                       <div
-                        key={step}
+                        key={key}
                         className="flex items-center gap-3 rounded-[18px] border border-border-subtle bg-app-bg-elevated px-3 py-3 text-sm text-text-secondary"
                       >
                         <CheckCircle2 className="size-4 shrink-0 text-info" />
-                        <span>{step}</span>
+                        <span>{t(`auth.login.${key}`)}</span>
                       </div>
                     ))}
                   </div>
@@ -248,139 +242,85 @@ export function LoginPage() {
         <div className="flex items-center">
           <Card className="w-full max-w-[520px] p-6 md:p-8">
             <div className="space-y-3">
-              <p className="apple-kicker">Access</p>
-              <h2 className="text-[2rem] font-semibold tracking-[-0.05em] text-text-primary">Continue to your workspace</h2>
-                  <p className="text-sm leading-6 text-text-secondary">
-                Connect a wallet or enter a Safe to start the HashKey Chain RWA flow. Email access remains available as a secondary entry.
-              </p>
+              <p className="apple-kicker">{t('auth.login.heroEyebrow')}</p>
+              <h2 className="text-[2rem] font-semibold tracking-[-0.05em] text-text-primary">
+                {t('auth.login.title')}
+              </h2>
+              <p className="text-sm leading-6 text-text-secondary">{t('auth.login.description')}</p>
             </div>
 
             <div className="mt-6 space-y-4">
               <div className="rounded-[22px] border border-border-subtle bg-app-bg-elevated p-4">
                 <div className="flex items-start gap-3">
-                  <div className="mt-0.5 inline-flex size-10 items-center justify-center rounded-full bg-primary-soft text-primary">
-                    <Wallet className="size-5" />
-                  </div>
+                  <Mail className="mt-1 size-4 text-primary" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-text-primary">Primary entry: wallet</p>
-                    <p className="mt-1 text-sm leading-6 text-text-secondary">
-                      Connect an EOA to read KYC / SBT, detect balances, and drive the execute flow from the same wallet context.
-                    </p>
+                    <p className="text-sm font-semibold text-text-primary">{t('auth.login.emailTitle')}</p>
+                    <div className="mt-3 space-y-3">
+                      <Input
+                        aria-label={t('auth.login.emailTitle')}
+                        value={form.email}
+                        placeholder={t('auth.login.emailPlaceholder')}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, email: event.target.value }))
+                        }
+                      />
+                      <Button className="w-full" onClick={() => void handleEmailContinue()}>
+                        {t('auth.login.continueEmail')}
+                      </Button>
+                    </div>
                   </div>
                 </div>
-                <Button
-                  className="mt-4 w-full"
-                  disabled={wallet.isWalletBusy || bootstrapQuery.isLoading}
-                  onClick={() => void handleWalletContinue()}
-                >
-                  {wallet.isConnected
-                    ? `Continue as ${wallet.walletLabel}`
-                    : wallet.isWalletBusy
-                      ? 'Connecting wallet...'
-                      : 'Connect wallet'}
-                  <ArrowRight className="size-4" />
-                </Button>
               </div>
 
               <div className="rounded-[22px] border border-border-subtle bg-app-bg-elevated p-4">
                 <div className="flex items-start gap-3">
-                  <div className="mt-0.5 inline-flex size-10 items-center justify-center rounded-full bg-primary-soft text-primary">
-                    <Building2 className="size-5" />
-                  </div>
+                  <Wallet className="mt-1 size-4 text-primary" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-text-primary">Primary entry: Safe</p>
-                    <p className="mt-1 text-sm leading-6 text-text-secondary">
-                      P0 uses address-based Safe entry for read + bundle generation. Proposal and multisig approval stay out of scope for this phase.
-                    </p>
+                    <p className="text-sm font-semibold text-text-primary">{t('auth.login.walletTitle')}</p>
+                    <p className="mt-1 text-sm leading-6 text-text-secondary">{t('auth.login.walletDescription')}</p>
+                    <Button className="mt-3 w-full" variant="secondary" onClick={() => void handleWalletContinue()}>
+                      {t('auth.login.continueWallet')}
+                    </Button>
                   </div>
                 </div>
-                <div className="mt-4 flex gap-3">
-                  <Input
-                    aria-label="Safe address"
-                    placeholder="0x..."
-                    value={form.safeAddress}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, safeAddress: event.target.value }))
-                    }
-                  />
-                  <Button variant="secondary" onClick={handleSafeContinue}>
-                    Use Safe
-                  </Button>
+              </div>
+
+              <div className="rounded-[22px] border border-border-subtle bg-app-bg-elevated p-4">
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="mt-1 size-4 text-primary" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-text-primary">{t('auth.login.safeTitle')}</p>
+                    <div className="mt-3 space-y-3">
+                      <Input
+                        aria-label={t('auth.login.safeTitle')}
+                        value={form.safeAddress}
+                        placeholder="0x..."
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, safeAddress: event.target.value }))
+                        }
+                      />
+                      <Button className="w-full" variant="secondary" onClick={handleSafeContinue}>
+                        {t('auth.login.continueSafe')}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Mail className="size-4 text-text-muted" />
-                  <label htmlFor="email" className="text-sm font-semibold text-text-primary">
-                    Secondary entry: work email
-                  </label>
-                </div>
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@company.com"
-                  value={form.email}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, email: event.target.value }))
-                  }
-                />
-                <p className="text-xs text-text-muted">
-                  Email access remains browser-scoped in this release build. Use it when wallet / Safe context is not required.
-                </p>
-              </div>
-
-              {inlineError ? (
-                <div className="rounded-[20px] border border-[rgba(244,63,94,0.28)] bg-[rgba(244,63,94,0.1)] px-4 py-3 text-sm text-danger">
-                  {inlineError}
-                </div>
-              ) : null}
-
-              {infoMessage ? (
-                <div className="rounded-[20px] border border-[rgba(34,211,238,0.24)] bg-[rgba(34,211,238,0.08)] px-4 py-3 text-sm text-info">
-                  {infoMessage}
-                </div>
-              ) : null}
-
-              <div className="space-y-3">
-                <Button
-                  className="w-full"
-                  disabled={mutation.isPending}
-                  onClick={() => void handleEmailContinue()}
-                >
-                  {mutation.isPending ? 'Entering workspace...' : 'Continue with email'}
-                  <ArrowRight className="size-4" />
-                </Button>
-                <Button
-                  variant="secondary"
-                  className="w-full"
-                  disabled={mutation.isPending}
-                  onClick={() => void handleDemo()}
-                >
-                  Try demo workspace
+              <div className="rounded-[22px] border border-border-subtle bg-app-bg-elevated p-4">
+                <p className="text-sm font-semibold text-text-primary">{t('auth.login.demoTitle')}</p>
+                <p className="mt-1 text-sm leading-6 text-text-secondary">{t('auth.login.demoDescription')}</p>
+                <Button className="mt-3 w-full" variant="secondary" onClick={() => void handleDemo()}>
+                  {t('auth.login.continueDemo')}
                 </Button>
               </div>
             </div>
 
-            <div className="mt-6 rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
-              <p className="text-xs uppercase tracking-[0.12em] text-text-muted">Privacy and security</p>
-              <p className="mt-2 text-sm leading-6 text-text-secondary">
-                Decision context, evidence summaries, and exports should be handled as sensitive working material. Review data handling policies before sharing external links or PDFs.
-              </p>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-x-4 gap-y-2 text-xs text-text-muted">
-              <a href="/" onClick={(event) => event.preventDefault()} className="hover:text-text-primary">
-                Privacy
-              </a>
-              <a href="/" onClick={(event) => event.preventDefault()} className="hover:text-text-primary">
-                Terms
-              </a>
-              <a href="/" onClick={(event) => event.preventDefault()} className="hover:text-text-primary">
-                Data handling
-              </a>
-            </div>
+            {inlineError ? (
+              <p className="mt-4 text-sm text-danger">{inlineError}</p>
+            ) : infoMessage ? (
+              <p className="mt-4 text-sm text-text-secondary">{infoMessage}</p>
+            ) : null}
           </Card>
         </div>
       </div>

@@ -126,6 +126,47 @@ function manualChunkFor(id: string) {
   }
 }
 
+type ProxyErrorListener = (...args: any[]) => void
+
+function configureApiProxy(proxy: {
+  listeners(event: 'error'): ProxyErrorListener[]
+  removeAllListeners(event: 'error'): void
+  on(event: 'error', listener: ProxyErrorListener): void
+}) {
+  const defaultErrorListeners = proxy.listeners('error')
+
+  proxy.removeAllListeners('error')
+  proxy.on('error', (...args: any[]) => {
+    const [error, req, res] = args as [
+      NodeJS.ErrnoException,
+      { url?: string },
+      {
+        headersSent?: boolean
+        writableEnded?: boolean
+        writeHead?: (statusCode: number, headers?: Record<string, string>) => void
+        end?: (chunk?: string) => void
+      } | undefined,
+    ]
+
+    const isLogoutRequest = req?.url?.startsWith('/api/auth/logout')
+    const isTransportFailure =
+      error?.code === 'ECONNRESET' ||
+      error?.code === 'ECONNREFUSED' ||
+      error?.message?.toLowerCase().includes('socket hang up') ||
+      error?.message?.toLowerCase().includes('fetch failed')
+
+    if (isLogoutRequest && isTransportFailure) {
+      if (res && !res.headersSent && !res.writableEnded) {
+        res.writeHead?.(204, { 'Content-Type': 'application/json' })
+        res.end?.()
+      }
+      return
+    }
+
+    defaultErrorListeners.forEach((listener) => listener(...args))
+  })
+}
+
 export default defineConfig(({ mode }) => {
   const env = {
     ...loadEnv(mode, frontendRoot, ''),
@@ -152,6 +193,7 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: env.VITE_PROXY_TARGET ?? 'http://localhost:8000',
           changeOrigin: true,
+          configure: configureApiProxy,
         },
         '/ws': {
           target: env.VITE_WS_PROXY_TARGET ?? 'ws://localhost:8000',

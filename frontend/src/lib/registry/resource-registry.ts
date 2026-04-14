@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 
 import { i18n } from '@/lib/i18n'
+import { isChineseLocale } from '@/lib/i18n/locale'
 import type { ResourceRecord } from '@/types'
 
 export interface ResourceFieldDefinition {
@@ -191,6 +192,6 @@ function buildRegistry(isZh: boolean): ResourceDefinition[] {
 }
 
 export function getResourceDefinition(resourceKey: string) {
-  const isZh = i18n.language.startsWith('zh')
+  const isZh = isChineseLocale(i18n.language)
   return buildRegistry(isZh).find((resource) => resource.key === resourceKey)
 }

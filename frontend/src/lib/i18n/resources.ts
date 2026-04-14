@@ -1,6 +1,11 @@
 import type { Resource } from 'i18next'
+import {
+  enProductCopy,
+  zhCnProductCopy,
+  zhHkProductCopy,
+} from '@/lib/i18n/product-copy'
 
-export const resources = {
+const baseResources = {
   zh: {
     translation: {
       app: {
@@ -509,5 +514,57 @@ export const resources = {
           'Review this browser’s saved analyses and their latest progress.',
       },
     },
+  },
+} satisfies Resource
+
+type LocaleTree = Record<string, unknown>
+
+function cloneLocaleTree<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
+function mergeLocaleTree<T extends LocaleTree>(base: T, overrides: LocaleTree): T {
+  const target = base as LocaleTree
+
+  for (const [key, value] of Object.entries(overrides)) {
+    if (
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      target[key] &&
+      typeof target[key] === 'object' &&
+      !Array.isArray(target[key])
+    ) {
+      mergeLocaleTree(target[key] as LocaleTree, value as LocaleTree)
+    } else {
+      target[key] = value
+    }
+  }
+
+  return base
+}
+
+const zhCnTranslation = mergeLocaleTree(
+  cloneLocaleTree(baseResources.zh.translation),
+  zhCnProductCopy,
+)
+const zhHkTranslation = mergeLocaleTree(
+  cloneLocaleTree(baseResources.zh.translation),
+  zhHkProductCopy,
+)
+const enTranslation = mergeLocaleTree(
+  cloneLocaleTree(baseResources.en.translation),
+  enProductCopy,
+)
+
+export const resources = {
+  en: {
+    translation: enTranslation,
+  },
+  'zh-CN': {
+    translation: zhCnTranslation,
+  },
+  'zh-HK': {
+    translation: zhHkTranslation,
   },
 } satisfies Resource

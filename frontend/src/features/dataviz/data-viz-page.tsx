@@ -5,11 +5,12 @@ import { ChartCard } from '@/components/charts/chart-card'
 import { PageHeader } from '@/components/layout/page-header'
 import { Card } from '@/components/ui/card'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
+import { isChineseLocale } from '@/lib/i18n/locale'
 
 export function DataVizPage() {
   const { i18n, t } = useTranslation()
   const adapter = useApiAdapter()
-  const isZh = i18n.language.startsWith('zh')
+  const isZh = isChineseLocale(i18n.language)
 
   const bundleQuery = useQuery({
     queryKey: ['dataviz'],

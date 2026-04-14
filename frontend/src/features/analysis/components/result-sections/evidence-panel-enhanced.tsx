@@ -1,4 +1,5 @@
 import { ExternalLink, FileText } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { formatDateTime } from '@/lib/utils/format'
@@ -17,7 +18,7 @@ export function EvidencePanelEnhanced({
   governance,
   locale = 'en',
 }: EvidencePanelEnhancedProps) {
-  const isZh = locale === 'zh'
+  const { t } = useTranslation()
 
   if (!evidence.length) {
     return null
@@ -28,10 +29,10 @@ export function EvidencePanelEnhanced({
         <div className="flex items-center gap-2">
           <FileText className="h-5 w-5 text-white/50" />
         <h3 className="text-sm font-semibold text-white/90">
-          {isZh ? '证据面板' : 'Evidence Panel'}
+          {t('analysis.evidencePanel.title')}
         </h3>
         <span className="text-xs text-white/40">
-          {evidence.length} {isZh ? '条' : 'items'}
+          {t('analysis.evidencePanel.items', { count: evidence.length })}
         </span>
         </div>
 
@@ -42,7 +43,7 @@ export function EvidencePanelEnhanced({
                 {(governance.overallScore * 100).toFixed(0)}%
               </Badge>
               <span className="text-sm text-white/75">
-                {isZh ? '证据覆盖 / 可信度' : 'Evidence coverage / confidence'}
+                {t('analysis.evidencePanel.coverageConfidence')}
               </span>
             </div>
             {governance.weakEvidenceWarning ? (
@@ -82,16 +83,16 @@ export function EvidencePanelEnhanced({
                 ) : null}
                 {item.freshness ? (
                   <Badge tone={item.freshness.bucket === 'fresh' ? 'success' : item.freshness.bucket === 'aging' ? 'warning' : item.freshness.bucket === 'stale' ? 'danger' : 'neutral'}>
-                    {item.freshness.label || item.freshness.bucket}
+                    {t(`analysis.evidencePanel.freshness.${item.freshness.bucket}`, item.freshness.label || item.freshness.bucket)}
                   </Badge>
                 ) : null}
                 {item.factType ? (
                   <Badge tone={item.factType === 'onchain_verified_fact' ? 'success' : 'neutral'}>
-                    {item.factType}
+                    {t(`analysis.evidencePanel.factType.${item.factType}`, item.factType)}
                   </Badge>
                 ) : null}
                 {item.conflictKeys?.length ? (
-                  <Badge tone="danger">{isZh ? '存在冲突' : 'Conflict'}</Badge>
+                  <Badge tone="danger">{t('analysis.evidencePanel.conflict')}</Badge>
                 ) : null}
                 {item.sourceUrl ? (
                   <a
@@ -99,7 +100,7 @@ export function EvidencePanelEnhanced({
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-white/30 transition hover:text-white/70"
-                    aria-label={isZh ? '打开来源链接' : 'Open source link'}
+                    aria-label={t('analysis.evidencePanel.openSourceLink')}
                   >
                     <ExternalLink className="h-4 w-4" />
                   </a>
@@ -121,15 +122,15 @@ export function EvidencePanelEnhanced({
 
             <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-white/35">
               <span>
-                {isZh ? '置信度' : 'Confidence'}:{' '}
+                {t('analysis.evidencePanel.confidence')}:{' '}
                 {(item.confidence * 100).toFixed(0)}%
               </span>
               <span>
-                {isZh ? '抓取时间' : 'Fetched at'}:{' '}
+                {t('analysis.evidencePanel.fetchedAt')}:{' '}
                 {formatDateTime(item.fetchedAt, locale)}
               </span>
               <span>
-                {isZh ? '来源类型' : 'Source type'}: {item.sourceType}
+                {t('analysis.evidencePanel.sourceType')}: {item.sourceType}
               </span>
               {item.freshness?.staleWarning ? (
                 <span>{item.freshness.staleWarning}</span>

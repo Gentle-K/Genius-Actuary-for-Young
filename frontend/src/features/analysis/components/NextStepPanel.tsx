@@ -1,4 +1,5 @@
 import { ExternalLink } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
@@ -11,9 +12,9 @@ interface NextStepPanelProps {
 
 export function NextStepPanel({
   intents = [],
-  locale = 'en',
+  locale: _locale = 'en',
 }: NextStepPanelProps) {
-  const isZh = locale === 'zh'
+  const { t } = useTranslation()
 
   if (!intents.length) {
     return null
@@ -23,12 +24,10 @@ export function NextStepPanel({
     <Card className="space-y-4 p-6" data-testid="next-step-panel">
       <div>
         <h2 className="text-lg font-semibold text-text-primary">
-          {isZh ? '下一步执行' : 'Next steps'}
+          {t('analysis.nextStepPanel.title')}
         </h2>
         <p className="mt-2 text-sm leading-7 text-text-secondary">
-          {isZh
-            ? '即使没有直接执行集成，也会把当前最接近执行的动作、阻塞项和检查清单列出来。'
-            : 'Even when direct execution is unavailable, this section keeps the action intent, blockers, and checklist explicit.'}
+          {t('analysis.nextStepPanel.description')}
         </p>
       </div>
 
@@ -39,9 +38,11 @@ export function NextStepPanel({
               <p className="font-medium text-text-primary">{intent.assetName}</p>
               <div className="flex flex-wrap gap-2">
                 <Badge tone={intent.actionReadiness === 'ready' ? 'success' : intent.actionReadiness === 'partial' ? 'warning' : 'danger'}>
-                  {intent.actionReadiness}
+                  {t(`analysis.nextStepPanel.readiness.${intent.actionReadiness}`, intent.actionReadiness)}
                 </Badge>
-                <Badge tone="neutral">{intent.actionType}</Badge>
+                <Badge tone="neutral">
+                  {t(`analysis.nextStepPanel.actionType.${intent.actionType}`, intent.actionType)}
+                </Badge>
               </div>
             </div>
             {intent.summary ? (

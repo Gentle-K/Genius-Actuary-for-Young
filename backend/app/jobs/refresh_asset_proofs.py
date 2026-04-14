@@ -5,7 +5,7 @@ from app.config import Settings
 from app.rwa.catalog import build_asset_library, build_chain_config
 
 
-def refresh_asset_proofs(*, locale: str = "zh", network: str = ""):
+def refresh_asset_proofs(*, locale: str = "zh-CN", network: str = ""):
     services = get_app_services()
     settings = Settings.from_env()
     chain_config = build_chain_config(settings)

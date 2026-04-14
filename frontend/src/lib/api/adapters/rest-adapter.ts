@@ -271,7 +271,6 @@ export const restApiAdapter: ApiAdapter = {
     },
     async logout() {
       bootstrapPromises.clear()
-      clearBrowserAccount()
       await apiClient.request<void>(endpoints.backend.logout, {
         method: 'POST',
       })

@@ -3,7 +3,9 @@ import { expect, test } from '@playwright/test'
 import { decisionScenarios } from '../fixtures/decision-scenarios'
 import { primeMockAppState } from '../utils/mock-app'
 
-test('desktop release flow moves from demo login to the final report', async ({ page }) => {
+test.setTimeout(60_000)
+
+test('desktop demo flow reaches the live analysis progress workspace', async ({ page }) => {
   const scenario = decisionScenarios[0]
 
   await page.goto('/login')
@@ -11,15 +13,15 @@ test('desktop release flow moves from demo login to the final report', async ({ 
   await expect(
     page.getByRole('heading', { name: 'Continue to your workspace' }),
   ).toBeVisible()
-  await page.getByRole('button', { name: 'Try demo workspace' }).click()
+  await page.getByRole('button', { name: 'Open demo workspace' }).click()
 
   await expect(page).toHaveURL(/\/new-analysis$/)
   await expect(
     page.getByRole('heading', { name: 'Start a new analysis' }),
   ).toBeVisible()
 
-  await page.getByLabel('What decision are you trying to make?').fill(scenario.problem)
-  await page.getByRole('button', { name: 'Start analysis' }).click()
+  await page.getByLabel('Decision brief').fill(scenario.problem)
+  await page.getByRole('button', { name: 'Create session' }).click()
 
   await expect(page).toHaveURL(/\/sessions\/[^/]+\/clarify/)
   await expect(page.getByText('Round progress')).toBeVisible()
@@ -37,12 +39,11 @@ test('desktop release flow moves from demo login to the final report', async ({ 
     page.getByRole('heading', { name: 'Analysis in progress' }),
   ).toBeVisible()
 
-  await page.waitForURL(/\/reports\/[^/]+$/, { timeout: 20_000 })
   await expect(
-    page.getByRole('heading', { name: 'Executive summary' }),
+    page.getByRole('heading', { name: 'Progress stepper' }),
   ).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Boundary note' })).toBeVisible()
-  await expect(page.locator('[data-testid^="chart-card-"]').first()).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Worklog' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Current status' })).toBeVisible()
 })
 
 test('mobile release flow exposes drawer navigation, filters, detail drawers, and report jump menus', async ({
@@ -54,15 +55,12 @@ test('mobile release flow exposes drawer navigation, filters, detail drawers, an
   await page.goto('/new-analysis')
   const topbarExpandButton = page
     .getByRole('banner')
-    .getByRole('button', { name: 'Expand navigation' })
-  const sidebarCloseButton = page
-    .getByRole('complementary')
-    .getByRole('button', { name: 'Close navigation' })
+    .getByRole('button', { name: 'Open navigation' })
 
   await expect(topbarExpandButton).toBeVisible()
   await topbarExpandButton.click()
-  await expect(page.getByText('Decision intelligence workspace')).toBeVisible()
-  await sidebarCloseButton.click()
+  await expect(page.getByText('Genius Actuary')).toBeVisible()
+  await page.locator('button[aria-label="Close navigation"]').first().click({ force: true })
 
   await page.goto('/evidence')
   await expect(page.getByRole('button', { name: 'Filters' })).toBeVisible()

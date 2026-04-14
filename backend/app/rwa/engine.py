@@ -127,7 +127,7 @@ def _normalize_network(value: str | None, default: str = "testnet") -> str:
     return default
 
 
-def _network_label(network: str, *, locale: str = "zh") -> str:
+def _network_label(network: str, *, locale: str = "zh-CN") -> str:
     if network == "mainnet":
         return text_for_locale(locale, "HashKey Chain 主网", "HashKey Chain Mainnet")
     return text_for_locale(locale, "HashKey Chain 测试网", "HashKey Chain Testnet")
@@ -200,7 +200,7 @@ def simulate_holding(
     investment_amount: float,
     holding_period_days: int,
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
     analysis_seed: int | None = None,
 ) -> HoldingPeriodSimulation:
     seed_suffix = f":{analysis_seed}" if analysis_seed is not None else ""
@@ -277,7 +277,7 @@ def simulate_holding(
     )
 
 
-def _simulation_note(asset: AssetTemplate, *, locale: str = "zh") -> str:
+def _simulation_note(asset: AssetTemplate, *, locale: str = "zh-CN") -> str:
     if asset.asset_type == AssetType.STABLECOIN:
         return text_for_locale(
             locale,
@@ -311,7 +311,7 @@ def simulate_multi_horizon(
     investment_amount: float,
     horizons: list[int] | None = None,
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
     analysis_seed: int | None = None,
 ) -> list[HoldingPeriodSimulation]:
     """Run ``simulate_holding`` for multiple holding horizons.
@@ -445,7 +445,7 @@ def recommend_allocations(
     context: RwaIntakeContext,
     asset_cards: list[AssetAnalysisCard],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[PortfolioAllocation]:
     by_type = TYPE_TARGET_WEIGHTS[context.risk_tolerance]
     scored_cards: list[tuple[AssetAnalysisCard, float, str]] = []
@@ -546,7 +546,7 @@ def recommend_allocations(
     context: RwaIntakeContext,
     asset_cards: list[AssetAnalysisCard],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[PortfolioAllocation]:
     scored_cards: list[tuple[AssetAnalysisCard, float, str]] = []
 
@@ -584,7 +584,7 @@ def _allocation_block_reason(
     context: RwaIntakeContext,
     card: AssetAnalysisCard,
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> str:
     effective_kyc_level = _effective_kyc_level(context)
     if (
@@ -625,7 +625,7 @@ def _allocation_block_reason(
     return ""
 
 
-def _allocation_rationale(card: AssetAnalysisCard, *, locale: str = "zh") -> str:
+def _allocation_rationale(card: AssetAnalysisCard, *, locale: str = "zh-CN") -> str:
     if card.asset_type == AssetType.STABLECOIN:
         return text_for_locale(
             locale,
@@ -659,7 +659,7 @@ def _source_name(url: str) -> str:
 def build_catalog_evidence(
     asset: AssetTemplate,
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
     fetched_at: datetime | None = None,
 ) -> list[EvidenceItem]:
     evidence_items: list[EvidenceItem] = []
@@ -746,7 +746,7 @@ def build_asset_cards(
     context: RwaIntakeContext,
     simulations: list[HoldingPeriodSimulation] | None = None,
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[AssetAnalysisCard]:
     if simulations is None:
         simulations = [
@@ -838,7 +838,7 @@ def build_comparison_tables(
     asset_cards: list[AssetAnalysisCard],
     simulations: list[HoldingPeriodSimulation],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[ReportTable]:
     simulation_map = {simulation.asset_id: simulation for simulation in simulations}
 
@@ -907,7 +907,7 @@ def build_option_profiles(
     asset_cards: list[AssetAnalysisCard],
     simulations: list[HoldingPeriodSimulation],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[OptionProfile]:
     simulation_map = {simulation.asset_id: simulation for simulation in simulations}
     profiles: list[OptionProfile] = []
@@ -979,7 +979,7 @@ def build_comparison_matrix(
     asset_cards: list[AssetAnalysisCard],
     simulations: list[HoldingPeriodSimulation],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> ComparisonMatrix:
     simulation_map = {simulation.asset_id: simulation for simulation in simulations}
     asset_map = {asset.asset_id: asset for asset in assets}
@@ -1159,7 +1159,7 @@ def build_action_intents(
     assets: list[AssetTemplate],
     allocations: list[PortfolioAllocation],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[ActionIntent]:
     allocation_map = {allocation.asset_id: allocation for allocation in allocations}
     intents: list[ActionIntent] = []
@@ -1214,7 +1214,7 @@ def build_recommendation_reason(
     asset_cards: list[AssetAnalysisCard],
     allocations: list[PortfolioAllocation],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> RecommendationReason:
     top_allocation = next((item for item in allocations if item.target_weight_pct > 0), None)
     card_map = {card.asset_id: card for card in asset_cards}
@@ -1286,7 +1286,7 @@ def build_report_warnings(
     allocations: list[PortfolioAllocation],
     *,
     evidence_warning: str = "",
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[str]:
     warnings: list[str] = [
         text_for_locale(
@@ -1325,7 +1325,7 @@ def build_report_unknowns(
     context: RwaIntakeContext,
     assets: list[AssetTemplate],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[str]:
     unknowns = [
         text_for_locale(
@@ -1363,7 +1363,7 @@ def _build_constraint_impacts(
     assets: list[AssetTemplate],
     allocations: list[PortfolioAllocation],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[ConstraintImpact]:
     impacts = [
         ConstraintImpact(
@@ -1430,7 +1430,7 @@ def _build_sensitivity_summary(
     context: RwaIntakeContext,
     assets: list[AssetTemplate],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[SensitivitySummary]:
     scenarios = [
         ("horizon_shift", text_for_locale(locale, "持有期变化", "Changed horizon"), _counterfactual_context(context, scenario_key="horizon_shift")),
@@ -1515,7 +1515,7 @@ def _truth_badges(card: AssetAnalysisCard) -> list[str]:
     return ["Issuer disclosed"]
 
 
-def _liquidity_display(asset: AssetTemplate, *, locale: str = "zh") -> str:
+def _liquidity_display(asset: AssetTemplate, *, locale: str = "zh-CN") -> str:
     if asset.redemption_days == 0 and asset.lockup_days == 0:
         return text_for_locale(locale, "高 / T+0", "High / T+0")
     if asset.redemption_days <= 3 and asset.lockup_days == 0:
@@ -1523,7 +1523,7 @@ def _liquidity_display(asset: AssetTemplate, *, locale: str = "zh") -> str:
     return text_for_locale(locale, f"低 / T+{asset.redemption_days}", f"Low / T+{asset.redemption_days}")
 
 
-def _kyc_fit_display(context: RwaIntakeContext, card: AssetAnalysisCard, *, locale: str = "zh") -> str:
+def _kyc_fit_display(context: RwaIntakeContext, card: AssetAnalysisCard, *, locale: str = "zh-CN") -> str:
     effective = _effective_kyc_level(context)
     required = card.kyc_required_level or 0
     if required <= effective:
@@ -1531,7 +1531,7 @@ def _kyc_fit_display(context: RwaIntakeContext, card: AssetAnalysisCard, *, loca
     return text_for_locale(locale, f"不足 (需 L{required})", f"Insufficient (needs L{required})")
 
 
-def _suitability_display(card: AssetAnalysisCard, blocked_reason: str, *, locale: str = "zh") -> str:
+def _suitability_display(card: AssetAnalysisCard, blocked_reason: str, *, locale: str = "zh-CN") -> str:
     if blocked_reason:
         return text_for_locale(locale, "受限", "Constrained")
     utility = float(card.metadata.get("utility_score", 0.0) or 0.0)
@@ -1547,7 +1547,7 @@ def _action_summary(
     allocation: PortfolioAllocation | None,
     blocked_reason: str,
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> str:
     if blocked_reason:
         return text_for_locale(
@@ -1568,7 +1568,7 @@ def _action_summary(
     )
 
 
-def _action_checklist(asset: AssetTemplate, blocked_reason: str, *, locale: str = "zh") -> list[str]:
+def _action_checklist(asset: AssetTemplate, blocked_reason: str, *, locale: str = "zh-CN") -> list[str]:
     if blocked_reason:
         return [
             text_for_locale(locale, "先解决当前阻塞项。", "Resolve the current blocker first."),
@@ -1626,7 +1626,7 @@ def build_comparison_tables(
     asset_cards: list[AssetAnalysisCard],
     simulations: list[HoldingPeriodSimulation],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[ReportTable]:
     simulation_map = {simulation.asset_id: simulation for simulation in simulations}
     comparison_rows = []
@@ -1689,7 +1689,7 @@ def build_comparison_tables(
     asset_cards: list[AssetAnalysisCard],
     simulations: list[HoldingPeriodSimulation],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[ReportTable]:
     simulation_map = {simulation.asset_id: simulation for simulation in simulations}
     comparison_rows = []
@@ -1732,6 +1732,7 @@ def build_comparison_tables(
                 locale,
                 "收益、CVaR、退出速度和风险调整效用放在同一口径下比较，避免只看 APY。",
                 "Returns, CVaR, exit speed, and risk-adjusted utility are shown on one basis so the ranking is not driven by APY alone.",
+                zh_hk="收益、CVaR、退出速度與風險調整效用放在同一口徑下比較，避免只看 APY。",
             ),
         ),
         ReportTable(
@@ -1742,6 +1743,7 @@ def build_comparison_tables(
                 locale,
                 "各维度先做 winsorize，再结合当前资产集的 AHP / CRITIC 权重；0-100 分越高越危险。",
                 "Each dimension is winsorized first and then blended with AHP/CRITIC weights across the current asset set; higher scores are riskier on a 0-100 scale.",
+                zh_hk="各維度先做 winsorize，再結合當前資產集的 AHP / CRITIC 權重；0-100 分越高越危險。",
             ),
         ),
     ]
@@ -1750,7 +1752,7 @@ def build_option_profiles(
     asset_cards: list[AssetAnalysisCard],
     simulations: list[HoldingPeriodSimulation],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[OptionProfile]:
     simulation_map = {simulation.asset_id: simulation for simulation in simulations}
     raw_utility_scores = [float(card.metadata.get("utility_score", 0.0) or 0.0) for card in asset_cards]
@@ -1771,42 +1773,48 @@ def build_option_profiles(
                 pros=[
                     text_for_locale(
                         locale,
-                        f"鍩哄噯鎸佹湁鏈熸敹鐩婄害 {simulation.return_pct_base:.2f}%锛孋VaR95 {simulation.cvar_95_pct:.2f}%",
+                        f"基准持有期收益约 {simulation.return_pct_base:.2f}%，CVaR95 {simulation.cvar_95_pct:.2f}%",
                         f"Base holding return is about {simulation.return_pct_base:.2f}% with CVaR95 at {simulation.cvar_95_pct:.2f}%.",
+                        zh_hk=f"基準持有期收益約 {simulation.return_pct_base:.2f}%，CVaR95 {simulation.cvar_95_pct:.2f}%",
                     ),
                     text_for_locale(
                         locale,
-                        f"鏁版嵁璐ㄩ噺 {card.risk_data_quality:.2f}锛岄€€鍑鸿妭濂?{'T+0' if card.exit_days == 0 else f'T+{card.exit_days}'}",
+                        f"数据质量 {card.risk_data_quality:.2f}，退出节奏 {'T+0' if card.exit_days == 0 else f'T+{card.exit_days}'}",
                         f"Data quality is {card.risk_data_quality:.2f} and exit cadence is {'T+0' if card.exit_days == 0 else f'T+{card.exit_days}'}.",
+                        zh_hk=f"資料質量 {card.risk_data_quality:.2f}，退出節奏 {'T+0' if card.exit_days == 0 else f'T+{card.exit_days}'}",
                     ),
                 ],
                 cons=[
                     text_for_locale(
                         locale,
-                        f"缁煎悎椋庨櫓 {card.risk_vector.overall:.1f}/100",
+                        f"综合风险 {card.risk_vector.overall:.1f}/100",
                         f"Overall risk is {card.risk_vector.overall:.1f}/100.",
+                        zh_hk=f"綜合風險 {card.risk_vector.overall:.1f}/100",
                     ),
                     text_for_locale(
                         locale,
-                        f"鎬绘垚鏈?{card.total_cost_bps} bps",
+                        f"总成本 {card.total_cost_bps} bps",
                         f"All-in cost is {card.total_cost_bps} bps over the modeled hold.",
+                        zh_hk=f"總成本 {card.total_cost_bps} bps",
                     ),
                 ],
                 conditions=[
                     text_for_locale(
                         locale,
-                        f"KYC 绛夌骇瑕佹眰: {card.kyc_required_level or 0}",
+                        f"KYC 等级要求: {card.kyc_required_level or 0}",
                         f"KYC requirement: {card.kyc_required_level or 0}",
+                        zh_hk=f"KYC 等級要求: {card.kyc_required_level or 0}",
                     ),
                 ],
                 fit_for=[card.fit_summary],
                 caution_flags=[
                     text_for_locale(
                         locale,
-                        f"閲嶇偣椋庨櫓: {item.dimension} {item.normalized_score:.1f}/100"
-                        if locale == "zh"
+                        f"重点风险: {item.dimension} {item.normalized_score:.1f}/100"
+                        if locale.startswith("zh")
                         else f"Primary risk: {item.dimension} {item.normalized_score:.1f}/100",
                         f"Primary risk: {item.dimension} {item.normalized_score:.1f}/100",
+                        zh_hk=f"重點風險: {item.dimension} {item.normalized_score:.1f}/100",
                     )
                     for item in top_risks
                 ],
@@ -1828,7 +1836,7 @@ def build_tx_draft(
     asset_lookup: dict[str, AssetTemplate],
     chain_config: HashKeyChainConfig,
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> TxDraft:
     attestation_network, _, attestation_contract, attestation_explorer = _resolve_attestation_network(chain_config)
     executable_allocations = [
@@ -2144,7 +2152,7 @@ def _recommendation_lines(
     context: RwaIntakeContext,
     allocations: list[PortfolioAllocation],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[str]:
     top_allocations = [allocation for allocation in allocations if allocation.target_weight_pct > 0][:3]
     recommendations = [
@@ -2177,7 +2185,7 @@ def _open_questions(
     context: RwaIntakeContext,
     allocations: list[PortfolioAllocation],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[str]:
     questions: list[str] = []
     if not context.wallet_address:
@@ -2211,7 +2219,7 @@ def _asset_summary_lines(
     asset_cards: Iterable[AssetAnalysisCard],
     simulations: dict[str, HoldingPeriodSimulation],
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> list[str]:
     lines: list[str] = []
     for card in asset_cards:
@@ -2251,6 +2259,59 @@ def _classify_evidence_source(evidence: EvidenceItem) -> DataSourceTag:
     return DataSourceTag.MODEL_INFERENCE
 
 
+def _format_asset_names_for_title(asset_names: list[str], *, locale: str = "zh-CN") -> str:
+    if not asset_names:
+        return text_for_locale(locale, "RWA 资产", "RWA assets", zh_hk="RWA 資產")
+    if len(asset_names) == 1:
+        return asset_names[0]
+    if len(asset_names) == 2:
+        return text_for_locale(
+            locale,
+            f"{asset_names[0]} 与 {asset_names[1]}",
+            f"{asset_names[0]} and {asset_names[1]}",
+            zh_hk=f"{asset_names[0]} 與 {asset_names[1]}",
+        )
+    head = ", ".join(asset_names[:-1])
+    return text_for_locale(
+        locale,
+        f"{head} 与 {asset_names[-1]}",
+        f"{head}, and {asset_names[-1]}",
+        zh_hk=f"{head} 與 {asset_names[-1]}",
+    )
+
+
+def _report_title(
+    mode: AnalysisMode,
+    selected_assets: list[AssetTemplate],
+    context: RwaIntakeContext,
+    *,
+    locale: str = "zh-CN",
+) -> str:
+    asset_label = _format_asset_names_for_title(
+        [asset.name for asset in selected_assets[:3]],
+        locale=locale,
+    )
+    if mode == AnalysisMode.STRATEGY_COMPARE:
+        return text_for_locale(
+            locale,
+            f"比较 {asset_label}，做一笔 {context.holding_period_days} 天的 HashKey Chain 配置。",
+            f"Compare {asset_label} for a {context.holding_period_days}-day HashKey Chain allocation.",
+            zh_hk=f"比較 {asset_label}，做一筆 {context.holding_period_days} 天的 HashKey Chain 配置。",
+        )
+    primary = selected_assets[0].name if selected_assets else text_for_locale(
+        locale,
+        "目标资产",
+        "the target asset",
+        zh_hk="目標資產",
+    )
+    return text_for_locale(
+        locale,
+        f"{primary} {context.holding_period_days} 天尽调与执行报告。",
+        f"{primary} {context.holding_period_days}-day diligence and execution report.",
+        zh_hk=f"{primary} {context.holding_period_days} 天盡調與執行報告。",
+    )
+
+
 def build_rwa_report(
     *,
     mode: AnalysisMode,
@@ -2258,7 +2319,7 @@ def build_rwa_report(
     context: RwaIntakeContext,
     chain_config: HashKeyChainConfig,
     asset_library: list[AssetTemplate],
-    locale: str = "zh",
+    locale: str = "zh-CN",
     oracle_snapshots: list[OracleSnapshot] | None = None,
 ) -> tuple[AnalysisReport, list[EvidenceItem]]:
     working_context = context.model_copy(deep=True)
@@ -2572,7 +2633,9 @@ def build_rwa_report(
     )
 
     report = AnalysisReport(
+        title=_report_title(mode, selected_assets, working_context, locale=locale),
         summary=summary,
+        locale=locale,
         assumptions=assumptions,
         unknowns=unknowns,
         warnings=warnings,

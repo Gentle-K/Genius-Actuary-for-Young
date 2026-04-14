@@ -22,6 +22,7 @@ import {
   switchWalletNetwork,
   writePlanAttestation,
 } from '@/lib/web3/hashkey'
+import { isChineseLocale } from '@/lib/i18n/locale'
 
 export function useHashKeyWallet(chainConfig?: HashKeyChainConfig) {
   const walletAddress = useAppStore((state) => state.walletAddress)
@@ -35,7 +36,7 @@ export function useHashKeyWallet(chainConfig?: HashKeyChainConfig) {
     [chainConfig, walletChainId],
   )
   const hasProvider = Boolean(getInjectedProvider())
-  const isZh = locale === 'zh'
+  const isZh = isChineseLocale(locale)
 
   useEffect(() => {
     const provider = getInjectedProvider()

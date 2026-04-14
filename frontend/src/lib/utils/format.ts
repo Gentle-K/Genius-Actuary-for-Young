@@ -1,31 +1,27 @@
 import type { LanguageCode } from '@/types'
-
-const localeMap: Record<LanguageCode, string> = {
-  en: 'en-US',
-  zh: 'zh-CN',
-}
+import { toIntlLocale } from '@/lib/i18n/locale'
 
 export function formatDateTime(value: string, language: LanguageCode = 'en') {
-  return new Intl.DateTimeFormat(localeMap[language], {
+  return new Intl.DateTimeFormat(toIntlLocale(language), {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
 }
 
 export function formatDate(value: string, language: LanguageCode = 'en') {
-  return new Intl.DateTimeFormat(localeMap[language], {
+  return new Intl.DateTimeFormat(toIntlLocale(language), {
     dateStyle: 'medium',
   }).format(new Date(value))
 }
 
 export function formatNumber(value: number, language: LanguageCode = 'en') {
-  return new Intl.NumberFormat(localeMap[language], {
+  return new Intl.NumberFormat(toIntlLocale(language), {
     maximumFractionDigits: 2,
   }).format(value)
 }
 
 export function formatPercent(value: number, language: LanguageCode = 'en') {
-  return new Intl.NumberFormat(localeMap[language], {
+  return new Intl.NumberFormat(toIntlLocale(language), {
     style: 'percent',
     maximumFractionDigits: 1,
   }).format(value)
@@ -55,7 +51,7 @@ export function formatMoney(
     return '--'
   }
 
-  const locale = localeMap[language]
+  const locale = toIntlLocale(language)
   if (isIsoCurrencyCode(currency.toUpperCase())) {
     return new Intl.NumberFormat(locale, {
       style: 'currency',

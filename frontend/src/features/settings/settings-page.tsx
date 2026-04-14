@@ -1,12 +1,17 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Monitor, MoonStar, ShieldCheck, SunMedium, Wallet } from 'lucide-react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { PageHeader } from '@/components/layout/page-header'
+import {
+  PageContainer,
+  PageHeader,
+  PageSection,
+} from '@/components/layout/page-header'
 import {
   ErrorState,
   MetricCard,
-  PreviewNote,
   SectionCard,
 } from '@/components/product/decision-ui'
 import { Button } from '@/components/ui/button'
@@ -14,58 +19,98 @@ import { Card } from '@/components/ui/card'
 import { Input, Select } from '@/components/ui/field'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
 import { useAppStore } from '@/lib/store/app-store'
-import { getLocalStorageItem, setLocalStorageItem } from '@/lib/utils/safe-storage'
+import {
+  getLocalStorageItem,
+  setLocalStorageItem,
+} from '@/lib/utils/safe-storage'
+import { shortAddress } from '@/lib/web3/hashkey'
+import type { LanguageCode, SettingsPayload, ThemeMode } from '@/types'
+
+const RISK_KEY = 'ga-risk-default'
+const RETENTION_KEY = 'ga-data-retention'
+const CURRENCY_KEY = 'ga-preferred-currency'
+const NETWORK_KEY = 'ga-preferred-network'
+const CHART_UNIT_KEY = 'ga-preferred-chart-unit'
+const EXPORT_KEY = 'ga-export-preference'
+
+const legacyRiskMap: Record<string, string> = {
+  Conservative: 'conservative',
+  Balanced: 'balanced',
+  Aggressive: 'aggressive',
+}
+const legacyNetworkMap: Record<string, string> = {
+  'HashKey Chain': 'hashkey',
+  'Ethereum-compatible': 'evm',
+  'General analysis': 'general',
+}
+const legacyChartUnitMap: Record<string, string> = {
+  'Native units': 'native',
+  'USD converted': 'usd',
+  'Percent / basis points': 'percent',
+}
+const legacyExportMap: Record<string, string> = {
+  'Manual export': 'manual',
+  'Auto PDF after completion': 'autoPdf',
+}
+const legacyRetentionMap: Record<string, string> = {
+  '30 days': '30',
+  '90 days': '90',
+  '365 days': '365',
+}
+
+function normalizeStoredValue(
+  value: string | null,
+  fallback: string,
+  mapping?: Record<string, string>,
+) {
+  if (!value) {
+    return fallback
+  }
+  return mapping?.[value] ?? value
+}
+
+function themeIcon(mode: ThemeMode) {
+  if (mode === 'light') {
+    return <SunMedium className="size-4" />
+  }
+  if (mode === 'dark') {
+    return <MoonStar className="size-4" />
+  }
+  return <Monitor className="size-4" />
+}
 
 export function SettingsPage() {
+  const { t } = useTranslation()
   const adapter = useApiAdapter()
+  const queryClient = useQueryClient()
   const syncFromSettings = useAppStore((state) => state.syncFromSettings)
+  const themeMode = useAppStore((state) => state.themeMode)
   const walletAddress = useAppStore((state) => state.walletAddress)
-  const walletChainId = useAppStore((state) => state.walletChainId)
-  const [riskDefault, setRiskDefault] = useState('Balanced')
-  const [dataRetention, setDataRetention] = useState('90 days')
+  const locale = useAppStore((state) => state.locale)
+  const [riskDefault, setRiskDefault] = useState('balanced')
+  const [dataRetention, setDataRetention] = useState('90')
   const [preferredCurrency, setPreferredCurrency] = useState('USD')
-  const [preferredNetwork, setPreferredNetwork] = useState('HashKey Chain')
-  const [chartUnit, setChartUnit] = useState('Native units')
-  const [exportPreference, setExportPreference] = useState('Manual export')
+  const [preferredNetwork, setPreferredNetwork] = useState('hashkey')
+  const [chartUnit, setChartUnit] = useState('native')
+  const [exportPreference, setExportPreference] = useState('manual')
+  const hydratedFromServerRef = useRef(false)
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
     queryFn: adapter.settings.get,
   })
-
   const profileQuery = useQuery({
     queryKey: ['profile'],
     queryFn: adapter.profile.get,
   })
 
-  const updateMutation = useMutation({
-    mutationFn: adapter.settings.update,
-    onSuccess: (settings) => {
-      syncFromSettings(settings)
-      toast.success('Settings saved')
-    },
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: adapter.auth.deletePersonalData,
-    onSuccess: (result) => {
-      toast.success(`Deleted ${result.deletedSessionCount} demo session(s)`)
-    },
-  })
-
   useEffect(() => {
-    const storedRisk = getLocalStorageItem('ga-risk-default')
-    const storedRetention = getLocalStorageItem('ga-data-retention')
-    const storedCurrency = getLocalStorageItem('ga-preferred-currency')
-    const storedNetwork = getLocalStorageItem('ga-preferred-network')
-    const storedChartUnit = getLocalStorageItem('ga-preferred-chart-unit')
-    const storedExportPreference = getLocalStorageItem('ga-export-preference')
-    if (storedRisk) setRiskDefault(storedRisk)
-    if (storedRetention) setDataRetention(storedRetention)
-    if (storedCurrency) setPreferredCurrency(storedCurrency)
-    if (storedNetwork) setPreferredNetwork(storedNetwork)
-    if (storedChartUnit) setChartUnit(storedChartUnit)
-    if (storedExportPreference) setExportPreference(storedExportPreference)
+    setRiskDefault(normalizeStoredValue(getLocalStorageItem(RISK_KEY), 'balanced', legacyRiskMap))
+    setDataRetention(normalizeStoredValue(getLocalStorageItem(RETENTION_KEY), '90', legacyRetentionMap))
+    setPreferredCurrency(normalizeStoredValue(getLocalStorageItem(CURRENCY_KEY), 'USD'))
+    setPreferredNetwork(normalizeStoredValue(getLocalStorageItem(NETWORK_KEY), 'hashkey', legacyNetworkMap))
+    setChartUnit(normalizeStoredValue(getLocalStorageItem(CHART_UNIT_KEY), 'native', legacyChartUnitMap))
+    setExportPreference(normalizeStoredValue(getLocalStorageItem(EXPORT_KEY), 'manual', legacyExportMap))
   }, [])
 
   const saveLocalPreferences = (
@@ -76,22 +121,85 @@ export function SettingsPage() {
     nextChartUnit = chartUnit,
     nextExportPreference = exportPreference,
   ) => {
-    setLocalStorageItem('ga-risk-default', nextRisk)
-    setLocalStorageItem('ga-data-retention', nextRetention)
-    setLocalStorageItem('ga-preferred-currency', nextCurrency)
-    setLocalStorageItem('ga-preferred-network', nextNetwork)
-    setLocalStorageItem('ga-preferred-chart-unit', nextChartUnit)
-    setLocalStorageItem('ga-export-preference', nextExportPreference)
+    setLocalStorageItem(RISK_KEY, nextRisk)
+    setLocalStorageItem(RETENTION_KEY, nextRetention)
+    setLocalStorageItem(CURRENCY_KEY, nextCurrency)
+    setLocalStorageItem(NETWORK_KEY, nextNetwork)
+    setLocalStorageItem(CHART_UNIT_KEY, nextChartUnit)
+    setLocalStorageItem(EXPORT_KEY, nextExportPreference)
+  }
+
+  const updateMutation = useMutation({
+    mutationFn: adapter.settings.update,
+    onMutate: async (nextSettings: SettingsPayload) => {
+      await queryClient.cancelQueries({ queryKey: ['settings'] })
+      const previousSettings = queryClient.getQueryData<SettingsPayload>(['settings'])
+      queryClient.setQueryData<SettingsPayload>(['settings'], nextSettings)
+      syncFromSettings(nextSettings)
+      return { previousSettings }
+    },
+    onSuccess: (settings) => {
+      queryClient.setQueryData(['settings'], settings)
+      syncFromSettings(settings)
+      toast.success(t('settings.saved'))
+    },
+    onError: (_error, _nextSettings, context) => {
+      if (context?.previousSettings) {
+        queryClient.setQueryData(['settings'], context.previousSettings)
+        syncFromSettings(context.previousSettings)
+      }
+      toast.error(t('common.retry'))
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['settings'] })
+    },
+  })
+  const deleteMutation = useMutation({
+    mutationFn: adapter.auth.deletePersonalData,
+    onSuccess: (result) => {
+      toast.success(t('settings.deleteSuccess', { count: result.deletedSessionCount }))
+    },
+  })
+
+  const currentSettings = settingsQuery.data
+  const profile = profileQuery.data
+
+  useLayoutEffect(() => {
+    if (currentSettings && !hydratedFromServerRef.current) {
+      hydratedFromServerRef.current = true
+      syncFromSettings(currentSettings)
+    }
+  }, [currentSettings, syncFromSettings])
+
+  const localeOptions = useMemo(
+    () =>
+      [
+        { value: 'en', label: t('common.languages.en') },
+        { value: 'zh-CN', label: t('common.languages.zhCn') },
+        { value: 'zh-HK', label: t('common.languages.zhHk') },
+      ] satisfies Array<{ value: LanguageCode; label: string }>,
+    [t],
+  )
+
+  const applyServerSettings = (patch: Partial<SettingsPayload>) => {
+    const cachedSettings = queryClient.getQueryData<SettingsPayload>(['settings']) ?? currentSettings
+    if (!cachedSettings) {
+      return
+    }
+    updateMutation.mutate({
+      ...cachedSettings,
+      ...patch,
+    })
   }
 
   if (settingsQuery.isError || profileQuery.isError) {
     return (
       <ErrorState
-        title="Could not load settings"
+        title={t('settings.title')}
         description={
           (settingsQuery.error as Error | undefined)?.message ??
           (profileQuery.error as Error | undefined)?.message ??
-          'The settings page is unavailable.'
+          t('common.retry')
         }
         action={
           <Button
@@ -101,310 +209,315 @@ export function SettingsPage() {
               void profileQuery.refetch()
             }}
           >
-            Retry
+            {t('common.retry')}
           </Button>
         }
       />
     )
   }
 
-  if (settingsQuery.isLoading || profileQuery.isLoading || !settingsQuery.data || !profileQuery.data) {
+  if (!currentSettings || !profile) {
     return (
       <Card className="space-y-4 p-6">
-        <p className="text-base font-semibold text-text-primary">Loading settings</p>
-        <p className="text-sm text-text-secondary">
-          Preparing profile, preferences, and retention controls.
-        </p>
+        <p className="text-base font-semibold text-text-primary">{t('common.loading')}</p>
+        <p className="text-sm text-text-secondary">{t('settings.description')}</p>
       </Card>
     )
   }
 
-  const settings = settingsQuery.data
-  const profile = profileQuery.data
-
   return (
-    <div className="space-y-6">
+    <PageContainer>
       <PageHeader
-        eyebrow="Settings"
-        title="Settings"
-        description="Manage profile details, release-safe defaults, export behavior, notifications, wallet connections, and retention choices for this workspace."
+        eyebrow={t('settings.eyebrow')}
+        title={t('settings.title')}
+        description={t('settings.description')}
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <PageSection className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          title="Profile"
-          value={profile.name}
-          detail={profile.email}
+          title={t('settings.groups.appearance')}
+          value={localeOptions.find((item) => item.value === locale)?.label ?? locale}
+          detail={t('settings.groupDescriptions.appearance')}
           tone="brand"
         />
         <MetricCard
-          title="Default risk preference"
-          value={riskDefault}
-          detail="Used as an intake default when starting a new analysis."
+          title={t('settings.groups.defaults')}
+          value={t(`settings.options.risk.${riskDefault}`)}
+          detail={t('settings.groupDescriptions.defaults')}
           tone="success"
         />
         <MetricCard
-          title="Default currency"
-          value={preferredCurrency}
-          detail="Stored locally until server-side release preferences expand."
+          title={t('settings.groups.notifications')}
+          value={t(`settings.options.export.${exportPreference}`)}
+          detail={t('settings.groupDescriptions.notifications')}
+          tone="warning"
+        />
+        <MetricCard
+          title={t('settings.groups.account')}
+          value={walletAddress ? t('settings.notificationsEnabled') : t('settings.notificationsDisabled')}
+          detail={walletAddress ? shortAddress(walletAddress) : t('actions.disconnectWallet')}
           tone="brand"
         />
-        <MetricCard
-          title="Wallet connection"
-          value={walletAddress ? 'Connected' : 'Not connected'}
-          detail={walletAddress ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : 'No wallet connected in this browser session.'}
-          tone="success"
-        />
-      </div>
+      </PageSection>
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="space-y-6">
-          <SectionCard title="Profile" description="Basic account information for this browser-linked workspace.">
-            <div className="grid gap-4 md:grid-cols-2">
+      <PageSection className="space-y-6">
+        <SectionCard
+          title={t('settings.groups.appearance')}
+          description={t('settings.groupDescriptions.appearance')}
+        >
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-text-primary">
+                {t('settings.fields.language')}
+              </label>
+              <Select
+                value={locale}
+                onChange={(event) =>
+                  void applyServerSettings({ language: event.target.value as LanguageCode })
+                }
+              >
+                {localeOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-text-primary">
+                {t('settings.fields.theme')}
+              </label>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {(['system', 'dark', 'light'] as const).map((optionThemeMode) => {
+                  const active = themeMode === optionThemeMode
+                  return (
+                    <button
+                      key={optionThemeMode}
+                      type="button"
+                      aria-pressed={active}
+                      className={
+                        active
+                          ? 'flex items-center justify-center gap-2 rounded-[18px] border border-primary bg-primary-soft px-4 py-3 text-sm font-semibold text-text-primary'
+                          : 'flex items-center justify-center gap-2 rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary'
+                      }
+                      onClick={() => void applyServerSettings({ themeMode: optionThemeMode })}
+                    >
+                      {themeIcon(optionThemeMode)}
+                      {t(`common.themes.${optionThemeMode}`)}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title={t('settings.groups.defaults')}
+          description={t('settings.groupDescriptions.defaults')}
+        >
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-text-primary">{t('settings.fields.risk')}</label>
+              <Select
+                value={riskDefault}
+                onChange={(event) => {
+                  const next = event.target.value
+                  setRiskDefault(next)
+                  saveLocalPreferences(next)
+                }}
+              >
+                <option value="conservative">{t('settings.options.risk.conservative')}</option>
+                <option value="balanced">{t('settings.options.risk.balanced')}</option>
+                <option value="aggressive">{t('settings.options.risk.aggressive')}</option>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-text-primary">{t('settings.fields.currency')}</label>
+              <Select
+                value={preferredCurrency}
+                onChange={(event) => {
+                  const next = event.target.value
+                  setPreferredCurrency(next)
+                  saveLocalPreferences(riskDefault, dataRetention, next)
+                }}
+              >
+                <option value="USD">{t('settings.options.currency.usd')}</option>
+                <option value="USDC">{t('settings.options.currency.usdc')}</option>
+                <option value="USDT">{t('settings.options.currency.usdt')}</option>
+                <option value="HKD">{t('settings.options.currency.hkd')}</option>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-text-primary">{t('settings.fields.network')}</label>
+              <Select
+                value={preferredNetwork}
+                onChange={(event) => {
+                  const next = event.target.value
+                  setPreferredNetwork(next)
+                  saveLocalPreferences(riskDefault, dataRetention, preferredCurrency, next)
+                }}
+              >
+                <option value="hashkey">{t('settings.options.network.hashkey')}</option>
+                <option value="evm">{t('settings.options.network.evm')}</option>
+                <option value="general">{t('settings.options.network.general')}</option>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-text-primary">{t('settings.fields.chartUnit')}</label>
+              <Select
+                value={chartUnit}
+                onChange={(event) => {
+                  const next = event.target.value
+                  setChartUnit(next)
+                  saveLocalPreferences(riskDefault, dataRetention, preferredCurrency, preferredNetwork, next)
+                }}
+              >
+                <option value="native">{t('settings.options.chartUnit.native')}</option>
+                <option value="usd">{t('settings.options.chartUnit.usd')}</option>
+                <option value="percent">{t('settings.options.chartUnit.percent')}</option>
+              </Select>
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title={t('settings.groups.notifications')}
+          description={t('settings.groupDescriptions.notifications')}
+        >
+          <div className="grid gap-4 xl:grid-cols-2">
+            <Button
+              variant={currentSettings.notificationsEmail ? 'primary' : 'secondary'}
+              onClick={() =>
+                void applyServerSettings({
+                  notificationsEmail: !currentSettings.notificationsEmail,
+                })
+              }
+            >
+              {t('settings.fields.emailNotifications')} ·{' '}
+              {currentSettings.notificationsEmail
+                ? t('settings.notificationsEnabled')
+                : t('settings.notificationsDisabled')}
+            </Button>
+            <Button
+              variant={currentSettings.notificationsPush ? 'primary' : 'secondary'}
+              onClick={() =>
+                void applyServerSettings({
+                  notificationsPush: !currentSettings.notificationsPush,
+                })
+              }
+            >
+              {t('settings.fields.pushNotifications')} ·{' '}
+              {currentSettings.notificationsPush
+                ? t('settings.notificationsEnabled')
+                : t('settings.notificationsDisabled')}
+            </Button>
+            <div className="space-y-2 xl:col-span-2">
+              <label className="text-sm font-semibold text-text-primary">
+                {t('settings.fields.exportPreference')}
+              </label>
+              <Select
+                value={exportPreference}
+                onChange={(event) => {
+                  const next = event.target.value
+                  setExportPreference(next)
+                  saveLocalPreferences(
+                    riskDefault,
+                    dataRetention,
+                    preferredCurrency,
+                    preferredNetwork,
+                    chartUnit,
+                    next,
+                  )
+                  void applyServerSettings({
+                    autoExportPdf: next === 'autoPdf',
+                  })
+                }}
+              >
+                <option value="manual">{t('settings.options.export.manual')}</option>
+                <option value="autoPdf">{t('settings.options.export.autoPdf')}</option>
+              </Select>
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title={t('settings.groups.account')}
+          description={t('settings.groupDescriptions.account')}
+        >
+          <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">Name</label>
+                <label className="text-sm font-semibold text-text-primary">{t('settings.fields.name')}</label>
                 <Input value={profile.name} readOnly />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">Email</label>
+                <label className="text-sm font-semibold text-text-primary">{t('settings.fields.email')}</label>
                 <Input value={profile.email} readOnly />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">Timezone</label>
+                <label className="text-sm font-semibold text-text-primary">{t('settings.fields.timezone')}</label>
                 <Input value={profile.timezone} readOnly />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">Workspace bio</label>
+                <label className="text-sm font-semibold text-text-primary">{t('settings.fields.bio')}</label>
                 <Input value={profile.bio} readOnly />
               </div>
             </div>
-          </SectionCard>
 
-          <SectionCard title="Default analysis preferences" description="These defaults shape the initial intake surface and release presentation.">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">Language</label>
-                <Select
-                  value={settings.language}
-                  onChange={(event) =>
-                    void updateMutation.mutateAsync({
-                      ...settings,
-                      language: event.target.value === 'en' ? 'en' : 'zh',
-                    })
-                  }
-                >
-                  <option value="zh">Chinese</option>
-                  <option value="en">English</option>
-                </Select>
+            <div className="space-y-4">
+              <div className="rounded-[24px] border border-border-subtle bg-app-bg-elevated p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-full bg-primary-soft text-primary">
+                    {walletAddress ? <Wallet className="size-5" /> : <ShieldCheck className="size-5" />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-text-primary">
+                      {walletAddress ? shortAddress(walletAddress) : t('actions.disconnectWallet')}
+                    </p>
+                    <p className="text-sm text-text-secondary">
+                      {walletAddress
+                        ? t('actions.disconnectWallet')
+                        : t('settings.groupDescriptions.account')}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">Theme</label>
-                <Select
-                  value="dark"
-                  onChange={() =>
-                    void updateMutation.mutateAsync({
-                      ...settings,
-                      themeMode: 'dark',
-                    })
-                  }
-                >
-                  <option value="dark">Dark</option>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">
-                  Risk preference default
-                </label>
-                <Select
-                  value={riskDefault}
-                  onChange={(event) => {
-                    const nextValue = event.target.value
-                    setRiskDefault(nextValue)
-                    saveLocalPreferences(nextValue)
-                  }}
-                >
-                  <option value="Conservative">Conservative</option>
-                  <option value="Balanced">Balanced</option>
-                  <option value="Aggressive">Aggressive</option>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">Default currency</label>
-                <Select
-                  value={preferredCurrency}
-                  onChange={(event) => {
-                    const nextValue = event.target.value
-                    setPreferredCurrency(nextValue)
-                    saveLocalPreferences(riskDefault, dataRetention, nextValue)
-                  }}
-                >
-                  <option value="USD">USD</option>
-                  <option value="USDT">USDT</option>
-                  <option value="HKD">HKD</option>
-                  <option value="Custom">Custom</option>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">Preferred chain / network</label>
-                <Select
-                  value={preferredNetwork}
-                  onChange={(event) => {
-                    const nextValue = event.target.value
-                    setPreferredNetwork(nextValue)
-                    saveLocalPreferences(riskDefault, dataRetention, preferredCurrency, nextValue)
-                  }}
-                >
-                  <option value="HashKey Chain">HashKey Chain</option>
-                  <option value="Ethereum-compatible">Ethereum-compatible</option>
-                  <option value="General analysis">General analysis</option>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">Preferred chart unit</label>
-                <Select
-                  value={chartUnit}
-                  onChange={(event) => {
-                    const nextValue = event.target.value
-                    setChartUnit(nextValue)
-                    saveLocalPreferences(
-                      riskDefault,
-                      dataRetention,
-                      preferredCurrency,
-                      preferredNetwork,
-                      nextValue,
-                    )
-                  }}
-                >
-                  <option value="Native units">Native units</option>
-                  <option value="USD converted">USD converted</option>
-                  <option value="Percent / basis points">Percent / basis points</option>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">Report export preference</label>
-                <Select
-                  value={exportPreference}
-                  onChange={(event) => {
-                    const nextValue = event.target.value
-                    setExportPreference(nextValue)
-                    saveLocalPreferences(
-                      riskDefault,
-                      dataRetention,
-                      preferredCurrency,
-                      preferredNetwork,
-                      chartUnit,
-                      nextValue,
-                    )
-                    void updateMutation.mutateAsync({
-                      ...settings,
-                      autoExportPdf: nextValue === 'Auto PDF after completion',
-                    })
-                  }}
-                >
-                  <option value="Manual export">Manual export</option>
-                  <option value="Auto PDF after completion">Auto PDF after completion</option>
-                </Select>
-              </div>
-            </div>
-          </SectionCard>
 
-          <SectionCard title="Notification settings" description="Delivery channels for product events.">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Button
-                variant={settings.notificationsEmail ? 'primary' : 'secondary'}
-                onClick={() =>
-                  void updateMutation.mutateAsync({
-                    ...settings,
-                    notificationsEmail: !settings.notificationsEmail,
-                  })
-                }
-              >
-                Email notifications {settings.notificationsEmail ? 'on' : 'off'}
-              </Button>
-              <Button
-                variant={settings.notificationsPush ? 'primary' : 'secondary'}
-                onClick={() =>
-                  void updateMutation.mutateAsync({
-                    ...settings,
-                    notificationsPush: !settings.notificationsPush,
-                  })
-                }
-              >
-                Push notifications {settings.notificationsPush ? 'on' : 'off'}
-              </Button>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Data retention" description="Retention and deletion controls stay visible because this product handles decision context, evidence, and assumptions.">
-            <div className="grid gap-4 md:grid-cols-[1fr_auto]">
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">Retention preference</label>
+                <label className="text-sm font-semibold text-text-primary">{t('settings.fields.retention')}</label>
                 <Select
                   value={dataRetention}
                   onChange={(event) => {
-                    const nextValue = event.target.value
-                    setDataRetention(nextValue)
-                    saveLocalPreferences(riskDefault, nextValue)
+                    const next = event.target.value
+                    setDataRetention(next)
+                    saveLocalPreferences(riskDefault, next)
                   }}
                 >
-                  <option value="30 days">30 days</option>
-                  <option value="90 days">90 days</option>
-                  <option value="Keep until deleted">Keep until deleted</option>
+                  <option value="30">{t('settings.options.retention.days30')}</option>
+                  <option value="90">{t('settings.options.retention.days90')}</option>
+                  <option value="365">{t('settings.options.retention.days365')}</option>
                 </Select>
               </div>
-              <div className="flex items-end">
+
+              <div className="rounded-[24px] border border-border-subtle bg-app-bg-elevated p-4">
+                <p className="text-sm font-semibold text-text-primary">{t('settings.deleteData')}</p>
+                <p className="mt-2 text-sm leading-6 text-text-secondary">
+                  {t('settings.deleteDescription')}
+                </p>
                 <Button
+                  className="mt-4 w-full"
                   variant="danger"
-                  onClick={() => void deleteMutation.mutateAsync()}
                   disabled={deleteMutation.isPending}
+                  onClick={() => void deleteMutation.mutateAsync()}
                 >
-                  {deleteMutation.isPending ? 'Deleting...' : 'Delete personal data'}
+                  {deleteMutation.isPending ? t('settings.deletingData') : t('settings.deleteData')}
                 </Button>
               </div>
             </div>
-          </SectionCard>
-        </div>
-
-        <div className="space-y-6">
-          <SectionCard title="Wallet connections" description="Wallet state is shown separately from authentication.">
-            <div className="space-y-3">
-              <div className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Current wallet</p>
-                <p className="mt-2 text-sm leading-6 text-text-primary">
-                  {walletAddress ? `${walletAddress} on chain ${walletChainId ?? 'unknown'}` : 'No wallet connected in this browser.'}
-                </p>
-              </div>
-              <div className="rounded-[20px] border border-border-subtle bg-bg-surface p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Release behavior</p>
-                <p className="mt-2 text-sm leading-6 text-text-secondary">
-                  Wallets are treated as connected-service context for evidence, execution, and KYC-aware flows. They are not used as login credentials in this release build.
-                </p>
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Boundary note" description="The release keeps product boundaries explicit on the settings page as well.">
-            <PreviewNote>
-              Genius Actuary provides structured decision support. Recommendations, confidence levels, and calculations should be reviewed alongside source freshness, constraints, and any external legal or financial review required by the decision.
-            </PreviewNote>
-          </SectionCard>
-
-          <SectionCard title="Notifications and release behavior" description="Communication and export defaults should stay conservative for high-signal workflows.">
-            <div className="space-y-3 rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
-              <p className="text-sm leading-6 text-text-secondary">
-                Email notifications are {settings.notificationsEmail ? 'enabled' : 'disabled'}, push notifications are {settings.notificationsPush ? 'enabled' : 'disabled'}, and export behavior is set to {exportPreference.toLowerCase()}.
-              </p>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Team features coming later" description="The MVP is optimized for a single user workspace.">
-            <p className="text-sm leading-6 text-text-secondary">
-              Shared workspaces, reviewers, and approval flows are intentionally deferred so the
-              product can stay focused on the single-user decision analysis loop.
-            </p>
-          </SectionCard>
-        </div>
-      </div>
-    </div>
+          </div>
+        </SectionCard>
+      </PageSection>
+    </PageContainer>
   )
 }

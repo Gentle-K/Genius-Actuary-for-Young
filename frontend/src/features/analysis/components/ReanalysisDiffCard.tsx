@@ -1,4 +1,5 @@
 import { ArrowRightLeft } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
@@ -14,7 +15,7 @@ export function ReanalysisDiffCard({
   diff,
   locale = 'en',
 }: ReanalysisDiffCardProps) {
-  const isZh = locale === 'zh'
+  const { t } = useTranslation()
 
   if (!diff) {
     return null
@@ -27,16 +28,16 @@ export function ReanalysisDiffCard({
           <ArrowRightLeft className="size-5 text-gold-primary" />
           <div>
             <h2 className="text-lg font-semibold text-text-primary">
-              {isZh ? '再分析差异' : 'Re-analysis diff'}
+              {t('analysis.reanalysisDiff.title')}
             </h2>
             {diff.previousSnapshotAt ? (
               <p className="mt-1 text-sm text-text-secondary">
-                {isZh ? '上次快照' : 'Previous snapshot'}: {formatDateTime(diff.previousSnapshotAt, locale)}
+                {t('analysis.reanalysisDiff.previousSnapshot')}: {formatDateTime(diff.previousSnapshotAt, locale)}
               </p>
             ) : null}
             {diff.currentGeneratedAt ? (
               <p className="mt-1 text-sm text-text-secondary">
-                {isZh ? '当前结果' : 'Current result'}: {formatDateTime(diff.currentGeneratedAt, locale)}
+                {t('analysis.reanalysisDiff.currentResult')}: {formatDateTime(diff.currentGeneratedAt, locale)}
               </p>
             ) : null}
           </div>
@@ -57,7 +58,7 @@ export function ReanalysisDiffCard({
       {diff.changedConstraints.length ? (
         <div className="space-y-3">
           <p className="text-sm font-medium text-text-primary">
-            {isZh ? '约束变化' : 'Constraint changes'}
+            {t('analysis.reanalysisDiff.constraintChanges')}
           </p>
           {diff.changedConstraints.map((item) => (
             <div key={`${item.label}-${item.before}-${item.after}`} className="rounded-lg border border-border-subtle bg-app-bg-elevated p-4">
@@ -73,7 +74,7 @@ export function ReanalysisDiffCard({
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-lg border border-border-subtle bg-app-bg-elevated p-4">
             <p className="text-sm font-medium text-text-primary">
-              {isZh ? '上次推荐' : 'Previous recommendation'}
+              {t('analysis.reanalysisDiff.previousRecommendation')}
             </p>
             {diff.previousRecommendation.length ? (
               <ul className="mt-2 space-y-2 text-sm leading-7 text-text-secondary">
@@ -83,13 +84,13 @@ export function ReanalysisDiffCard({
               </ul>
             ) : (
               <p className="mt-2 text-sm text-text-secondary">
-                {isZh ? '无可比推荐。' : 'No comparable recommendation.'}
+                {t('analysis.reanalysisDiff.noComparableRecommendation')}
               </p>
             )}
           </div>
           <div className="rounded-lg border border-border-subtle bg-app-bg-elevated p-4">
             <p className="text-sm font-medium text-text-primary">
-              {isZh ? '当前推荐' : 'Current recommendation'}
+              {t('analysis.reanalysisDiff.currentRecommendation')}
             </p>
             {diff.currentRecommendation.length ? (
               <ul className="mt-2 space-y-2 text-sm leading-7 text-text-secondary">
@@ -99,7 +100,7 @@ export function ReanalysisDiffCard({
               </ul>
             ) : (
               <p className="mt-2 text-sm text-text-secondary">
-                {isZh ? '当前没有推荐。' : 'There is no current recommendation.'}
+                {t('analysis.reanalysisDiff.noCurrentRecommendation')}
               </p>
             )}
           </div>
@@ -109,7 +110,7 @@ export function ReanalysisDiffCard({
       {diff.changedWeights.length ? (
         <div className="space-y-3">
           <p className="text-sm font-medium text-text-primary">
-            {isZh ? '权重变化' : 'Weight changes'}
+            {t('analysis.reanalysisDiff.weightChanges')}
           </p>
           {diff.changedWeights.map((item) => (
             <div key={item.assetId} className="rounded-lg border border-border-subtle bg-app-bg-elevated p-4">
@@ -132,7 +133,7 @@ export function ReanalysisDiffCard({
       {diff.changedRisk.length ? (
         <div className="space-y-3">
           <p className="text-sm font-medium text-text-primary">
-            {isZh ? '风险变化' : 'Risk changes'}
+            {t('analysis.reanalysisDiff.riskChanges')}
           </p>
           {diff.changedRisk.map((item) => (
             <div key={`${item.assetId}-risk`} className="rounded-lg border border-border-subtle bg-app-bg-elevated p-4">
@@ -154,7 +155,7 @@ export function ReanalysisDiffCard({
       {diff.changedEvidence.length ? (
         <div className="space-y-3">
           <p className="text-sm font-medium text-text-primary">
-            {isZh ? '证据变化' : 'Evidence changes'}
+            {t('analysis.reanalysisDiff.evidenceChanges')}
           </p>
           {diff.changedEvidence.map((item) => {
             const improved =
@@ -168,7 +169,7 @@ export function ReanalysisDiffCard({
               >
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-medium text-text-primary">
-                    {item.assetName || item.assetId || (isZh ? '证据' : 'Evidence')}
+                    {item.assetName || item.assetId || t('analysis.reanalysisDiff.evidenceFallback')}
                   </p>
                   <Badge tone={improved ? 'success' : 'warning'}>
                     {Math.round(item.beforeCoverageScore * 100)}% {'->'} {Math.round(item.afterCoverageScore * 100)}%
@@ -176,7 +177,7 @@ export function ReanalysisDiffCard({
                 </div>
                 <p className="mt-2 text-sm text-text-secondary">{item.summary}</p>
                 <p className="mt-2 text-xs text-text-muted">
-                  {isZh ? '冲突数' : 'Conflicts'}: {item.beforeConflictCount} {'->'} {item.afterConflictCount}
+                  {t('analysis.reanalysisDiff.conflicts')}: {item.beforeConflictCount} {'->'} {item.afterConflictCount}
                 </p>
               </div>
             )

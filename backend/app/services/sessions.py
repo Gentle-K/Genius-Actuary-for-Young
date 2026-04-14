@@ -45,7 +45,7 @@ class SessionService:
         mode: AnalysisMode,
         problem_statement: str,
         owner_client_id: str,
-        locale: str = "zh",
+        locale: str = "zh-CN",
         intake_context: RwaIntakeContext | None = None,
         ip_address: str = "unknown",
     ) -> AnalysisSession:

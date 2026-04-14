@@ -7,13 +7,14 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
+import { isChineseLocale } from '@/lib/i18n/locale'
 import { permissions } from '@/lib/mock/data'
 
 export function RolesPage() {
   const { i18n, t } = useTranslation()
   const queryClient = useQueryClient()
   const adapter = useApiAdapter()
-  const isZh = i18n.language.startsWith('zh')
+  const isZh = isChineseLocale(i18n.language)
 
   const rolesQuery = useQuery({
     queryKey: ['admin', 'roles'],

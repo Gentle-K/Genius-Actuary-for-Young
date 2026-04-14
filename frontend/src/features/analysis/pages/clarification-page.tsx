@@ -14,6 +14,7 @@ import { Input, Textarea } from '@/components/ui/field'
 import { AnalysisPendingView } from '@/features/analysis/components/analysis-pending-view'
 import { ApiError } from '@/lib/api/client'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
+import { useAppStore } from '@/lib/store/app-store'
 import { haptics } from '@/lib/utils/haptics'
 import type { ClarificationQuestion, UserAnswer } from '@/types'
 
@@ -99,7 +100,7 @@ function summarizeSelection(
   return ''
 }
 
-function getSubmitErrorMessage(error: unknown, isZh: boolean) {
+function getSubmitErrorMessage(error: unknown, t: ReturnType<typeof useTranslation>['t']) {
   if (error instanceof ApiError) {
     const detail =
       error.details && typeof error.details === 'object' && 'detail' in error.details
@@ -111,28 +112,26 @@ function getSubmitErrorMessage(error: unknown, isZh: boolean) {
     }
   }
 
-  return isZh
-    ? '本轮答案提交失败，页面已保留当前填写内容。请稍后重试，或前往调试页查看后端错误。'
-    : 'Submitting this round failed. Your current answers are still on the page. Please retry or inspect the backend error details.'
+  return t('analysis.clarificationPage.submitFailedFallback')
 }
 
 export function ClarificationPage() {
-  const { i18n, t } = useTranslation()
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { sessionId = '' } = useParams()
   const adapter = useApiAdapter()
   const queryClient = useQueryClient()
-  const isZh = i18n.language.startsWith('zh')
+  const locale = useAppStore((state) => state.locale)
 
   const sessionQuery = useQuery({
-    queryKey: ['analysis', sessionId],
+    queryKey: ['analysis', sessionId, 'clarification-page', locale],
     queryFn: () => adapter.analysis.getById(sessionId),
   })
 
   const submitMutation = useMutation({
     mutationFn: (answers: UserAnswer[]) => adapter.analysis.submitAnswers(sessionId, { answers }),
     onSuccess: (session) => {
-      queryClient.setQueryData(['analysis', sessionId], session)
+      queryClient.setQueryData(['analysis', sessionId, 'clarification-page', locale], session)
       haptics.trigger('confirm')
       if (session.status === 'CLARIFYING') {
         return
@@ -152,19 +151,19 @@ export function ClarificationPage() {
   const initialValues = useMemo(() => buildInitialValues(questions), [questions])
 
   const text = {
-    textPlaceholder: isZh ? '请输入最关键的事实、限制或判断依据' : 'Type the most relevant fact, constraint, or detail',
-    textareaPlaceholder: isZh ? '用自然语言补充背景、假设和顾虑' : 'Describe the context in natural language',
-    customPlaceholder: isZh ? '可选：补充自定义说明或边界条件' : 'Optional custom context or edge case',
+    textPlaceholder: t('analysis.clarificationPage.placeholders.text'),
+    textareaPlaceholder: t('analysis.clarificationPage.placeholders.textarea'),
+    customPlaceholder: t('analysis.clarificationPage.placeholders.custom'),
     singleChoiceHint: t('analysis.chooseOne'),
     multiChoiceHint: t('analysis.chooseMany'),
-    rangeHint: isZh ? '拖动滑块进行精细调整' : 'Use the slider for a precise adjustment',
-    questionTip: isZh ? '点击选项即可记录答案' : 'Click an option to record the answer',
-    currentRecord: isZh ? '当前记录' : 'Current record',
+    rangeHint: t('analysis.clarificationPage.rangeHint'),
+    questionTip: t('analysis.clarificationPage.questionTip'),
+    currentRecord: t('analysis.clarificationPage.currentRecord'),
     status: {
-      answered: isZh ? '已回答' : 'Answered',
-      skipped: isZh ? '已跳过' : 'Skipped',
-      uncertain: isZh ? '暂不确定' : 'Uncertain',
-      declined: isZh ? '暂不回答' : 'Declined',
+      answered: t('analysis.clarificationPage.statuses.answered'),
+      skipped: t('analysis.clarificationPage.statuses.skipped'),
+      uncertain: t('analysis.clarificationPage.statuses.uncertain'),
+      declined: t('analysis.clarificationPage.statuses.declined'),
     },
   }
 
@@ -172,26 +171,15 @@ export function ClarificationPage() {
     return (
       <AnalysisPendingView
         eyebrow={t('common.nextStep')}
-        title={isZh ? 'AI 正在分析你的回答' : 'AI is analyzing your answers'}
-        description={
-          isZh
-            ? '系统正在吸收你的补充信息，更新判断框架，并启动正式分析。'
-            : 'The system is absorbing your clarification, updating the decision frame, and starting the full analysis.'
-        }
-        loaderLabel={
-          isZh ? 'AI 正在分析，请耐心等待分析结果生成。' : 'The AI is analyzing now. Please wait while the result is prepared.'
-        }
-        stageLabel={isZh ? '正在推进分析' : 'Advancing analysis'}
-        stageTitle={isZh ? '整理首轮回答' : 'Processing first-round answers'}
-        stageDescription={
-          isZh
-            ? '我们会先整合你的回答，再自动跳转到正式进度页，持续展示分析阶段。'
-            : 'We are consolidating your answers first, then will move you into the live progress page automatically.'
-        }
-        tips={[
-          isZh ? '系统会根据你的回答补齐假设、偏好和约束。' : 'The system is updating assumptions, preferences, and constraints from your answers.',
-          isZh ? '完成初始化后，会继续抓取证据并生成最终报告。' : 'After initialization, it will continue gathering evidence and building the final report.',
-        ]}
+        title={t('analysis.clarificationPage.pendingView.title')}
+        description={t('analysis.clarificationPage.pendingView.description')}
+        loaderLabel={t('analysis.clarificationPage.pendingView.loaderLabel')}
+        stageLabel={t('analysis.clarificationPage.pendingView.stageLabel')}
+        stageTitle={t('analysis.clarificationPage.pendingView.stageTitle')}
+        stageDescription={t('analysis.clarificationPage.pendingView.stageDescription')}
+        tips={t('analysis.clarificationPage.pendingView.tips', {
+          returnObjects: true,
+        }) as [string, string]}
       />
     )
   }
@@ -223,17 +211,17 @@ export function ClarificationPage() {
       {submitMutation.isError ? (
         <Card className="space-y-3 border-[rgba(197,109,99,0.35)] bg-[rgba(197,109,99,0.08)] p-5">
           <h2 className="text-lg font-semibold text-[#f7d4cf]">
-            {isZh ? '本轮提交失败' : 'Failed to submit this round'}
+            {t('analysis.clarificationPage.submitErrorTitle')}
           </h2>
           <p className="text-sm leading-7 text-[#f1cbc6]">
-            {getSubmitErrorMessage(submitMutation.error, isZh)}
+            {getSubmitErrorMessage(submitMutation.error, t)}
           </p>
           <div className="flex gap-3">
             <Button type="button" onClick={() => submitMutation.reset()}>
-              {isZh ? '继续修改后重试' : 'Review and retry'}
+              {t('analysis.clarificationPage.reviewAndRetry')}
             </Button>
             <Button type="button" variant="ghost" onClick={() => void sessionQuery.refetch()}>
-              {isZh ? '刷新会话状态' : 'Refresh session'}
+              {t('analysis.clarificationPage.refreshSession')}
             </Button>
           </div>
         </Card>
@@ -248,19 +236,17 @@ export function ClarificationPage() {
       ) : sessionQuery.error ? (
         <Card className="space-y-3 border-[rgba(197,109,99,0.35)] bg-[rgba(197,109,99,0.08)] p-5">
           <h2 className="text-lg font-semibold text-[#f7d4cf]">
-            {isZh ? '分析会话加载失败' : 'Failed to load the analysis session'}
+            {t('analysis.clarificationPage.loadErrorTitle')}
           </h2>
           <p className="text-sm leading-7 text-[#f1cbc6]">
-            {isZh
-              ? '会话可能已经创建成功，但当前页面没有拿到后端数据。请重试，或返回重新发起分析。'
-              : 'The session may have been created, but this page could not load the backend data. Try again or start a new run.'}
+            {t('analysis.clarificationPage.loadErrorDescription')}
           </p>
           <div className="flex gap-3">
             <Button type="button" onClick={() => void sessionQuery.refetch()}>
-              {isZh ? '重试加载' : 'Retry'}
+              {t('common.retry')}
             </Button>
             <Button type="button" variant="ghost" onClick={() => void navigate('/analysis/intake')}>
-              {isZh ? '返回输入页' : 'Back to intake'}
+              {t('analysis.clarificationPage.backToIntake')}
             </Button>
           </div>
         </Card>
@@ -268,20 +254,18 @@ export function ClarificationPage() {
         <Card className="space-y-4 p-5">
           <div className="space-y-2">
             <h2 className="text-lg font-semibold text-text-primary">
-              {isZh ? '当前没有待回答的追问' : 'There are no pending follow-up questions'}
+              {t('analysis.clarificationPage.noPendingTitle')}
             </h2>
             <p className="text-sm leading-7 text-text-secondary">
-              {isZh
-                ? '本轮需要用户回答的问题已经处理完毕。你可以返回进度页继续推进，或直接查看当前报告。'
-                : 'The current clarification round is complete. You can return to progress or open the current report.'}
+              {t('analysis.clarificationPage.noPendingDescription')}
             </p>
           </div>
           <div className="flex gap-3">
             <Button type="button" onClick={() => void navigate(`/analysis/session/${sessionId}/progress`)}>
-              {isZh ? '查看进度' : 'Open progress'}
+              {t('analysis.clarificationPage.openProgress')}
             </Button>
             <Button type="button" variant="secondary" onClick={() => void navigate(`/analysis/session/${sessionId}/report`)}>
-              {isZh ? '查看报告' : 'Open report'}
+              {t('analysis.clarificationPage.openReport')}
             </Button>
           </div>
         </Card>
@@ -312,8 +296,8 @@ export function ClarificationPage() {
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="space-y-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge tone="neutral">Q{index + 1}</Badge>
-                          <Badge tone="gold">P{question.priority}</Badge>
+                          <Badge tone="neutral">{t('analysis.clarificationPage.questionNumber', { count: index + 1 })}</Badge>
+                          <Badge tone="gold">{t('analysis.clarificationPage.priority', { count: question.priority })}</Badge>
                           <Badge tone="neutral">{choiceHint}</Badge>
                         </div>
                         <div className="space-y-2">
@@ -392,7 +376,7 @@ export function ClarificationPage() {
                                     <p className="font-medium">{option.label}</p>
                                     <p className="mt-1 text-xs leading-6 text-text-muted">
                                       {option.description ??
-                                        (isZh ? '点击后会立刻设为当前答案。' : 'Click once to set this as the current answer.')}
+                                        t('analysis.clarificationPage.clickToSetCurrent')}
                                     </p>
                                   </div>
                                   {isActive ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-gold-bright" /> : null}

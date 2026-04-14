@@ -18,7 +18,7 @@ DEMO_REFERENCE_TIME = datetime(2026, 4, 1, 12, 0, tzinfo=timezone.utc)
 DEMO_WALLET_ADDRESS = "0x00000000000000000000000000000000DeM00001"
 
 
-def build_demo_scenarios(*, locale: str = "zh") -> list[DemoScenarioDefinition]:
+def build_demo_scenarios(*, locale: str = "zh-CN") -> list[DemoScenarioDefinition]:
     return [
         DemoScenarioDefinition(
             scenario_id="conservative-10000-usdt",
@@ -146,7 +146,7 @@ def build_demo_scenarios(*, locale: str = "zh") -> list[DemoScenarioDefinition]:
 def get_demo_scenario(
     scenario_id: str,
     *,
-    locale: str = "zh",
+    locale: str = "zh-CN",
 ) -> DemoScenarioDefinition | None:
     scenario_map = {
         scenario.scenario_id: scenario

@@ -12,11 +12,11 @@
     "preview": "vite preview",
     "deploy:asset-proof-registry": "node ../scripts/deploy_asset_proof_registry.mjs",
     "deploy:plan-registry": "node ../scripts/deploy_plan_registry.mjs",
-    "test": "vitest",
-    "test:unit": "vitest run",
+    "test": "vitest --maxWorkers=1",
+    "test:unit": "vitest run --maxWorkers=1",
     "test:contracts": "vitest run src/contracts/*.contract.test.ts",
-    "test:run": "vitest run --coverage",
-    "test:json": "vitest run --coverage --reporter=default --reporter=json --outputFile=../test-results/frontend/vitest.json --coverage.reportsDirectory ../coverage/frontend",
+    "test:run": "vitest run --maxWorkers=1 --coverage",
+    "test:json": "vitest run --maxWorkers=1 --coverage --reporter=default --reporter=json --outputFile=../test-results/frontend/vitest.json --coverage.reportsDirectory ../coverage/frontend",
     "test:e2e": "playwright test --config playwright.config.ts"
   },
   "dependencies": {

@@ -1,6 +1,6 @@
 export type ThemeMode = 'dark' | 'light' | 'system'
 export type ResolvedTheme = Exclude<ThemeMode, 'system'>
-export type LanguageCode = 'zh' | 'en'
+export type LanguageCode = 'en' | 'zh-CN' | 'zh-HK'
 export type ApiMode = 'mock' | 'rest'
 export type DisplayDensity = 'cozy' | 'compact'
 
@@ -1487,6 +1487,7 @@ export interface AnalysisReport {
   id: string
   sessionId: string
   mode: AnalysisMode
+  locale?: LanguageCode
   summaryTitle: string
   markdown: string
   highlights: MetricHighlight[]

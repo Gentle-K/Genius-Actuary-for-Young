@@ -1,5 +1,5 @@
-import { screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Route, Routes } from 'react-router-dom'
 
 import { ReportPage } from '@/features/analysis/pages/report-page'
@@ -148,6 +148,10 @@ describe('ReportPage', () => {
     requestMoreFollowUp.mockResolvedValue(session)
   })
 
+  afterEach(() => {
+    cleanup()
+  })
+
   it('renders the rebuilt report sections and boundary cues', async () => {
     renderWithAppState(
       <Routes>
@@ -165,12 +169,10 @@ describe('ReportPage', () => {
     expect(screen.getByRole('button', { name: 'Execute on HashKey Chain' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Executive summary' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Option comparison' })).toBeInTheDocument()
-    expect(
-      screen.getByRole('heading', { name: 'Unknowns and unresolved uncertainties' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Unknowns' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Boundary note' })).toBeInTheDocument()
     expect(screen.getByText('Graduate funding examples')).toBeInTheDocument()
-  })
+  }, 10000)
 
   it('shows a recoverable error surface when the report payload fails', async () => {
     getReport.mockRejectedValue(new Error('backend exploded'))

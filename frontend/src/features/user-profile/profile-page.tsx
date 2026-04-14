@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { DataTable } from '@/components/ui/data-table'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
+import { isChineseLocale } from '@/lib/i18n/locale'
 import { useAppStore } from '@/lib/store/app-store'
 import { formatDateTime } from '@/lib/utils/format'
 import type { AnalysisSession, AnalysisSessionSummary } from '@/types'
@@ -20,7 +21,7 @@ export function ProfilePage() {
   const adapter = useApiAdapter()
   const locale = useAppStore((state) => state.locale)
   const clearSession = useAppStore((state) => state.clearSession)
-  const isZh = i18n.language.startsWith('zh')
+  const isZh = isChineseLocale(i18n.language)
 
   const profileQuery = useQuery({
     queryKey: ['profile'],

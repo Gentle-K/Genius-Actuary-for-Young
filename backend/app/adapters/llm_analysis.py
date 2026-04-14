@@ -29,7 +29,7 @@ from app.prompts import (
     build_reporting_prompts,
 )
 from app.services.calculation_tasks import calculation_semantic_signature, validate_calculation_task
-from app.i18n import text_for_locale
+from app.i18n import is_zh_locale, text_for_locale
 from app.rwa.catalog import build_asset_library, build_chain_config
 from app.rwa.diff import build_reanalysis_diff
 from app.rwa.engine import build_rwa_report, resolve_selected_assets
@@ -325,17 +325,17 @@ def _build_rwa_questions(session: AnalysisSession) -> list[ClarificationQuestion
     )
     objective_options = (
         ["保住流动性", "稳健增值", "增强收益", "做资产分散"]
-        if session.locale == "zh"
+        if is_zh_locale(session.locale)
         else ["Preserve liquidity", "Steady carry", "Increase upside", "Diversify assets"]
     )
     risk_options = (
         ["保守", "均衡", "进取"]
-        if session.locale == "zh"
+        if is_zh_locale(session.locale)
         else ["Conservative", "Balanced", "Aggressive"]
     )
     kyc_options = (
         ["暂无 KYC", "可完成基础 KYC", "已具备更高等级或专业投资者资格"]
-        if session.locale == "zh"
+        if is_zh_locale(session.locale)
         else ["No KYC yet", "Can complete basic KYC", "Already meet a higher or professional-investor tier"]
     )
 
@@ -378,7 +378,7 @@ def _build_rwa_questions(session: AnalysisSession) -> list[ClarificationQuestion
             ),
             options=(
                 ["T+0", "T+3", "30 天锁定也可", "180 天也可接受"]
-                if session.locale == "zh"
+                if is_zh_locale(session.locale)
                 else ["T+0", "T+3", "30-day lockup is acceptable", "180-day lockup is acceptable"]
             ),
             question_group="liquidity",
@@ -482,7 +482,7 @@ def _build_rwa_questions(session: AnalysisSession) -> list[ClarificationQuestion
                     "帮助系统判断该资产应该被当作流动性底仓、收益腿还是对冲腿。",
                     "This helps the system decide whether the asset should behave as the liquidity anchor, income sleeve, or hedge sleeve.",
                 ),
-                options=["流动性", "低回撤", "收益率", "对冲能力"] if session.locale == "zh" else ["Liquidity", "Low drawdown", "Yield", "Hedging ability"],
+                options=["流动性", "低回撤", "收益率", "对冲能力"] if is_zh_locale(session.locale) else ["Liquidity", "Low drawdown", "Yield", "Hedging ability"],
                 question_group="priority",
                 input_hint=text_for_locale(
                     session.locale,
@@ -873,7 +873,7 @@ class MockAnalysisAdapter:
                     "帮助系统决定稳定币缓冲仓和高门槛资产的上限。",
                     "This helps size the stablecoin reserve sleeve and cap the allocation to higher-friction assets.",
                 ),
-                options=["最多 20%", "最多 40%", "最多 60%", "可更高"] if session.locale == "zh" else ["Up to 20%", "Up to 40%", "Up to 60%", "Higher is acceptable"],
+                options=["最多 20%", "最多 40%", "最多 60%", "可更高"] if is_zh_locale(session.locale) else ["Up to 20%", "Up to 40%", "Up to 60%", "Higher is acceptable"],
                 question_group="sizing",
                 priority=2,
                 input_hint=text_for_locale(

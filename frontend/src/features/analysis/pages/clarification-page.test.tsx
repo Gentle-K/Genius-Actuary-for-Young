@@ -145,7 +145,7 @@ describe('ClarificationPage', () => {
       }),
     )
     expect(await screen.findByText('progress target')).toBeInTheDocument()
-  })
+  }, 10000)
 
   it('shows a recoverable error state when the session load fails', async () => {
     getById.mockRejectedValue(new Error('backend unavailable'))

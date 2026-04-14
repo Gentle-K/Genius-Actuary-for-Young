@@ -1,4 +1,5 @@
 import { ExternalLink, ShieldAlert, ShieldCheck, ShieldX } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { formatDateTime } from '@/lib/utils/format'
 import { shortAddress } from '@/lib/web3/hashkey'
@@ -9,16 +10,16 @@ interface KycSnapshotSectionProps {
   locale?: LanguageCode
 }
 
-function statusLabel(status: KycOnchainResult['status'], isZh: boolean) {
+function statusLabel(status: KycOnchainResult['status'], translate: (key: string, fallback: string) => string) {
   switch (status) {
     case 'approved':
-      return isZh ? '已通过' : 'Approved'
+      return translate('approved', 'Approved')
     case 'revoked':
-      return isZh ? '已撤销' : 'Revoked'
+      return translate('revoked', 'Revoked')
     case 'unavailable':
-      return isZh ? '不可用' : 'Unavailable'
+      return translate('unavailable', 'Unavailable')
     default:
-      return isZh ? '未通过' : 'None'
+      return translate('none', 'None')
   }
 }
 
@@ -49,8 +50,10 @@ export function KycSnapshotSection({
   kyc,
   locale = 'en',
 }: KycSnapshotSectionProps) {
-  const isZh = locale === 'zh'
+  const { t } = useTranslation()
   const tone = statusTone(kyc.status)
+  const translateStatus = (key: string, fallback: string) =>
+    t(`analysis.kycSnapshot.statuses.${key}`, fallback)
 
   return (
     <div
@@ -60,26 +63,26 @@ export function KycSnapshotSection({
       <div className="mb-3 flex items-center gap-2">
         <tone.Icon className={`h-5 w-5 ${tone.text}`} />
         <h3 className="text-sm font-semibold text-white/90">
-          {isZh ? '链上 KYC 快照' : 'On-chain KYC Snapshot'}
+          {t('analysis.kycSnapshot.title')}
         </h3>
       </div>
 
       <div className="grid gap-3 text-sm text-white/70 sm:grid-cols-2">
         <div>
-          <span className="text-white/40">{isZh ? '钱包' : 'Wallet'}: </span>
+          <span className="text-white/40">{t('analysis.kycSnapshot.wallet')}: </span>
           <span className="font-mono">{shortAddress(kyc.walletAddress)}</span>
         </div>
         <div>
-          <span className="text-white/40">{isZh ? '网络' : 'Network'}: </span>
+          <span className="text-white/40">{t('analysis.kycSnapshot.network')}: </span>
           <span className="capitalize">{kyc.network}</span>
         </div>
         <div>
-          <span className="text-white/40">{isZh ? 'KYC 等级' : 'KYC level'}: </span>
+          <span className="text-white/40">{t('analysis.kycSnapshot.kycLevel')}: </span>
           <span className="font-semibold">L{kyc.level}</span>
         </div>
         <div>
-          <span className="text-white/40">{isZh ? '状态' : 'Status'}: </span>
-          <span className={tone.text}>{statusLabel(kyc.status, isZh)}</span>
+          <span className="text-white/40">{t('analysis.kycSnapshot.status')}: </span>
+          <span className={tone.text}>{statusLabel(kyc.status, translateStatus)}</span>
         </div>
       </div>
 
@@ -87,7 +90,7 @@ export function KycSnapshotSection({
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-white/40">
         <span>
-          {isZh ? '抓取时间' : 'Fetched at'}: {formatDateTime(kyc.fetchedAt, locale)}
+          {t('analysis.kycSnapshot.fetchedAt')}: {formatDateTime(kyc.fetchedAt, locale)}
         </span>
       </div>
 
@@ -100,7 +103,7 @@ export function KycSnapshotSection({
             className="inline-flex items-center gap-1 rounded-md bg-white/5 px-2 py-1 text-xs text-white/60 transition hover:bg-white/10 hover:text-white/85"
           >
             <ExternalLink className="h-3 w-3" />
-            {isZh ? '查看合约' : 'View contract'}
+            {t('analysis.kycSnapshot.viewContract')}
           </a>
         ) : null}
         {kyc.sourceUrl ? (
@@ -111,7 +114,7 @@ export function KycSnapshotSection({
             className="inline-flex items-center gap-1 rounded-md bg-white/5 px-2 py-1 text-xs text-white/60 transition hover:bg-white/10 hover:text-white/85"
           >
             <ExternalLink className="h-3 w-3" />
-            {isZh ? '查看 KYC 文档' : 'View KYC docs'}
+            {t('analysis.kycSnapshot.viewDocs')}
           </a>
         ) : null}
       </div>

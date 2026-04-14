@@ -39,3 +39,29 @@ export function removeLocalStorageItem(key: string) {
     // Ignore storage removal failures in restricted environments.
   }
 }
+
+export function removeLocalStorageItemsMatching(
+  matcher: ((key: string) => boolean) | RegExp,
+) {
+  const storage = resolveLocalStorage()
+  if (!storage) {
+    return
+  }
+
+  try {
+    const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter(
+      (key): key is string => Boolean(key),
+    )
+
+    for (const key of keys) {
+      const shouldRemove =
+        matcher instanceof RegExp ? matcher.test(key) : matcher(key)
+
+      if (shouldRemove) {
+        storage.removeItem(key)
+      }
+    }
+  } catch {
+    // Ignore storage iteration failures in restricted environments.
+  }
+}

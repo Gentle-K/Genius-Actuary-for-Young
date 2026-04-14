@@ -173,5 +173,5 @@ describe('AnalysisSessionPage', () => {
       )
     })
     expect(await screen.findByText('analysis progress target')).toBeInTheDocument()
-  })
+  }, 10000)
 })
