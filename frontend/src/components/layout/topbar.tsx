@@ -11,13 +11,14 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { routeMetadata } from '@/components/layout/route-metadata'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { resolveDataTruthState, resolveEnvironmentMode } from '@/domain/status'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
 import { ApiError } from '@/lib/api/client'
 import { clearBrowserAccount } from '@/lib/auth/browser-account'
@@ -74,18 +75,21 @@ function shouldForceLocalLogout(error: unknown) {
 
 export function Topbar() {
   const location = useLocation()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { t } = useTranslation()
   const adapter = useApiAdapter()
   const currentUser = useAppStore((state) => state.currentUser)
   const locale = useAppStore((state) => state.locale)
+  const apiMode = useAppStore((state) => state.apiMode)
   const setLocale = useAppStore((state) => state.setLocale)
   const sidebarOpen = useAppStore((state) => state.sidebarOpen)
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen)
   const clearSession = useAppStore((state) => state.clearSession)
   const clearWalletState = useAppStore((state) => state.clearWalletState)
   const meta = useMemo(() => routeMetadata(location.pathname), [location.pathname])
+  const stocksMode = searchParams.get('mode') === 'live' ? 'live' : 'paper'
 
   const sessionsQuery = useQuery({
     queryKey: ['topbar', 'sessions', locale],
@@ -96,6 +100,15 @@ export function Topbar() {
     queryKey: ['settings'],
     queryFn: adapter.settings.get,
     staleTime: 60_000,
+  })
+  const stocksBootstrapQuery = useQuery({
+    queryKey: ['stocks', 'topbar-bootstrap'],
+    queryFn: () =>
+      adapter.stocks?.getBootstrap
+        ? adapter.stocks.getBootstrap()
+        : Promise.resolve(undefined),
+    enabled: location.pathname.startsWith('/stocks'),
+    staleTime: 30_000,
   })
 
   const localeMutation = useMutation({
@@ -176,6 +189,20 @@ export function Topbar() {
   }, [meta.titleKey, t])
 
   const latestUpdate = sessionsQuery.data?.items[0]?.updatedAt
+  const environmentMode = resolveEnvironmentMode(
+    location.pathname,
+    apiMode,
+    location.pathname.startsWith('/stocks') ? stocksMode : null,
+  )
+  const dataTruth = resolveDataTruthState({
+    apiMode,
+    pathname: location.pathname,
+    stocksMode,
+    providerStatuses: stocksBootstrapQuery.data?.providerStatuses,
+    lastUpdated:
+      stocksBootstrapQuery.data?.promotionGate.evaluatedAt ??
+      latestUpdate,
+  })
   const accountTitle =
     currentUser?.email?.endsWith('@browser.local')
       ? t('auth.login.browserTitle')
@@ -205,6 +232,12 @@ export function Topbar() {
               ? t('layout.topbar.updatedRelative', { value: formatRelativeTime(latestUpdate) })
               : t('layout.topbar.waitingActivity')}
           </Badge>
+          <Badge tone={environmentMode === 'live' ? 'danger' : 'info'}>
+            {t('layout.topbar.environmentMode')}: {t(`status.environment.${environmentMode}`)}
+          </Badge>
+          <Badge tone={dataTruth.severity === 'danger' ? 'danger' : dataTruth.severity === 'warning' ? 'warning' : dataTruth.severity === 'success' ? 'success' : 'info'}>
+            {t('layout.topbar.dataTruth')}: {dataTruth.label}
+          </Badge>
           <button
             type="button"
             className="interactive-lift inline-flex items-center gap-2 rounded-full border border-border-subtle bg-app-bg-elevated px-3 py-1.5 text-xs font-medium text-text-secondary"
@@ -224,6 +257,7 @@ export function Topbar() {
           <div
             className="flex flex-wrap items-center gap-1 rounded-full border border-border-subtle bg-app-bg-elevated p-1"
             aria-label={t('layout.topbar.languageLabel')}
+            data-testid="topbar-locale-switcher"
           >
             {SUPPORTED_LOCALES.map((item) => {
               const active = item === locale
@@ -233,8 +267,8 @@ export function Topbar() {
                   type="button"
                   className={
                     active
-                      ? 'rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white'
-                      : 'rounded-full px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-bg-surface hover:text-text-primary'
+                      ? 'hidden rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white md:inline-flex'
+                      : 'hidden rounded-full px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-bg-surface hover:text-text-primary md:inline-flex'
                   }
                   onClick={() => {
                     if (item !== locale) {
@@ -285,6 +319,24 @@ export function Topbar() {
                   </button>
                 )}
               </MenuItem>
+              {SUPPORTED_LOCALES.map((item) => (
+                <MenuItem key={item}>
+                  {({ focus }) => (
+                    <button
+                      type="button"
+                      className={`flex w-full items-center gap-3 rounded-[18px] px-3 py-3 text-left text-sm md:hidden ${focus ? 'bg-app-bg-elevated text-text-primary' : 'text-text-secondary'}`}
+                      onClick={() => {
+                        if (item !== locale) {
+                          localeMutation.mutate(item)
+                        }
+                      }}
+                    >
+                      <CircleHelp className="size-4" />
+                      {t(localeLabelKey[item])}
+                    </button>
+                  )}
+                </MenuItem>
+              ))}
               <MenuItem>
                 {({ focus }) => (
                   <button

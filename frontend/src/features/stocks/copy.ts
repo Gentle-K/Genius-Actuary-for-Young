@@ -48,11 +48,16 @@ const en = {
     run: 'Start running',
     pause: 'Pause',
     halt: 'Kill switch',
+    resolve: 'Resolve blockers',
     save: 'Save settings',
+    reset: 'Reset',
     refresh: 'Refresh',
     retry: 'Retry',
+    confirmKillSwitch: 'Confirm kill switch',
+    confirmLiveSettings: 'Confirm live settings',
   },
   sections: {
+    safetySummary: 'Safety summary',
     capital: 'Capital and state',
     guardrails: 'Guardrails',
     providers: 'Providers',
@@ -120,10 +125,23 @@ const en = {
   },
   messages: {
     settingsSaved: 'Stocks settings saved.',
+    settingsReset: 'Stocks settings reset to the last saved values.',
     stateUpdated: 'Autopilot state updated.',
     killSwitch: 'Kill switch activated.',
     paperOnly: 'Live mode can only arm after the promotion gate passes.',
     whitelistHint: 'Comma-separated large-cap tickers only. First version stays long-only and whitelist-bound.',
+    unsavedChanges: 'Unsaved changes',
+    validationErrors: 'Fix the highlighted guardrails before saving settings.',
+    liveSettingsReview:
+      'You are changing live-default settings. Review the limits before saving them.',
+    killSwitchDescription:
+      'This stops new entries immediately. Only risk-reducing actions should continue.',
+    positionsPaused:
+      'Autopilot is paused, so there are no active positions to monitor in this mode yet.',
+    positionsWaiting:
+      'No active positions are open in this mode right now.',
+    liveBlockedHint:
+      'Live mode stays visible, but it remains blocked until the promotion gate passes.',
   },
 } as const
 
@@ -175,11 +193,16 @@ const zhCn = {
     run: '开始运行',
     pause: '暂停',
     halt: '触发停机',
+    resolve: '处理阻塞项',
     save: '保存设置',
+    reset: '重置',
     refresh: '刷新',
     retry: '重试',
+    confirmKillSwitch: '确认停机',
+    confirmLiveSettings: '确认实盘设置',
   },
   sections: {
+    safetySummary: '安全摘要',
     capital: '资金与状态',
     guardrails: '风险护栏',
     providers: '通道状态',
@@ -247,10 +270,18 @@ const zhCn = {
   },
   messages: {
     settingsSaved: '股票子系统设置已保存。',
+    settingsReset: '股票子系统设置已重置到最近一次保存值。',
     stateUpdated: '自动驾驶状态已更新。',
     killSwitch: '已触发停机开关。',
     paperOnly: '只有通过实盘准入闸门后，实盘模式才允许进入预备状态。',
     whitelistHint: '使用逗号分隔的大盘股代码。第一版只做多、只跑白名单。',
+    unsavedChanges: '存在未保存修改',
+    validationErrors: '请先修正高亮的风险护栏，再保存设置。',
+    liveSettingsReview: '你正在修改与实盘默认行为相关的设置，保存前请再次确认限制。',
+    killSwitchDescription: '这会立即停止新的开仓动作，之后只应允许风险收缩类操作继续。',
+    positionsPaused: '自动驾驶当前处于暂停状态，因此这一模式下还没有需要监控的持仓。',
+    positionsWaiting: '这一模式下当前没有打开的持仓。',
+    liveBlockedHint: '实盘模式仍然可见，但在准入闸门通过前不会解锁。',
   },
 } as const
 
@@ -296,10 +327,18 @@ const zhHk = {
   },
   messages: {
     settingsSaved: '股票子系統設定已保存。',
+    settingsReset: '股票子系統設定已重設到最近一次保存值。',
     stateUpdated: '自動駕駛狀態已更新。',
     killSwitch: '已觸發停機開關。',
     paperOnly: '只有通過實盤準入閘門後，實盤模式才允許進入預備狀態。',
     whitelistHint: '使用逗號分隔的大盤股代碼。第一版只做多、只跑白名單。',
+    unsavedChanges: '存在未保存修改',
+    validationErrors: '請先修正高亮的風險護欄，再保存設定。',
+    liveSettingsReview: '你正在修改與實盤預設行為相關的設定，保存前請再次確認限制。',
+    killSwitchDescription: '這會立即停止新的開倉動作，之後只應允許風險收縮類操作繼續。',
+    positionsPaused: '自動駕駛目前處於暫停狀態，因此這個模式下還沒有需要監控的持倉。',
+    positionsWaiting: '這個模式下目前沒有打開的持倉。',
+    liveBlockedHint: '實盤模式仍然可見，但在準入閘門通過前不會解鎖。',
   },
 } as const
 
@@ -316,4 +355,3 @@ export function useStocksCopy() {
 
   return en
 }
-

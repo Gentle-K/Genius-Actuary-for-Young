@@ -13,8 +13,10 @@ export function ThemeProvider({ children }: PropsWithChildren) {
     }
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    let frameId = 0
 
     const applyTheme = () => {
+      document.documentElement.dataset['themeSwitching'] = 'true'
       const resolvedTheme =
         themeMode === 'system' ? (mediaQuery.matches ? 'dark' : 'light') : themeMode
 
@@ -22,12 +24,26 @@ export function ThemeProvider({ children }: PropsWithChildren) {
       document.documentElement.dataset['theme'] = resolvedTheme
       document.documentElement.dataset['themePreference'] = themeMode
       document.documentElement.style.colorScheme = resolvedTheme
+
+      if (frameId) {
+        window.cancelAnimationFrame(frameId)
+      }
+
+      frameId = window.requestAnimationFrame(() => {
+        document.documentElement.removeAttribute('data-theme-switching')
+      })
     }
 
     applyTheme()
     mediaQuery.addEventListener?.('change', applyTheme)
 
-    return () => mediaQuery.removeEventListener?.('change', applyTheme)
+    return () => {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId)
+      }
+      document.documentElement.removeAttribute('data-theme-switching')
+      mediaQuery.removeEventListener?.('change', applyTheme)
+    }
   }, [setResolvedTheme, themeMode])
 
   useEffect(() => {

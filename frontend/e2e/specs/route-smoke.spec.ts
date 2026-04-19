@@ -15,12 +15,20 @@ test('all visible routes render in demo mode and canonical redirects stay intact
   ).toBeVisible()
   await page.getByRole('button', { name: 'Open demo workspace' }).click()
 
-  await expect(page).toHaveURL(/\/new-analysis$/)
+  await expect(page).toHaveURL(/\/workspace$/)
   await expectPrimaryHeading(page)
 
-  await page.getByLabel('Decision brief').fill(
+  await page.goto('/new-analysis')
+  await expectPrimaryHeading(page)
+  await page.getByRole('button', { name: 'Continue' }).click()
+
+  await page.getByLabel(/Decision brief/i).fill(
     'Build a balanced 30 day HashKey Chain RWA demo allocation with a clear execution path.',
   )
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByLabel(/Budget range/i).fill('$250k')
+  await page.getByLabel(/Time horizon/i).fill('30 days')
+  await page.getByRole('button', { name: 'Continue' }).click()
   await page.getByRole('button', { name: 'Create session' }).click()
   await expect(page).toHaveURL(/\/sessions\/[^/]+\/clarify$/)
   const createdSessionId = page.url().match(/\/sessions\/([^/]+)\/clarify$/)?.[1] ?? ''
@@ -98,7 +106,7 @@ test('all visible routes render in demo mode and canonical redirects stay intact
   await expectPrimaryHeading(page)
 
   await page.goto('/dashboard')
-  await expect(page).toHaveURL(/\/new-analysis$/)
+  await expect(page).toHaveURL(/\/workspace$/)
 
   await page.goto('/notifications')
   await expect(page).toHaveURL(/\/sessions$/)

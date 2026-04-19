@@ -1,0 +1,265 @@
+export const enWorkspaceRefactorCopy = {
+  layout: {
+    navigation: {
+      workspace: 'Workspace',
+      rwaDesk: 'RWA Decision Desk',
+      stocks: 'US Equity Autopilot',
+      portfolio: 'Portfolio / Wallet',
+      settings: 'Workspace Settings',
+      commandCenter: 'Overview / Command Center',
+      executionPackages: 'Execution Packages',
+      cockpit: 'Cockpit',
+      candidates: 'Candidates',
+      orders: 'Orders & Positions',
+      autopilotSettings: 'Autopilot Settings',
+      more: 'More',
+    },
+    topbar: {
+      environmentMode: 'Mode',
+      dataTruth: 'Data truth',
+      menuLanguage: 'Language',
+      menuAccount: 'Account',
+    },
+    mobileNav: {
+      workspace: 'Workspace',
+      newAnalysis: 'New Analysis',
+      sessions: 'Sessions',
+      stocks: 'Stocks',
+      more: 'More',
+      menuTitle: 'Workspace Menu',
+      menuDescription: 'Open workspace areas, language, and account actions.',
+    },
+  },
+  workspace: {
+    title: 'Command Center',
+    description:
+      'One task-first workspace for analysis, proof review, execution preparation, and autopilot safety.',
+    primaryAction: 'Start New Analysis',
+    cards: {
+      mode: 'Workspace mode',
+      truth: 'Data truth',
+      blockers: 'Open blockers',
+      updates: 'Last updated',
+    },
+    sections: {
+      nextActions: 'Next safe actions',
+      recentSessions: 'Recent sessions',
+      reportReady: 'Report-ready items',
+      autopilot: 'Autopilot safety snapshot',
+      portfolio: 'Portfolio / watch status',
+    },
+    emptyAutopilot: 'Autopilot state has not loaded yet.',
+    emptyPortfolio: 'Connect a wallet or open a tracked address to monitor portfolio state.',
+  },
+  settings: {
+    groups: {
+      danger: 'Danger zone',
+    },
+    groupDescriptions: {
+      danger:
+        'Separate destructive account actions from routine appearance and preference changes.',
+    },
+    dirty: 'Unsaved changes',
+    clean: 'No unsaved changes.',
+    saveAction: 'Save changes',
+    resetAction: 'Reset',
+    connectedWallet: 'Connected wallet',
+    noWalletConnected: 'No wallet connected in this browser workspace.',
+    disconnectDescription: 'Disconnect the current wallet from this browser workspace only.',
+    disconnectSuccess: 'Wallet disconnected from this workspace.',
+  },
+  analysis: {
+    reportPage: {
+      openExecutionPackage: 'Open execution package',
+      reviewProof: 'Review proof',
+      statusRailTitle: 'Report readiness',
+      actionsTitle: 'Report actions',
+      evidenceFreshness: 'Evidence freshness',
+      unresolvedRisks: 'Unresolved risks',
+      nextSafeAction: 'Next safe action',
+    },
+  },
+  status: {
+    environment: {
+      demo: 'Demo',
+      paper: 'Paper',
+      live: 'Live',
+    },
+  },
+}
+
+export const zhCnWorkspaceRefactorCopy = {
+  layout: {
+    navigation: {
+      workspace: '工作台',
+      rwaDesk: 'RWA 决策台',
+      stocks: '美股自动驾驶',
+      portfolio: '组合 / 钱包',
+      settings: '工作台设置',
+      commandCenter: '总览 / 指挥台',
+      executionPackages: '执行包',
+      cockpit: '驾驶舱',
+      candidates: '候选池',
+      orders: '订单与持仓',
+      autopilotSettings: '自动驾驶设置',
+      more: '更多',
+    },
+    topbar: {
+      environmentMode: '模式',
+      dataTruth: '数据状态',
+      menuLanguage: '语言',
+      menuAccount: '账户',
+    },
+    mobileNav: {
+      workspace: '工作台',
+      newAnalysis: '新建分析',
+      sessions: '会话',
+      stocks: '股票',
+      more: '更多',
+      menuTitle: '工作台菜单',
+      menuDescription: '打开不同工作区、语言和账户操作。',
+    },
+  },
+  workspace: {
+    title: '指挥台',
+    description: '把分析、proof、执行准备和自动驾驶安全状态放进同一个任务优先界面。',
+    primaryAction: '开始新分析',
+    cards: {
+      mode: '工作台模式',
+      truth: '数据状态',
+      blockers: '当前阻塞项',
+      updates: '最近更新',
+    },
+    sections: {
+      nextActions: '下一步安全动作',
+      recentSessions: '最近会话',
+      reportReady: '可读报告',
+      autopilot: '自动驾驶安全快照',
+      portfolio: '组合 / 监控状态',
+    },
+    emptyAutopilot: '自动驾驶状态尚未加载。',
+    emptyPortfolio: '连接钱包或打开已跟踪地址后可查看组合状态。',
+  },
+  settings: {
+    groups: {
+      danger: '危险区',
+    },
+    groupDescriptions: {
+      danger: '把破坏性账户操作与常规外观和偏好设置分开。',
+    },
+    dirty: '存在未保存修改',
+    clean: '当前没有未保存修改。',
+    saveAction: '保存修改',
+    resetAction: '重置',
+    connectedWallet: '已连接钱包',
+    noWalletConnected: '当前浏览器工作台未连接钱包。',
+    disconnectDescription: '只从当前浏览器工作台断开这个钱包。',
+    disconnectSuccess: '钱包已从当前工作台断开。',
+  },
+  analysis: {
+    reportPage: {
+      openExecutionPackage: '打开执行包',
+      reviewProof: '查看存证',
+      statusRailTitle: '报告就绪状态',
+      actionsTitle: '报告操作',
+      evidenceFreshness: '证据新鲜度',
+      unresolvedRisks: '未解决风险',
+      nextSafeAction: '下一步安全动作',
+    },
+  },
+  status: {
+    environment: {
+      demo: '演示',
+      paper: '模拟',
+      live: '实盘',
+    },
+  },
+}
+
+export const zhHkWorkspaceRefactorCopy = {
+  layout: {
+    navigation: {
+      workspace: '工作台',
+      rwaDesk: 'RWA 決策台',
+      stocks: '美股自動駕駛',
+      portfolio: '組合 / 錢包',
+      settings: '工作台設定',
+      commandCenter: '總覽 / 指揮台',
+      executionPackages: '執行包',
+      cockpit: '駕駛艙',
+      candidates: '候選池',
+      orders: '訂單與持倉',
+      autopilotSettings: '自動駕駛設定',
+      more: '更多',
+    },
+    topbar: {
+      environmentMode: '模式',
+      dataTruth: '資料狀態',
+      menuLanguage: '語言',
+      menuAccount: '帳戶',
+    },
+    mobileNav: {
+      workspace: '工作台',
+      newAnalysis: '新建分析',
+      sessions: '會話',
+      stocks: '股票',
+      more: '更多',
+      menuTitle: '工作台選單',
+      menuDescription: '打開不同工作區、語言和帳戶操作。',
+    },
+  },
+  workspace: {
+    title: '指揮台',
+    description: '把分析、proof、執行準備和自動駕駛安全狀態放進同一個任務優先介面。',
+    primaryAction: '開始新分析',
+    cards: {
+      mode: '工作台模式',
+      truth: '資料狀態',
+      blockers: '目前阻塞項',
+      updates: '最近更新',
+    },
+    sections: {
+      nextActions: '下一步安全動作',
+      recentSessions: '最近會話',
+      reportReady: '可讀報告',
+      autopilot: '自動駕駛安全快照',
+      portfolio: '組合 / 監控狀態',
+    },
+    emptyAutopilot: '自動駕駛狀態尚未載入。',
+    emptyPortfolio: '連接錢包或打開已追蹤地址後可查看組合狀態。',
+  },
+  settings: {
+    groups: {
+      danger: '危險區',
+    },
+    groupDescriptions: {
+      danger: '把破壞性帳戶操作與一般外觀和偏好設定分開。',
+    },
+    dirty: '存在未保存修改',
+    clean: '目前沒有未保存修改。',
+    saveAction: '保存修改',
+    resetAction: '重設',
+    connectedWallet: '已連接錢包',
+    noWalletConnected: '目前瀏覽器工作台未連接錢包。',
+    disconnectDescription: '只從目前瀏覽器工作台中斷這個錢包。',
+    disconnectSuccess: '錢包已從目前工作台中斷。',
+  },
+  analysis: {
+    reportPage: {
+      openExecutionPackage: '開啟執行包',
+      reviewProof: '檢視存證',
+      statusRailTitle: '報告就緒狀態',
+      actionsTitle: '報告操作',
+      evidenceFreshness: '證據新鮮度',
+      unresolvedRisks: '未解決風險',
+      nextSafeAction: '下一步安全動作',
+    },
+  },
+  status: {
+    environment: {
+      demo: '演示',
+      paper: '模擬',
+      live: '實盤',
+    },
+  },
+}

@@ -31,6 +31,9 @@ vi.mock('@/lib/api/use-api-adapter', () => ({
       get: getSettings,
       update: updateSettings,
     },
+    stocks: {
+      getBootstrap: vi.fn().mockResolvedValue(undefined),
+    },
   }),
 }))
 

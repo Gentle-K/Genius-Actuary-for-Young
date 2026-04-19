@@ -14,9 +14,11 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { PageHeader } from '@/components/layout/page-header'
+import { StatusSummaryCard } from '@/components/product/workspace-ui'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { getAssetEligibilityDescriptor, getPrepareExecutionActionState } from '@/domain/status'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
 import { normalizeLanguageCode, toHongKongChinese, toIntlLocale } from '@/lib/i18n/locale'
 import { useAppStore } from '@/lib/store/app-store'
@@ -274,6 +276,22 @@ export function AssetProofPage() {
           zhHk: '這是本地時間線中的第一份 proof 快照。',
         }),
       ]
+  const proofDescriptor = getAssetEligibilityDescriptor({
+    status:
+      readiness.executionReadiness === 'view_only'
+        ? 'view_only'
+        : readiness.decision.status === 'eligible'
+          ? 'eligible'
+          : readiness.decision.status === 'conditional'
+            ? 'conditional'
+            : 'blocked',
+    blockers: buyBlockers,
+    updatedAt: proof.publishedAt ?? proof.effectiveAt,
+  })
+  const prepareActionState = getPrepareExecutionActionState({
+    executionReadiness: readiness.executionReadiness,
+    blockers: buyBlockers,
+  })
 
   return (
     <div className="space-y-6">
@@ -482,13 +500,14 @@ export function AssetProofPage() {
                   onClick={() =>
                     void navigate(`/new-analysis?asset=${asset.id}`)
                   }
-                  disabled={isProofOnly}
+                  disabled={prepareActionState.disabled}
+                  title={prepareActionState.reason}
                 >
                   <ArrowRight className="size-4" />
                   {localizedCopy(locale, {
-                    en: 'Go to execution',
-                    zhCn: '去执行',
-                    zhHk: '去執行',
+                    en: 'Prepare execution package',
+                    zhCn: '准备执行包',
+                    zhHk: '準備執行包',
                   })}
                 </Button>
                 {proof.primaryActionUrl ? (
@@ -671,6 +690,7 @@ export function AssetProofPage() {
         </section>
 
         <section className="space-y-5">
+          <StatusSummaryCard title="Why eligible or blocked now" descriptor={proofDescriptor} />
           <Card className="space-y-4 p-5">
             <div className="flex items-center gap-2">
               <Network className="size-5 text-accent-cyan" />

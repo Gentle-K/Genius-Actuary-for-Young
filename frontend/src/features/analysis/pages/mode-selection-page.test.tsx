@@ -9,16 +9,18 @@ import { renderWithAppState } from '@/tests/test-utils'
 describe('ModeSelectionPage', () => {
   beforeEach(() => {
     window.localStorage.removeItem('ga-new-analysis-draft')
+    window.localStorage.removeItem('ga-new-analysis-draft-v2')
   })
 
   afterEach(() => {
     cleanup()
     window.localStorage.removeItem('ga-new-analysis-draft')
+    window.localStorage.removeItem('ga-new-analysis-draft-v2')
   })
 
   it('renders both rebuilt analysis modes', async () => {
     renderWithAppState(<ModeSelectionPage />, {
-      route: '/new-analysis',
+      route: '/new-analysis?step=decision',
       locale: 'en',
     })
 
@@ -34,7 +36,7 @@ describe('ModeSelectionPage', () => {
     const user = userEvent.setup()
 
     renderWithAppState(<ModeSelectionPage />, {
-      route: '/new-analysis',
+      route: '/new-analysis?step=decision',
       locale: 'en',
     })
 
@@ -45,7 +47,7 @@ describe('ModeSelectionPage', () => {
     )
 
     expect(
-      screen.getByLabelText('Decision brief'),
+      screen.getByLabelText(/Decision brief/i),
     ).toHaveValue(
       'Allocate idle USDT from my wallet into one eligible HashKey Chain RWA sleeve.',
     )
@@ -76,11 +78,16 @@ describe('ModeSelectionPage', () => {
       },
     )
 
+    await user.click(await screen.findByRole('button', { name: 'Continue' }))
     await user.type(
-      await screen.findByLabelText('Decision brief'),
+      await screen.findByLabelText(/Decision brief/i),
       'Should I work abroad next year?',
     )
-    await user.click(screen.getByRole('button', { name: 'Create session' }))
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    await user.type(screen.getByLabelText(/Budget range/i), '$250k')
+    await user.type(screen.getByLabelText(/Time horizon/i), '6-12 months')
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    await user.click(await screen.findByRole('button', { name: 'Create session' }))
 
     expect(await screen.findByText('clarify workspace')).toBeInTheDocument()
   }, 10000)

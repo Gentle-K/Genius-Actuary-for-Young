@@ -82,7 +82,7 @@ describe('SettingsPage', () => {
     vi.restoreAllMocks()
   })
 
-  it('updates the active theme button immediately when a new theme is selected', async () => {
+  it('saves the theme draft only after the operator confirms the settings change', async () => {
     const user = userEvent.setup()
 
     renderWithAppState(<SettingsPage />, { route: '/settings' })
@@ -94,14 +94,13 @@ describe('SettingsPage', () => {
     expect(darkButton).toHaveAttribute('aria-pressed', 'false')
 
     await user.click(darkButton)
+    expect(darkButton).toHaveAttribute('aria-pressed', 'true')
+    expect(lightButton).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
     await waitFor(() => {
       expect(useAppStore.getState().themeMode).toBe('dark')
-      expect(darkButton).toHaveAttribute('aria-pressed', 'true')
-      expect(lightButton).toHaveAttribute('aria-pressed', 'false')
-    })
-
-    await waitFor(() => {
       expect(updateSettings).toHaveBeenCalled()
       expect(updateSettings.mock.calls[0]?.[0]).toEqual(
         expect.objectContaining({
@@ -119,14 +118,15 @@ describe('SettingsPage', () => {
     renderWithAppState(<SettingsPage />, { route: '/settings' })
 
     const darkButton = await screen.findByRole('button', { name: /Dark/ })
-    const lightButton = screen.getByRole('button', { name: /Light/ })
 
     await user.click(darkButton)
+    expect(darkButton).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
     await waitFor(() => {
       expect(useAppStore.getState().themeMode).toBe('light')
-      expect(lightButton).toHaveAttribute('aria-pressed', 'true')
-      expect(darkButton).toHaveAttribute('aria-pressed', 'false')
+      expect(darkButton).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
     })
   })
 })

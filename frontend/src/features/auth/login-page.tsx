@@ -48,7 +48,7 @@ export function LoginPage() {
         refreshToken: payload.refreshToken,
         currentUser: payload.user,
       })
-      void navigate('/new-analysis')
+      void navigate('/workspace')
     },
     onError: (error) => {
       setInlineError((error as Error).message)
@@ -114,7 +114,7 @@ export function LoginPage() {
           lastActiveAt: new Date().toISOString(),
         },
       })
-      void navigate('/new-analysis')
+      void navigate('/workspace')
     } catch (error) {
       setInlineError((error as Error).message)
     }
@@ -142,7 +142,7 @@ export function LoginPage() {
         lastActiveAt: new Date().toISOString(),
       },
     })
-    void navigate('/new-analysis')
+    void navigate('/workspace')
   }
 
   const handleDemo = async () => {

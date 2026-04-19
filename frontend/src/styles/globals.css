@@ -225,6 +225,15 @@
   color-scheme: dark;
 }
 
+:root[data-theme-switching='true'] *,
+:root[data-theme-switching='true'] *::before,
+:root[data-theme-switching='true'] *::after {
+  transition:
+    none !important;
+  animation:
+    none !important;
+}
+
 :root[data-locale='zh-CN'] {
   --font-sans-active: var(--font-sans-zh-cn);
 }

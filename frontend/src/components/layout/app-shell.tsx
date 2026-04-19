@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 
+import { MobileBottomNav } from '@/components/layout/mobile-bottom-nav'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
 import { useAppStore } from '@/lib/store/app-store'
@@ -45,13 +46,14 @@ export function AppShell() {
               initial={reducedMotion ? undefined : { opacity: 0, y: 12 }}
               animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-              className="min-w-0 px-[clamp(1rem,2vw,1.75rem)] pb-12 pt-6 md:pt-8"
+              className="min-w-0 px-[clamp(1rem,2vw,1.75rem)] pb-28 pt-6 md:pb-12 md:pt-8"
             >
               <Outlet />
             </motion.main>
           </AnimatePresence>
         </div>
       </div>
+      <MobileBottomNav />
     </div>
   )
 }

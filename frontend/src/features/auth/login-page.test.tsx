@@ -68,7 +68,7 @@ describe('LoginPage', () => {
     renderWithAppState(
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/new-analysis" element={<div>new analysis target</div>} />
+        <Route path="/workspace" element={<div>workspace target</div>} />
       </Routes>,
       { route: '/login', locale: 'en', apiMode: 'rest' },
     )
@@ -86,7 +86,7 @@ describe('LoginPage', () => {
         expect.any(Object),
       )
     })
-    expect(await screen.findByText('new analysis target')).toBeInTheDocument()
+    expect(await screen.findByText('workspace target')).toBeInTheDocument()
   })
 
   it('opens the curated demo flow without exposing a password field', async () => {
@@ -95,7 +95,7 @@ describe('LoginPage', () => {
     renderWithAppState(
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/new-analysis" element={<div>demo workspace target</div>} />
+        <Route path="/workspace" element={<div>demo workspace target</div>} />
       </Routes>,
       { route: '/login', locale: 'en', apiMode: 'rest' },
     )

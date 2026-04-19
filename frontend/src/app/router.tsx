@@ -14,6 +14,11 @@ const LoginPage = lazy(() =>
     default: module.LoginPage,
   })),
 )
+const DashboardPage = lazy(() =>
+  import('@/features/dashboard/dashboard-page').then((module) => ({
+    default: module.DashboardPage,
+  })),
+)
 const NewAnalysisPage = lazy(() =>
   import('@/features/analysis/pages/mode-selection-page').then((module) => ({
     default: module.ModeSelectionPage,
@@ -183,8 +188,9 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         errorElement: <RouteErrorBoundary />,
         children: [
-          { index: true, element: <Navigate to="/new-analysis" replace /> },
-          { path: '/dashboard', element: <Navigate to="/new-analysis" replace /> },
+          { index: true, element: <Navigate to="/workspace" replace /> },
+          { path: '/workspace', element: withRouteSuspense(<DashboardPage />) },
+          { path: '/dashboard', element: <Navigate to="/workspace" replace /> },
           { path: '/new-analysis', element: withRouteSuspense(<NewAnalysisPage />) },
           { path: '/assets', element: withRouteSuspense(<AssetsHubPage />) },
           { path: '/assets/:assetId/proof', element: withRouteSuspense(<AssetProofPage />) },

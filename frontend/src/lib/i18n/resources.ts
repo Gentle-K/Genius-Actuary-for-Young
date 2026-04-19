@@ -4,6 +4,11 @@ import {
   zhCnProductCopy,
   zhHkProductCopy,
 } from '@/lib/i18n/product-copy'
+import {
+  enWorkspaceRefactorCopy,
+  zhCnWorkspaceRefactorCopy,
+  zhHkWorkspaceRefactorCopy,
+} from '@/lib/i18n/workspace-refactor-copy'
 
 const baseResources = {
   zh: {
@@ -545,16 +550,16 @@ function mergeLocaleTree<T extends LocaleTree>(base: T, overrides: LocaleTree): 
 }
 
 const zhCnTranslation = mergeLocaleTree(
-  cloneLocaleTree(baseResources.zh.translation),
-  zhCnProductCopy,
+  mergeLocaleTree(cloneLocaleTree(baseResources.zh.translation), zhCnProductCopy),
+  zhCnWorkspaceRefactorCopy,
 )
 const zhHkTranslation = mergeLocaleTree(
-  cloneLocaleTree(baseResources.zh.translation),
-  zhHkProductCopy,
+  mergeLocaleTree(cloneLocaleTree(baseResources.zh.translation), zhHkProductCopy),
+  zhHkWorkspaceRefactorCopy,
 )
 const enTranslation = mergeLocaleTree(
-  cloneLocaleTree(baseResources.en.translation),
-  enProductCopy,
+  mergeLocaleTree(cloneLocaleTree(baseResources.en.translation), enProductCopy),
+  enWorkspaceRefactorCopy,
 )
 
 export const resources = {

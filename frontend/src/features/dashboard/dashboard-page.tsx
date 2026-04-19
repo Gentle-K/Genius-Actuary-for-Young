@@ -1,225 +1,313 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, Bell, Sparkles } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
-import { ChartCard } from '@/components/charts/chart-card'
-import { Skeleton } from '@/components/feedback/skeleton'
 import { PageHeader } from '@/components/layout/page-header'
-import { Badge } from '@/components/ui/badge'
+import {
+  EmptyState,
+  MetricCard,
+  NextActionList,
+  SectionCard,
+  SkeletonList,
+  StatusBadge,
+  StatusSummaryCard,
+} from '@/components/product/workspace-ui'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { useApiAdapter } from '@/lib/api/use-api-adapter'
-import { isChineseLocale } from '@/lib/i18n/locale'
 import {
-  getAnalysisSessionPath,
-  isResultSessionStatus,
-} from '@/lib/analysis/session-path'
-import { formatDateTime } from '@/lib/utils/format'
+  getAnalysisStatusDescriptor,
+  getTradingAutomationStatusDescriptor,
+  resolveDataTruthState,
+  resolveEnvironmentMode,
+  toAnalysisStatus,
+  toTradingAutomationStatus,
+} from '@/domain/status'
+import { useApiAdapter } from '@/lib/api/use-api-adapter'
 import { useAppStore } from '@/lib/store/app-store'
-import type { ActivityItem, ChartArtifact, DashboardMetric } from '@/types'
-
-const metricKeyById: Record<string, string> = {
-  'm-1': 'activeSessions',
-  'm-2': 'reportsExported',
-  'm-3': 'unreadAlerts',
-  'm-4': 'confidenceTrend',
-  'backend-live-sessions': 'trackedSessions',
-  'backend-completed': 'completedLoops',
-  'backend-clarifying': 'needInput',
-}
-
-const activityKeyById: Record<string, string> = {
-  'a-1': 'exchangeComplete',
-  'a-2': 'clarifyWaiting',
-  'a-3': 'fileIndexed',
-  'backend-sync': 'backendSync',
-}
+import { formatDateTime } from '@/lib/utils/format'
+import { continuePath } from '@/features/analysis/lib/view-models'
 
 export function DashboardPage() {
-  const { i18n, t } = useTranslation()
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const adapter = useApiAdapter()
+  const apiMode = useAppStore((state) => state.apiMode)
   const locale = useAppStore((state) => state.locale)
-  const isZh = isChineseLocale(i18n.language)
+  const walletAddress = useAppStore((state) => state.walletAddress)
 
   const dashboardQuery = useQuery({
-    queryKey: ['dashboard'],
+    queryKey: ['workspace', 'dashboard'],
     queryFn: adapter.dashboard.getOverview,
   })
+  const sessionsQuery = useQuery({
+    queryKey: ['workspace', 'sessions'],
+    queryFn: () => adapter.analysis.list({ page: 1, pageSize: 20 }),
+  })
+  const stocksBootstrapQuery = useQuery({
+    queryKey: ['workspace', 'stocks', 'bootstrap'],
+    queryFn: adapter.stocks.getBootstrap,
+  })
+  const paperAccountQuery = useQuery({
+    queryKey: ['workspace', 'stocks', 'paper-account'],
+    queryFn: () => adapter.stocks.getAccount('paper'),
+  })
 
-  const dashboard = dashboardQuery.data
+  const sessions = sessionsQuery.data?.items ?? []
+  const latestUpdate =
+    paperAccountQuery.data?.updatedAt ??
+    sessions[0]?.updatedAt ??
+    dashboardQuery.data?.recentSessions[0]?.updatedAt
 
-  const localizeMetric = (metric: DashboardMetric) => {
-    const key = metricKeyById[metric.id]
-    if (!key) {
-      return metric
+  const environmentMode = resolveEnvironmentMode('/workspace', apiMode, null)
+  const dataTruth = resolveDataTruthState({
+    apiMode,
+    pathname: '/workspace',
+    lastUpdated: latestUpdate,
+  })
+  const clarifyingSessions = sessions.filter((item) => item.status === 'CLARIFYING')
+  const reportReadySessions = sessions.filter(
+    (item) =>
+      item.status === 'READY_FOR_EXECUTION' ||
+      item.status === 'COMPLETED' ||
+      item.status === 'EXECUTING' ||
+      item.status === 'MONITORING',
+  )
+  const nextActions = (() => {
+    const items = []
+
+    if (clarifyingSessions[0]) {
+      items.push({
+        id: 'clarify',
+        label: clarifyingSessions[0].problemStatement,
+        detail: getAnalysisStatusDescriptor(
+          toAnalysisStatus(clarifyingSessions[0].status),
+          clarifyingSessions[0].updatedAt,
+        ).nextAction,
+        action: (
+          <Button size="sm" onClick={() => void navigate(continuePath(clarifyingSessions[0]))}>
+            Continue
+          </Button>
+        ),
+      })
     }
 
-    const useTranslatedChange = ['activeSessions', 'reportsExported', 'unreadAlerts', 'confidenceTrend'].includes(key)
-
-    return {
-      ...metric,
-      label: t(`dashboard.metrics.${key}.label`),
-      detail: t(`dashboard.metrics.${key}.detail`),
-      change: useTranslatedChange ? t(`dashboard.metrics.${key}.change`) : metric.change,
-    }
-  }
-
-  const localizeActivity = (item: ActivityItem) => {
-    const key = activityKeyById[item.id]
-    if (!key) {
-      return item
-    }
-
-    return {
-      ...item,
-      title: t(`dashboard.activity.${key}.title`),
-      detail: t(`dashboard.activity.${key}.detail`),
-    }
-  }
-
-  const localizeChart = (chart: ChartArtifact): ChartArtifact => {
-    if (chart.id === 'dashboard-trend') {
-      return {
-        ...chart,
-        title: t('dashboard.charts.confidenceTrendTitle'),
-        note: t('dashboard.charts.confidenceTrendNote'),
-        unit: isZh ? '分数 / 100' : 'score / 100',
-      }
+    if (reportReadySessions[0]) {
+      items.push({
+        id: 'report',
+        label: reportReadySessions[0].problemStatement,
+        detail: 'Open the report or execution package only after unresolved risks are reviewed.',
+        action: (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => void navigate(`/reports/${reportReadySessions[0].id}`)}
+          >
+            Open report
+          </Button>
+        ),
+      })
     }
 
-    if (chart.id === 'dashboard-distribution') {
-      return {
-        ...chart,
-        title: t('dashboard.charts.workflowMixTitle'),
-        unit: isZh ? '数量' : 'count',
-      }
+    if (!items.length) {
+      items.push({
+        id: 'new-analysis',
+        label: t('workspace.primaryAction'),
+        detail: 'Start with one decision brief, then let the workspace build evidence, calculations, and execution posture.',
+        action: (
+          <Button size="sm" onClick={() => void navigate('/new-analysis')}>
+            {t('workspace.primaryAction')}
+          </Button>
+        ),
+      })
     }
 
-    return chart
+    return items
+  })()
+
+  const autopilotDescriptor = paperAccountQuery.data
+    ? getTradingAutomationStatusDescriptor({
+        status: toTradingAutomationStatus({
+          mode: 'paper',
+          autopilotState: paperAccountQuery.data.autopilotState,
+          killSwitchActive: paperAccountQuery.data.killSwitchActive,
+          eligibleForLiveArm: stocksBootstrapQuery.data?.promotionGate.eligibleForLiveArm,
+        }),
+        blockers: stocksBootstrapQuery.data?.promotionGate.blockers,
+        updatedAt: paperAccountQuery.data.updatedAt,
+      })
+    : undefined
+
+  if (dashboardQuery.isLoading || sessionsQuery.isLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow={t('layout.navigation.workspace')}
+          title={t('workspace.title')}
+          description={t('workspace.description')}
+          primaryAction={
+            <Button onClick={() => void navigate('/new-analysis')}>
+              {t('workspace.primaryAction')}
+            </Button>
+          }
+        />
+        <SkeletonList description="Loading the command center surfaces..." count={4} />
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={t('dashboard.eyebrow')}
-        title={t('dashboard.title')}
-        description={t('dashboard.subtitle')}
-        actions={
+        eyebrow={t('layout.navigation.workspace')}
+        title={t('workspace.title')}
+        description={t('workspace.description')}
+        primaryAction={
+          <Button onClick={() => void navigate('/new-analysis')}>
+            {t('workspace.primaryAction')}
+          </Button>
+        }
+        statusBadges={
           <>
-            <Button variant="secondary" onClick={() => void navigate('/notifications')}>
-              <Bell className="size-4" />
-              {t('nav.notifications')}
-            </Button>
-            <Button onClick={() => void navigate('/analysis/modes')}>
-              <Sparkles className="size-4" />
-              {t('nav.analyze')}
-            </Button>
+            <StatusBadge
+              label={t(`status.environment.${environmentMode}`)}
+              severity={environmentMode === 'live' ? 'danger' : 'info'}
+            />
+            <StatusBadge
+              label={dataTruth.label}
+              severity={dataTruth.severity}
+              description={dataTruth.reason}
+            />
           </>
         }
       />
 
-      {dashboardQuery.isLoading || !dashboard ? (
-        <div className="grid gap-4 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-32 rounded-[24px]" />
-          ))}
-        </div>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-4">
-          {dashboard.metrics.map((metric) => {
-            const localizedMetric = localizeMetric(metric)
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label={t('workspace.cards.mode')}
+          value={t(`status.environment.${environmentMode}`)}
+          helperText={environmentMode === 'demo' ? 'Mock and demo data stay visibly separated from real actions.' : 'Connected state can still be blocked by safety checks.'}
+        />
+        <MetricCard
+          label={t('workspace.cards.truth')}
+          value={dataTruth.label}
+          helperText={dataTruth.reason}
+          timestamp={latestUpdate}
+        />
+        <MetricCard
+          label={t('workspace.cards.blockers')}
+          value={String(clarifyingSessions.length + (stocksBootstrapQuery.data?.promotionGate.blockers.length ?? 0))}
+          helperText="Blockers stay visible until a specific next action resolves them."
+        />
+        <MetricCard
+          label={t('workspace.cards.updates')}
+          value={latestUpdate ? formatDateTime(latestUpdate, locale) : '--'}
+          helperText="Latest session or autopilot state writeback."
+        />
+      </div>
 
-            return (
-              <Card key={metric.id} className="p-5">
-                <p className="text-sm text-text-secondary">{localizedMetric.label}</p>
-                <p className="metric-value mt-3 text-3xl font-semibold text-text-primary">{localizedMetric.value}</p>
-                <div className="mt-4 flex items-center justify-between gap-3">
-                  <Badge tone="gold">{localizedMetric.change}</Badge>
-                  <p className="max-w-[12rem] text-right text-xs leading-5 text-text-muted">{localizedMetric.detail}</p>
-                </div>
-              </Card>
-            )
-          })}
-        </div>
-      )}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+        <div className="space-y-6">
+          <SectionCard title={t('workspace.sections.nextActions')} description="Keep the next safe action obvious on every pass through the workspace.">
+            <NextActionList actions={nextActions} />
+          </SectionCard>
 
-      <div className="grid gap-4 xl:grid-cols-[1.45fr_0.95fr]">
-        <div className="space-y-4">
-          {dashboard?.charts.map((chart) => <ChartCard key={chart.id} chart={localizeChart(chart)} />)}
-        </div>
+          <SectionCard title={t('workspace.sections.recentSessions')} description="Recent analysis sessions stay anchored to status, confidence, and next action.">
+            {sessions.length ? (
+              <div className="space-y-3">
+                {sessions.slice(0, 5).map((session) => {
+                  const descriptor = getAnalysisStatusDescriptor(
+                    toAnalysisStatus(session.status),
+                    session.updatedAt,
+                  )
 
-        <div className="space-y-4">
-          <Card className="p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-text-primary">{t('dashboard.recentAnalyses')}</h2>
-              <Button variant="ghost" size="sm" onClick={() => void navigate('/resources/analyses')}>
-                {t('common.viewAll')}
-                <ArrowRight className="size-4" />
-              </Button>
-            </div>
-
-            <div className="space-y-3">
-              {dashboard?.recentSessions.map((session) => {
-                const isCompleted = isResultSessionStatus(session.status)
-                const sessionModeLabel = session.mode === 'single-option' ? t('analysis.singleMode') : t('analysis.multiMode')
-                const actionLabel = isCompleted ? t('dashboard.openReport') : t('dashboard.continueAnalysis')
-
-                return (
-                  <button
-                    key={session.id}
-                    type="button"
-                    onClick={() =>
-                      void navigate(getAnalysisSessionPath(session.id, session.status))
-                    }
-                    className="w-full rounded-[22px] border border-border-subtle bg-app-bg-elevated p-4 text-left transition hover:border-border-strong hover:bg-panel-strong"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-2">
-                        <p className="font-medium leading-7 text-text-primary">{session.problemStatement}</p>
-                        <div className="flex flex-wrap gap-2">
-                          <Badge tone="neutral">{sessionModeLabel}</Badge>
-                          <Badge tone={isCompleted ? 'success' : 'warning'}>{t(`common.status.${session.status}`)}</Badge>
+                  return (
+                    <Card key={session.id} className="space-y-3 rounded-[22px] border border-border-subtle bg-app-bg-elevated p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-2">
+                          <p className="text-sm font-semibold text-text-primary">{session.problemStatement}</p>
+                          <div className="flex flex-wrap gap-2">
+                            <StatusBadge
+                              label={descriptor.label}
+                              severity={descriptor.severity}
+                              description={descriptor.reason}
+                              timestamp={session.updatedAt}
+                            />
+                          </div>
                         </div>
-                        <p className="text-xs leading-5 text-text-muted">{session.lastInsight}</p>
+                        <Button size="sm" variant="secondary" onClick={() => void navigate(continuePath(session))}>
+                          Open
+                        </Button>
                       </div>
-                    </div>
+                      <p className="text-sm leading-6 text-text-secondary">
+                        {descriptor.nextAction}
+                      </p>
+                    </Card>
+                  )
+                })}
+              </div>
+            ) : (
+              <EmptyState
+                title="No analysis sessions yet"
+                description="Start a new analysis to create the first decision workspace."
+                primaryAction={
+                  <Button onClick={() => void navigate('/new-analysis')}>{t('workspace.primaryAction')}</Button>
+                }
+              />
+            )}
+          </SectionCard>
 
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <p className="text-xs text-text-muted">{formatDateTime(session.updatedAt, locale)}</p>
-                      <span className="inline-flex items-center gap-2 text-sm font-medium text-gold-ink">
-                        {actionLabel}
-                        <ArrowRight className="size-4" />
-                      </span>
+          <SectionCard title={t('workspace.sections.reportReady')} description="Reports that are ready for review or execution preparation stay grouped here.">
+            {reportReadySessions.length ? (
+              <div className="space-y-3">
+                {reportReadySessions.slice(0, 3).map((session) => (
+                  <Card key={session.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-border-subtle bg-app-bg-elevated p-4">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-text-primary">{session.problemStatement}</p>
+                      <p className="text-sm text-text-secondary">Open the report before preparing execution.</p>
                     </div>
-                  </button>
-                )
-              })}
-            </div>
-          </Card>
+                    <Button size="sm" onClick={() => void navigate(`/reports/${session.id}`)}>
+                      Open report
+                    </Button>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-text-secondary">No report-ready session is available yet.</p>
+            )}
+          </SectionCard>
+        </div>
 
-          <Card className="p-5">
-            <h2 className="mb-4 text-lg font-semibold text-text-primary">{t('dashboard.activityPulse')}</h2>
-            <div className="space-y-4">
-              {dashboard?.activity.map((item) => {
-                const localizedItem = localizeActivity(item)
+        <div className="space-y-6">
+          {autopilotDescriptor ? (
+            <StatusSummaryCard
+              title={t('workspace.sections.autopilot')}
+              descriptor={autopilotDescriptor}
+              action={
+                <Button size="sm" variant="secondary" onClick={() => void navigate('/stocks?mode=paper')}>
+                  Open cockpit
+                </Button>
+              }
+            />
+          ) : (
+            <SectionCard title={t('workspace.sections.autopilot')}>
+              <p className="text-sm text-text-secondary">{t('workspace.emptyAutopilot')}</p>
+            </SectionCard>
+          )}
 
-                return (
-                  <div key={item.id} className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-medium text-text-primary">{localizedItem.title}</p>
-                      <Badge tone={item.tone === 'positive' ? 'success' : item.tone === 'warning' ? 'warning' : 'neutral'}>
-                        {t(`common.tone.${item.tone}`)}
-                      </Badge>
-                    </div>
-                    <p className="mt-2 text-sm leading-7 text-text-secondary">{localizedItem.detail}</p>
-                    <p className="mt-3 text-xs text-text-muted">{formatDateTime(localizedItem.createdAt, locale)}</p>
-                  </div>
-                )
-              })}
-            </div>
-          </Card>
+          <SectionCard title={t('workspace.sections.portfolio')} description="Portfolio monitoring is available without changing the current decision flow.">
+            {walletAddress ? (
+              <div className="space-y-3">
+                <p className="text-sm text-text-secondary">
+                  Connected wallet: <span className="text-text-primary">{walletAddress}</span>
+                </p>
+                <Button variant="secondary" onClick={() => void navigate(`/portfolio/${walletAddress}`)}>
+                  Open portfolio
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm text-text-secondary">{t('workspace.emptyPortfolio')}</p>
+            )}
+          </SectionCard>
         </div>
       </div>
     </div>

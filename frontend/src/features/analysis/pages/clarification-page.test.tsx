@@ -111,7 +111,7 @@ describe('ClarificationPage', () => {
     renderWithAppState(
       <Routes>
         <Route path="/analysis/session/:sessionId/clarify" element={<ClarificationPage />} />
-        <Route path="/analysis/session/:sessionId/progress" element={<div>progress target</div>} />
+        <Route path="/sessions/:sessionId/analyzing" element={<div>progress target</div>} />
       </Routes>,
       { route: '/analysis/session/sess-clarify-1/clarify', locale: 'en', apiMode: 'rest' },
     )
@@ -121,7 +121,12 @@ describe('ClarificationPage', () => {
       screen.getAllByLabelText('Custom input')[0],
       'Need to preserve optionality if admissions timing slips.',
     )
-    await user.click(screen.getAllByRole('button', { name: 'Prefer not to answer' })[1])
+    await user.click(
+      screen.getByRole('button', {
+        name: /Add any constraint that should override the default ranking\./i,
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Prefer not to answer' }))
     await user.click(screen.getByTestId('clarification-submit'))
 
     await waitFor(() => {

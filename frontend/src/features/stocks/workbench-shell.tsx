@@ -9,6 +9,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { getLiveTabActionState } from '@/domain/status'
 import { cn } from '@/lib/utils/cn'
 import type { StockBrokerAccount, StocksBootstrap, TradingMode } from '@/types'
 
@@ -42,6 +43,10 @@ export function StocksWorkbenchShell({
 }: StocksWorkbenchShellProps) {
   const copy = useStocksCopy()
   const { modeLabel, autopilotLabel, providerLabel } = useStocksLabels()
+  const liveTabActionState = getLiveTabActionState({
+    eligibleForLiveArm: bootstrap?.promotionGate.eligibleForLiveArm,
+    blockers: bootstrap?.promotionGate.blockers,
+  })
 
   const tabs = [
     { to: '/stocks', label: copy.shell.tabs.cockpit },
@@ -80,21 +85,30 @@ export function StocksWorkbenchShell({
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant={mode === 'paper' ? 'primary' : 'secondary'}
-              size="sm"
-              onClick={() => onModeChange('paper')}
-            >
-              {copy.shell.mode.paper}
-            </Button>
-            <Button
-              variant={mode === 'live' ? 'primary' : 'secondary'}
-              size="sm"
-              onClick={() => onModeChange('live')}
-            >
-              {copy.shell.mode.live}
-            </Button>
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant={mode === 'paper' ? 'primary' : 'secondary'}
+                size="sm"
+                onClick={() => onModeChange('paper')}
+              >
+                {copy.shell.mode.paper}
+              </Button>
+              <Button
+                variant={mode === 'live' ? 'primary' : 'secondary'}
+                size="sm"
+                onClick={() => onModeChange('live')}
+                disabled={liveTabActionState.disabled}
+                title={liveTabActionState.reason}
+              >
+                {copy.shell.mode.live}
+              </Button>
+            </div>
+            {liveTabActionState.disabled ? (
+              <p className="max-w-sm text-xs leading-5 text-warning">
+                {liveTabActionState.reason ?? copy.messages.liveBlockedHint}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -168,4 +182,3 @@ export function StocksWorkbenchShell({
     </PageContainer>
   )
 }
-

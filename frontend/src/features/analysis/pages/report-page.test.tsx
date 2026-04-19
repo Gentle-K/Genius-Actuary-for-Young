@@ -165,8 +165,8 @@ describe('ReportPage', () => {
     )
 
     expect(await screen.findByRole('heading', { name: 'Graduate school vs work-first decision' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Review execution plan' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Execute on HashKey Chain' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Open execution package' }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('heading', { name: 'Report readiness' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Executive summary' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Option comparison' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Unknowns' })).toBeInTheDocument()

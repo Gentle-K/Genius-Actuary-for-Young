@@ -1,118 +1,92 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Form, Formik } from 'formik'
-import { CheckCircle2, CircleHelp } from 'lucide-react'
-import { useMemo } from 'react'
+import { CheckCircle2, CircleHelp, Save } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
-import { Skeleton } from '@/components/feedback/skeleton'
 import { PageHeader } from '@/components/layout/page-header'
+import {
+  FormField,
+  SectionCard,
+  StatusBadge,
+  StickyFooter,
+} from '@/components/product/workspace-ui'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input, Textarea } from '@/components/ui/field'
-import { AnalysisPendingView } from '@/features/analysis/components/analysis-pending-view'
-import { ApiError } from '@/lib/api/client'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
 import { useAppStore } from '@/lib/store/app-store'
-import { haptics } from '@/lib/utils/haptics'
+import { getLocalStorageItem, removeLocalStorageItem, setLocalStorageItem } from '@/lib/utils/safe-storage'
 import type { ClarificationQuestion, UserAnswer } from '@/types'
 
-type ClarificationValues = Record<string, string | string[]>
+const draftKey = (sessionId: string) => `ga-clarify-draft:${sessionId}`
 
-function buildInitialValues(questions: ClarificationQuestion[]) {
-  return questions.reduce<Record<string, string | string[]>>((accumulator, question) => {
-    accumulator[question.id] =
-      question.fieldType === 'multi-choice' ? question.recommended ?? [] : question.recommended?.[0] ?? ''
-    accumulator[`${question.id}__custom`] = ''
-    accumulator[`${question.id}__status`] = 'answered'
+type ClarificationDraftValue = Record<
+  string,
+  {
+    selectedOptions: string[]
+    customInput: string
+    numericValue: string
+    answerStatus: UserAnswer['answerStatus']
+  }
+>
+
+function buildInitialDraft(questions: ClarificationQuestion[], raw: string | null) {
+  const fallback = questions.reduce<ClarificationDraftValue>((accumulator, question) => {
+    accumulator[question.id] = {
+      selectedOptions: question.recommended ?? [],
+      customInput: '',
+      numericValue: '',
+      answerStatus: 'answered',
+    }
     return accumulator
   }, {})
+
+  if (!raw) {
+    return fallback
+  }
+
+  try {
+    return {
+      ...fallback,
+      ...(JSON.parse(raw) as ClarificationDraftValue),
+    }
+  } catch {
+    return fallback
+  }
 }
 
-function toAnswers(questions: ClarificationQuestion[], values: ClarificationValues): UserAnswer[] {
-  return questions.flatMap((question) => {
-    const rawStatus = String(values[`${question.id}__status`] ?? 'answered')
-    const selectedValue = values[question.id]
-    const customInput = String(values[`${question.id}__custom`] ?? '').trim()
-    const selectedOptions =
-      Array.isArray(selectedValue) && selectedValue.length
-        ? selectedValue
-        : typeof selectedValue === 'string' && selectedValue
-          ? [selectedValue]
-          : undefined
-    const numericValue =
-      question.fieldType === 'slider' || question.fieldType === 'number'
-        ? Number(selectedValue || 0)
-        : undefined
-    const hasExplicitAnswer =
-      Boolean(selectedOptions?.length) ||
-      Boolean(customInput) ||
-      (typeof numericValue === 'number' &&
-        Number.isFinite(numericValue) &&
-        (question.fieldType === 'slider' || question.fieldType === 'number'))
+function hasMeaningfulAnswer(value: ClarificationDraftValue[string]) {
+  return Boolean(
+    value.selectedOptions.length ||
+      value.customInput.trim() ||
+      (value.numericValue && Number.isFinite(Number(value.numericValue))),
+  )
+}
 
-    if (rawStatus === 'answered' && !hasExplicitAnswer) {
+function toAnswers(questions: ClarificationQuestion[], draft: ClarificationDraftValue): UserAnswer[] {
+  return questions.flatMap((question) => {
+    const value = draft[question.id]
+    if (!value) {
       return []
     }
 
-    return [{
-      id: `${question.id}-answer`,
-      questionId: question.id,
-      answerStatus: rawStatus as UserAnswer['answerStatus'],
-      selectedOptions,
-      customInput: customInput || undefined,
-      numericValue,
-    }]
-  })
-}
-
-function summarizeSelection(
-  question: ClarificationQuestion,
-  values: ClarificationValues,
-  currentStatus: UserAnswer['answerStatus'],
-  statusLabel: string,
-) {
-  if (currentStatus !== 'answered') {
-    return statusLabel
-  }
-
-  const rawValue = values[question.id]
-
-  if (question.fieldType === 'multi-choice' && Array.isArray(rawValue) && rawValue.length) {
-    const selected = new Set(rawValue)
-    return question.options
-      ?.filter((option) => selected.has(option.value))
-      .map((option) => option.label)
-      .join(' / ')
-  }
-
-  if (typeof rawValue === 'string' && rawValue) {
-    const matchingOption = question.options?.find((option) => option.value === rawValue)
-    return matchingOption?.label ?? rawValue
-  }
-
-  const customInput = String(values[`${question.id}__custom`] ?? '').trim()
-  if (customInput) {
-    return customInput
-  }
-
-  return ''
-}
-
-function getSubmitErrorMessage(error: unknown, t: ReturnType<typeof useTranslation>['t']) {
-  if (error instanceof ApiError) {
-    const detail =
-      error.details && typeof error.details === 'object' && 'detail' in error.details
-        ? String((error.details as { detail?: unknown }).detail ?? '').trim()
-        : ''
-
-    if (detail) {
-      return detail
+    if (value.answerStatus === 'answered' && !hasMeaningfulAnswer(value)) {
+      return []
     }
-  }
 
-  return t('analysis.clarificationPage.submitFailedFallback')
+    return [
+      {
+        id: `${question.id}-answer`,
+        questionId: question.id,
+        selectedOptions: value.selectedOptions.length ? value.selectedOptions : undefined,
+        customInput: value.customInput.trim() || undefined,
+        numericValue: value.numericValue ? Number(value.numericValue) : undefined,
+        answerStatus: value.answerStatus,
+      },
+    ]
+  })
 }
 
 export function ClarificationPage() {
@@ -128,59 +102,103 @@ export function ClarificationPage() {
     queryFn: () => adapter.analysis.getById(sessionId),
   })
 
-  const submitMutation = useMutation({
-    mutationFn: (answers: UserAnswer[]) => adapter.analysis.submitAnswers(sessionId, { answers }),
-    onSuccess: (session) => {
-      queryClient.setQueryData(['analysis', sessionId, 'clarification-page', locale], session)
-      haptics.trigger('confirm')
-      if (session.status === 'CLARIFYING') {
-        return
-      }
-
-      void navigate(`/analysis/session/${session.id}/progress`)
-    },
-    onError: () => {
-      void sessionQuery.refetch()
-    },
-  })
-
   const questions = useMemo(
     () => (sessionQuery.data?.questions ?? []).filter((question) => !question.answered),
     [sessionQuery.data?.questions],
   )
-  const initialValues = useMemo(() => buildInitialValues(questions), [questions])
+  const [draft, setDraft] = useState<ClarificationDraftValue>({})
+  const [currentQuestionId, setCurrentQuestionId] = useState('')
+  const persistedDraft = useMemo(
+    () =>
+      questions.length
+        ? buildInitialDraft(questions, getLocalStorageItem(draftKey(sessionId)))
+        : {},
+    [questions, sessionId],
+  )
+  const effectiveDraft = Object.keys(draft).length ? draft : persistedDraft
 
-  const text = {
-    textPlaceholder: t('analysis.clarificationPage.placeholders.text'),
-    textareaPlaceholder: t('analysis.clarificationPage.placeholders.textarea'),
-    customPlaceholder: t('analysis.clarificationPage.placeholders.custom'),
-    singleChoiceHint: t('analysis.chooseOne'),
-    multiChoiceHint: t('analysis.chooseMany'),
-    rangeHint: t('analysis.clarificationPage.rangeHint'),
-    questionTip: t('analysis.clarificationPage.questionTip'),
-    currentRecord: t('analysis.clarificationPage.currentRecord'),
-    status: {
-      answered: t('analysis.clarificationPage.statuses.answered'),
-      skipped: t('analysis.clarificationPage.statuses.skipped'),
-      uncertain: t('analysis.clarificationPage.statuses.uncertain'),
-      declined: t('analysis.clarificationPage.statuses.declined'),
+  const submitMutation = useMutation({
+    mutationFn: (answers: UserAnswer[]) => adapter.analysis.submitAnswers(sessionId, { answers }),
+    onSuccess: async (session) => {
+      removeLocalStorageItem(draftKey(sessionId))
+      queryClient.setQueryData(['analysis', sessionId, 'clarification-page', locale], session)
+      if (session.status === 'CLARIFYING') {
+        return
+      }
+      await navigate(`/sessions/${session.id}/analyzing`)
     },
+  })
+
+  const currentQuestion =
+    questions.find((question) => question.id === currentQuestionId) ?? questions[0]
+  const draftValue = currentQuestion ? effectiveDraft[currentQuestion.id] : undefined
+  const pendingQueue = questions.filter((question) => question.id !== currentQuestion?.id)
+  const saveDraftLocally = () => {
+    setLocalStorageItem(draftKey(sessionId), JSON.stringify(effectiveDraft))
+  }
+  const currentQuestionReady =
+    !currentQuestion ||
+    draftValue?.answerStatus !== 'answered' ||
+    Boolean(draftValue && hasMeaningfulAnswer(draftValue))
+  const continueReason = currentQuestionReady
+    ? ''
+    : 'Continue analysis disabled: answer, skip, or mark uncertain for the current question first.'
+
+  const updateQuestionDraft = (
+    questionId: string,
+    patch: Partial<ClarificationDraftValue[string]>,
+  ) => {
+    setDraft((current) => ({
+      ...(Object.keys(current).length ? current : persistedDraft),
+      [questionId]: {
+        ...((Object.keys(current).length ? current : persistedDraft)[questionId] ?? {
+          selectedOptions: [],
+          customInput: '',
+          numericValue: '',
+          answerStatus: 'answered' as const,
+        }),
+        ...patch,
+      },
+    }))
   }
 
-  if (submitMutation.isPending) {
+  if (sessionQuery.isLoading) {
     return (
-      <AnalysisPendingView
-        eyebrow={t('common.nextStep')}
-        title={t('analysis.clarificationPage.pendingView.title')}
-        description={t('analysis.clarificationPage.pendingView.description')}
-        loaderLabel={t('analysis.clarificationPage.pendingView.loaderLabel')}
-        stageLabel={t('analysis.clarificationPage.pendingView.stageLabel')}
-        stageTitle={t('analysis.clarificationPage.pendingView.stageTitle')}
-        stageDescription={t('analysis.clarificationPage.pendingView.stageDescription')}
-        tips={t('analysis.clarificationPage.pendingView.tips', {
-          returnObjects: true,
-        }) as [string, string]}
-      />
+      <Card className="space-y-4 p-6">
+        <p className="text-sm text-text-secondary">Loading clarification workspace…</p>
+      </Card>
+    )
+  }
+
+  if (sessionQuery.error) {
+    return (
+      <Card className="space-y-4 p-6">
+        <h2 className="text-lg font-semibold text-text-primary">
+          Failed to load the analysis session
+        </h2>
+        <p className="text-sm text-text-secondary">
+          Review the connection, then retry the clarification workspace.
+        </p>
+        <Button variant="secondary" onClick={() => void sessionQuery.refetch()}>
+          Retry
+        </Button>
+      </Card>
+    )
+  }
+
+  if (!sessionQuery.data || !questions.length) {
+    return (
+      <Card className="space-y-4 p-6">
+        <p className="text-sm text-text-secondary">
+          No pending clarification questions remain for this session.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => void navigate(`/sessions/${sessionId}`)}>Open session</Button>
+          <Button variant="secondary" onClick={() => void navigate(`/reports/${sessionId}`)}>
+            Open report
+          </Button>
+        </div>
+      </Card>
     )
   }
 
@@ -190,333 +208,248 @@ export function ClarificationPage() {
         eyebrow={t('common.nextStep')}
         title={t('analysis.clarifyTitle')}
         description={t('analysis.clarifySubtitle')}
+        statusBadges={
+          <>
+            <StatusBadge label={`Open questions · ${questions.length}`} severity="warning" />
+            <StatusBadge label={`Current focus · ${currentQuestion.priority}`} severity="info" />
+          </>
+        }
       />
 
-      <Card className="space-y-4 p-5">
-        <div className="flex items-start gap-3">
-          <div className="rounded-full border border-border-subtle bg-app-bg-elevated p-3 text-gold-primary">
-            <CircleHelp className="size-5" />
-          </div>
-          <div className="space-y-2">
-            <p className="text-sm leading-7 text-text-secondary">{t('analysis.clarifyHint')}</p>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
+        <SectionCard
+          title={currentQuestion.question}
+          description={currentQuestion.purpose}
+          state="highlight"
+          action={<Badge tone="gold">Current question</Badge>}
+        >
+          <div className="space-y-5">
+            <div className="rounded-[20px] border border-border-subtle bg-app-bg-elevated p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                Why it matters
+              </p>
+              <p className="mt-2 text-sm leading-6 text-text-secondary">
+                {currentQuestion.purpose}
+              </p>
+            </div>
+
+            {currentQuestion.options?.length ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {currentQuestion.options.map((option) => {
+                  const selected = draftValue?.selectedOptions.includes(option.value)
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`rounded-[22px] border p-4 text-left transition ${
+                        selected
+                          ? 'border-primary bg-primary-soft text-text-primary'
+                          : 'border-border-subtle bg-app-bg-elevated text-text-secondary hover:border-border-strong hover:text-text-primary'
+                      }`}
+                      onClick={() => {
+                        updateQuestionDraft(currentQuestion.id, {
+                          answerStatus: 'answered',
+                          selectedOptions:
+                            currentQuestion.fieldType === 'multi-choice'
+                              ? selected
+                                ? (draftValue?.selectedOptions ?? []).filter((item) => item !== option.value)
+                                : [...(draftValue?.selectedOptions ?? []), option.value]
+                              : [option.value],
+                        })
+                      }}
+                    >
+                      <p className="text-sm font-semibold">{option.label}</p>
+                      {option.description ? (
+                        <p className="mt-2 text-sm leading-6">{option.description}</p>
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : null}
+
+            {currentQuestion.fieldType === 'text' || currentQuestion.fieldType === 'textarea' ? (
+              <FormField
+                label="Custom input"
+                helperText={currentQuestion.inputHint ?? 'Add context when the quick answer is incomplete.'}
+              >
+                {(fieldProps) => (
+                  <Textarea
+                    {...fieldProps}
+                    value={draftValue?.customInput ?? ''}
+                    onChange={(event) =>
+                      updateQuestionDraft(currentQuestion.id, {
+                        answerStatus: 'answered',
+                        customInput: event.target.value,
+                      })
+                    }
+                  />
+                )}
+              </FormField>
+            ) : null}
+
+            {currentQuestion.fieldType === 'number' || currentQuestion.fieldType === 'slider' ? (
+              <FormField
+                label="Numeric input"
+                helperText={
+                  currentQuestion.unit
+                    ? `Use ${currentQuestion.unit} for this answer.`
+                    : 'Enter a numeric value if it applies.'
+                }
+              >
+                {(fieldProps) => (
+                  <Input
+                    {...fieldProps}
+                    value={draftValue?.numericValue ?? ''}
+                    onChange={(event) =>
+                      updateQuestionDraft(currentQuestion.id, {
+                        answerStatus: 'answered',
+                        numericValue: event.target.value,
+                      })
+                    }
+                  />
+                )}
+              </FormField>
+            ) : null}
+
+            {currentQuestion.allowCustomInput && currentQuestion.fieldType !== 'textarea' && currentQuestion.fieldType !== 'text' ? (
+              <FormField label="Custom input" helperText="Add supporting context or exceptions.">
+                {(fieldProps) => (
+                  <Input
+                    {...fieldProps}
+                    value={draftValue?.customInput ?? ''}
+                    onChange={(event) =>
+                      updateQuestionDraft(currentQuestion.id, {
+                        answerStatus: 'answered',
+                        customInput: event.target.value,
+                      })
+                    }
+                  />
+                )}
+              </FormField>
+            ) : null}
+
             <div className="flex flex-wrap gap-2">
-              <Badge tone="neutral">{text.singleChoiceHint}</Badge>
-              <Badge tone="neutral">{text.multiChoiceHint}</Badge>
-              <Badge tone="gold">{t('analysis.customInput')}</Badge>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  updateQuestionDraft(currentQuestion.id, {
+                    answerStatus: 'uncertain',
+                    selectedOptions: [],
+                    customInput: '',
+                    numericValue: '',
+                  })
+                }
+              >
+                Mark uncertain
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  updateQuestionDraft(currentQuestion.id, {
+                    answerStatus: 'skipped',
+                    selectedOptions: [],
+                    customInput: '',
+                    numericValue: '',
+                  })
+                }
+              >
+                Skip with reason
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  updateQuestionDraft(currentQuestion.id, {
+                    answerStatus: 'declined',
+                    selectedOptions: [],
+                    customInput: '',
+                    numericValue: '',
+                  })
+                }
+              >
+                Prefer not to answer
+              </Button>
             </div>
           </div>
-        </div>
-      </Card>
+        </SectionCard>
 
-      {submitMutation.isError ? (
-        <Card className="space-y-3 border-[rgba(197,109,99,0.35)] bg-[rgba(197,109,99,0.08)] p-5">
-          <h2 className="text-lg font-semibold text-[#f7d4cf]">
-            {t('analysis.clarificationPage.submitErrorTitle')}
-          </h2>
-          <p className="text-sm leading-7 text-[#f1cbc6]">
-            {getSubmitErrorMessage(submitMutation.error, t)}
-          </p>
-          <div className="flex gap-3">
-            <Button type="button" onClick={() => submitMutation.reset()}>
-              {t('analysis.clarificationPage.reviewAndRetry')}
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => void sessionQuery.refetch()}>
-              {t('analysis.clarificationPage.refreshSession')}
-            </Button>
-          </div>
-        </Card>
-      ) : null}
-
-      {sessionQuery.isLoading ? (
-        <Card className="space-y-4 p-5">
-          <Skeleton className="h-6 w-48 rounded-full" />
-          <Skeleton className="h-24 w-full rounded-[20px]" />
-          <Skeleton className="h-24 w-full rounded-[20px]" />
-        </Card>
-      ) : sessionQuery.error ? (
-        <Card className="space-y-3 border-[rgba(197,109,99,0.35)] bg-[rgba(197,109,99,0.08)] p-5">
-          <h2 className="text-lg font-semibold text-[#f7d4cf]">
-            {t('analysis.clarificationPage.loadErrorTitle')}
-          </h2>
-          <p className="text-sm leading-7 text-[#f1cbc6]">
-            {t('analysis.clarificationPage.loadErrorDescription')}
-          </p>
-          <div className="flex gap-3">
-            <Button type="button" onClick={() => void sessionQuery.refetch()}>
-              {t('common.retry')}
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => void navigate('/analysis/intake')}>
-              {t('analysis.clarificationPage.backToIntake')}
-            </Button>
-          </div>
-        </Card>
-      ) : sessionQuery.data && !questions.length ? (
-        <Card className="space-y-4 p-5">
-          <div className="space-y-2">
-            <h2 className="text-lg font-semibold text-text-primary">
-              {t('analysis.clarificationPage.noPendingTitle')}
-            </h2>
-            <p className="text-sm leading-7 text-text-secondary">
-              {t('analysis.clarificationPage.noPendingDescription')}
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <Button type="button" onClick={() => void navigate(`/analysis/session/${sessionId}/progress`)}>
-              {t('analysis.clarificationPage.openProgress')}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => void navigate(`/analysis/session/${sessionId}/report`)}>
-              {t('analysis.clarificationPage.openReport')}
-            </Button>
-          </div>
-        </Card>
-      ) : sessionQuery.data ? (
-        <Formik
-          initialValues={initialValues}
-          enableReinitialize
-          onSubmit={async (values) => {
-            await submitMutation.mutateAsync(toAnswers(questions, values))
-          }}
-        >
-          {({ values, handleChange, setFieldValue, isSubmitting }) => (
-            <Form className="space-y-4">
-              {questions.map((question, index) => {
-                const currentStatus = String(values[`${question.id}__status`] ?? 'answered') as UserAnswer['answerStatus']
-                const selectedSummary = summarizeSelection(question, values, currentStatus, text.status[currentStatus])
-                const choiceHint =
-                  question.fieldType === 'multi-choice'
-                    ? text.multiChoiceHint
-                    : question.fieldType === 'single-choice'
-                      ? text.singleChoiceHint
-                      : question.fieldType === 'slider'
-                        ? text.rangeHint
-                        : text.questionTip
-
-                return (
-                  <Card key={question.id} className="space-y-5 p-5">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge tone="neutral">{t('analysis.clarificationPage.questionNumber', { count: index + 1 })}</Badge>
-                          <Badge tone="gold">{t('analysis.clarificationPage.priority', { count: question.priority })}</Badge>
-                          <Badge tone="neutral">{choiceHint}</Badge>
-                        </div>
-                        <div className="space-y-2">
-                          <h2 className="text-lg font-semibold text-text-primary">{question.question}</h2>
-                          <p className="text-sm leading-7 text-text-secondary">
-                            <span className="text-gold-ink">{t('analysis.whyThisMatters')}: </span>
-                            {question.purpose}
-                          </p>
-                        </div>
-                        {selectedSummary ? (
-                          <div className="flex flex-wrap gap-2">
-                            <Badge tone={currentStatus === 'answered' ? 'gold' : 'neutral'}>
-                              {text.currentRecord}: {selectedSummary}
-                            </Badge>
-                          </div>
-                        ) : null}
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        {question.allowSkip ? (
-                          <Button
-                            type="button"
-                            variant={currentStatus === 'skipped' ? 'secondary' : 'ghost'}
-                            size="sm"
-                            className={currentStatus === 'skipped' ? 'border border-border-strong' : ''}
-                            onClick={() => setFieldValue(`${question.id}__status`, 'skipped')}
-                          >
-                            {t('analysis.skip')}
-                          </Button>
-                        ) : null}
-                        <Button
-                          type="button"
-                          variant={currentStatus === 'uncertain' ? 'secondary' : 'ghost'}
-                          size="sm"
-                          className={currentStatus === 'uncertain' ? 'border border-border-strong' : ''}
-                          onClick={() => setFieldValue(`${question.id}__status`, 'uncertain')}
-                        >
-                          {t('analysis.uncertain')}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={currentStatus === 'declined' ? 'secondary' : 'ghost'}
-                          size="sm"
-                          className={currentStatus === 'declined' ? 'border border-border-strong' : ''}
-                          onClick={() => setFieldValue(`${question.id}__status`, 'declined')}
-                        >
-                          {t('analysis.decline')}
-                        </Button>
-                      </div>
-                    </div>
-
-                    {question.fieldType === 'single-choice' ? (
-                      <div className="space-y-3">
-                        <p className="text-sm text-text-muted">{text.singleChoiceHint}</p>
-                        <div className="grid gap-2 md:grid-cols-2">
-                          {question.options?.map((option) => {
-                            const isActive = values[question.id] === option.value
-
-                            return (
-                              <button
-                                key={option.value}
-                                type="button"
-                                aria-pressed={isActive}
-                                onClick={() => {
-                                  void setFieldValue(question.id, isActive ? '' : option.value)
-                                  void setFieldValue(`${question.id}__status`, 'answered')
-                                }}
-                                className={`interactive-lift rounded-[20px] border px-4 py-4 text-left text-sm transition ${
-                                  isActive
-                                    ? 'border-border-strong bg-[linear-gradient(180deg,rgba(249,228,159,0.08),transparent_100%),var(--panel)] text-text-primary shadow-[0_0_0_1px_rgba(249,228,159,0.12),0_18px_42px_rgba(212,175,55,0.1)]'
-                                    : 'border-border-subtle bg-app-bg-elevated text-text-secondary hover:border-border-strong hover:bg-panel-strong'
-                                }`}
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div>
-                                    <p className="font-medium">{option.label}</p>
-                                    <p className="mt-1 text-xs leading-6 text-text-muted">
-                                      {option.description ??
-                                        t('analysis.clarificationPage.clickToSetCurrent')}
-                                    </p>
-                                  </div>
-                                  {isActive ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-gold-bright" /> : null}
-                                </div>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {question.fieldType === 'multi-choice' ? (
-                      <div className="space-y-3">
-                        <p className="text-sm text-text-muted">{text.multiChoiceHint}</p>
-                        <div className="grid gap-2 md:grid-cols-2">
-                          {question.options?.map((option) => {
-                            const selectedValues = (values[question.id] as string[]) ?? []
-                            const isActive = selectedValues.includes(option.value)
-
-                            return (
-                              <button
-                                key={option.value}
-                                type="button"
-                                aria-pressed={isActive}
-                                onClick={() => {
-                                  const nextValues = isActive
-                                    ? selectedValues.filter((item) => item !== option.value)
-                                    : [...selectedValues, option.value]
-                                  void setFieldValue(question.id, nextValues)
-                                  void setFieldValue(`${question.id}__status`, 'answered')
-                                }}
-                                className={`interactive-lift rounded-[20px] border px-4 py-4 text-left text-sm transition ${
-                                  isActive
-                                    ? 'border-border-strong bg-[linear-gradient(180deg,rgba(249,228,159,0.08),transparent_100%),var(--panel)] text-text-primary shadow-[0_0_0_1px_rgba(249,228,159,0.12),0_18px_42px_rgba(212,175,55,0.1)]'
-                                    : 'border-border-subtle bg-app-bg-elevated text-text-secondary hover:border-border-strong hover:bg-panel-strong'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between gap-3">
-                                  <span className="font-medium">{option.label}</span>
-                                  {isActive ? <CheckCircle2 className="size-4 shrink-0 text-gold-bright" /> : null}
-                                </div>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {question.fieldType === 'slider' ? (
-                      <div className="space-y-3">
-                        <p className="text-sm text-text-muted">{text.rangeHint}</p>
-                        <input
-                          type="range"
-                          min={question.min}
-                          max={question.max}
-                          value={String(values[question.id] || question.min || 1)}
-                          onChange={(event) => {
-                            void setFieldValue(question.id, event.target.value)
-                            void setFieldValue(`${question.id}__status`, 'answered')
-                          }}
-                          className="w-full accent-[var(--gold-primary)]"
-                        />
-                        <p className="mono text-sm text-gold-ink">
-                          {String(values[question.id] || question.min || 1)} {question.unit}
-                        </p>
-                      </div>
-                    ) : null}
-
-                    {question.fieldType === 'number' ? (
-                      <Input
-                        type="number"
-                        name={question.id}
-                        value={String(values[question.id] ?? '')}
-                        onChange={(event) => {
-                          handleChange(event)
-                          void setFieldValue(`${question.id}__status`, 'answered')
-                        }}
-                        placeholder={text.textPlaceholder}
-                      />
-                    ) : null}
-
-                    {question.fieldType === 'text' ? (
-                      <Input
-                        name={question.id}
-                        value={String(values[question.id] ?? '')}
-                        onChange={(event) => {
-                          handleChange(event)
-                          void setFieldValue(`${question.id}__status`, 'answered')
-                        }}
-                        placeholder={text.textPlaceholder}
-                      />
-                    ) : null}
-
-                    {question.fieldType === 'textarea' ? (
-                      <Textarea
-                        name={question.id}
-                        value={String(values[question.id] ?? '')}
-                        onChange={(event) => {
-                          handleChange(event)
-                          void setFieldValue(`${question.id}__status`, 'answered')
-                        }}
-                        placeholder={text.textareaPlaceholder}
-                      />
-                    ) : null}
-
-                    {question.allowCustomInput ? (
-                      <div className="space-y-2">
-                        <label htmlFor={`${question.id}__custom`} className="text-sm text-text-secondary">
-                          {t('analysis.customInput')}
-                        </label>
-                        <Input
-                          id={`${question.id}__custom`}
-                          name={`${question.id}__custom`}
-                          value={String(values[`${question.id}__custom`] ?? '')}
-                          onChange={(event) => {
-                            handleChange(event)
-                            void setFieldValue(`${question.id}__status`, 'answered')
-                          }}
-                          placeholder={text.customPlaceholder}
-                        />
-                      </div>
-                    ) : null}
-                  </Card>
-                )
-              })}
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-text-muted">{t('analysis.modeActionHint')}</p>
-                <Button
-                  type="submit"
-                  data-testid="clarification-submit"
-                  disabled={isSubmitting || submitMutation.isPending}
-                >
-                  {t('common.continue')}
-                </Button>
+        <div className="space-y-6">
+          <SectionCard title="Round progress" description="Keep the unresolved queue compact while the current question stays primary.">
+            <div className="space-y-3">
+              <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3">
+                <p className="text-sm text-text-secondary">
+                  {questions.length - pendingQueue.length} focused now · {pendingQueue.length} queued
+                </p>
               </div>
-            </Form>
-          )}
-        </Formik>
-      ) : null}
+              {pendingQueue.map((question) => (
+                <button
+                  key={question.id}
+                  type="button"
+                  className="w-full rounded-[20px] border border-border-subtle bg-app-bg-elevated px-4 py-4 text-left transition hover:border-border-strong"
+                  onClick={() => setCurrentQuestionId(question.id)}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-text-primary">{question.question}</p>
+                      <p className="mt-1 text-sm text-text-secondary">{question.purpose}</p>
+                    </div>
+                    {effectiveDraft[question.id] && hasMeaningfulAnswer(effectiveDraft[question.id]) ? (
+                      <CheckCircle2 className="size-4 text-success" />
+                    ) : (
+                      <CircleHelp className="size-4 text-warning" />
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Analysis context" description="Surface what is unresolved before the session moves forward.">
+            <div className="space-y-3 text-sm text-text-secondary">
+              <div className="rounded-[18px] bg-app-bg-elevated px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Evidence progress</p>
+                <p className="mt-2">{sessionQuery.data.evidence.length} evidence items loaded</p>
+              </div>
+              <div className="rounded-[18px] bg-app-bg-elevated px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Calculation progress</p>
+                <p className="mt-2">{sessionQuery.data.calculations.length} calculations ready</p>
+              </div>
+              <div className="rounded-[18px] bg-app-bg-elevated px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Conclusions so far</p>
+                <p className="mt-2">{sessionQuery.data.conclusions[0]?.conclusion ?? 'No conclusion has been recorded yet.'}</p>
+              </div>
+            </div>
+          </SectionCard>
+        </div>
+      </div>
+
+      <StickyFooter>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-text-primary">
+              Save answers locally if you need to pause without advancing the session.
+            </p>
+            {continueReason ? <p className="text-sm text-warning">{continueReason}</p> : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={saveDraftLocally}>
+              <Save className="size-4" />
+              Save answers
+            </Button>
+            <Button
+              data-testid="clarification-submit"
+              type="button"
+              onClick={() => submitMutation.mutate(toAnswers(questions, effectiveDraft))}
+              disabled={submitMutation.isPending || !currentQuestionReady}
+            >
+              Continue analysis
+            </Button>
+          </div>
+        </div>
+      </StickyFooter>
     </div>
   )
 }

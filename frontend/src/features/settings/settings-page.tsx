@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Monitor, MoonStar, ShieldCheck, SunMedium, Wallet } from 'lucide-react'
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -10,10 +10,11 @@ import {
   PageSection,
 } from '@/components/layout/page-header'
 import {
-  ErrorState,
+  FormField,
   MetricCard,
   SectionCard,
-} from '@/components/product/decision-ui'
+  StickyFooter,
+} from '@/components/product/workspace-ui'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input, Select } from '@/components/ui/field'
@@ -58,6 +59,20 @@ const legacyRetentionMap: Record<string, string> = {
   '365 days': '365',
 }
 
+interface WorkspaceSettingsDraft {
+  language: LanguageCode
+  themeMode: ThemeMode
+  notificationsEmail: boolean
+  notificationsPush: boolean
+  autoExportPdf: boolean
+  riskDefault: string
+  dataRetention: string
+  preferredCurrency: string
+  preferredNetwork: string
+  chartUnit: string
+  exportPreference: string
+}
+
 function normalizeStoredValue(
   value: string | null,
   fallback: string,
@@ -79,32 +94,47 @@ function themeIcon(mode: ThemeMode) {
   return <Monitor className="size-4" />
 }
 
+function buildDraft(currentSettings: SettingsPayload): WorkspaceSettingsDraft {
+  return {
+    language: currentSettings.language,
+    themeMode: currentSettings.themeMode,
+    notificationsEmail: currentSettings.notificationsEmail,
+    notificationsPush: currentSettings.notificationsPush,
+    autoExportPdf: currentSettings.autoExportPdf,
+    riskDefault: normalizeStoredValue(getLocalStorageItem(RISK_KEY), 'balanced', legacyRiskMap),
+    dataRetention: normalizeStoredValue(getLocalStorageItem(RETENTION_KEY), '90', legacyRetentionMap),
+    preferredCurrency: normalizeStoredValue(getLocalStorageItem(CURRENCY_KEY), 'USD'),
+    preferredNetwork: normalizeStoredValue(getLocalStorageItem(NETWORK_KEY), 'hashkey', legacyNetworkMap),
+    chartUnit: normalizeStoredValue(getLocalStorageItem(CHART_UNIT_KEY), 'native', legacyChartUnitMap),
+    exportPreference: normalizeStoredValue(
+      getLocalStorageItem(EXPORT_KEY),
+      currentSettings.autoExportPdf ? 'autoPdf' : 'manual',
+      legacyExportMap,
+    ),
+  }
+}
+
+function persistLocalPreferences(draft: WorkspaceSettingsDraft) {
+  setLocalStorageItem(RISK_KEY, draft.riskDefault)
+  setLocalStorageItem(RETENTION_KEY, draft.dataRetention)
+  setLocalStorageItem(CURRENCY_KEY, draft.preferredCurrency)
+  setLocalStorageItem(NETWORK_KEY, draft.preferredNetwork)
+  setLocalStorageItem(CHART_UNIT_KEY, draft.chartUnit)
+  setLocalStorageItem(EXPORT_KEY, draft.exportPreference)
+}
+
+function draftsEqual(left: WorkspaceSettingsDraft, right: WorkspaceSettingsDraft) {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
 export function SettingsPage() {
   const { t } = useTranslation()
   const adapter = useApiAdapter()
   const queryClient = useQueryClient()
   const syncFromSettings = useAppStore((state) => state.syncFromSettings)
-  const themeMode = useAppStore((state) => state.themeMode)
+  const clearWalletState = useAppStore((state) => state.clearWalletState)
   const walletAddress = useAppStore((state) => state.walletAddress)
-  const locale = useAppStore((state) => state.locale)
-  const [riskDefault, setRiskDefault] = useState(() =>
-    normalizeStoredValue(getLocalStorageItem(RISK_KEY), 'balanced', legacyRiskMap),
-  )
-  const [dataRetention, setDataRetention] = useState(() =>
-    normalizeStoredValue(getLocalStorageItem(RETENTION_KEY), '90', legacyRetentionMap),
-  )
-  const [preferredCurrency, setPreferredCurrency] = useState(() =>
-    normalizeStoredValue(getLocalStorageItem(CURRENCY_KEY), 'USD'),
-  )
-  const [preferredNetwork, setPreferredNetwork] = useState(() =>
-    normalizeStoredValue(getLocalStorageItem(NETWORK_KEY), 'hashkey', legacyNetworkMap),
-  )
-  const [chartUnit, setChartUnit] = useState(() =>
-    normalizeStoredValue(getLocalStorageItem(CHART_UNIT_KEY), 'native', legacyChartUnitMap),
-  )
-  const [exportPreference, setExportPreference] = useState(() =>
-    normalizeStoredValue(getLocalStorageItem(EXPORT_KEY), 'manual', legacyExportMap),
-  )
+  const [draft, setDraft] = useState<WorkspaceSettingsDraft | null>(null)
   const hydratedFromServerRef = useRef(false)
 
   const settingsQuery = useQuery({
@@ -116,24 +146,27 @@ export function SettingsPage() {
     queryFn: adapter.profile.get,
   })
 
-  const saveLocalPreferences = (
-    nextRisk = riskDefault,
-    nextRetention = dataRetention,
-    nextCurrency = preferredCurrency,
-    nextNetwork = preferredNetwork,
-    nextChartUnit = chartUnit,
-    nextExportPreference = exportPreference,
-  ) => {
-    setLocalStorageItem(RISK_KEY, nextRisk)
-    setLocalStorageItem(RETENTION_KEY, nextRetention)
-    setLocalStorageItem(CURRENCY_KEY, nextCurrency)
-    setLocalStorageItem(NETWORK_KEY, nextNetwork)
-    setLocalStorageItem(CHART_UNIT_KEY, nextChartUnit)
-    setLocalStorageItem(EXPORT_KEY, nextExportPreference)
-  }
+  const currentSettings = settingsQuery.data
+  const profile = profileQuery.data
+  const baseDraft = useMemo(
+    () => (currentSettings ? buildDraft(currentSettings) : null),
+    [currentSettings],
+  )
+  const effectiveDraft = draft ?? baseDraft
+  const isDirty = baseDraft && effectiveDraft ? !draftsEqual(baseDraft, effectiveDraft) : false
+
+  const localeOptions = useMemo(
+    () =>
+      [
+        { value: 'en', label: t('common.languages.en') },
+        { value: 'zh-CN', label: t('common.languages.zhCn') },
+        { value: 'zh-HK', label: t('common.languages.zhHk') },
+      ] satisfies Array<{ value: LanguageCode; label: string }>,
+    [t],
+  )
 
   const updateMutation = useMutation({
-    mutationFn: adapter.settings.update,
+    mutationFn: (nextSettings: SettingsPayload) => adapter.settings.update(nextSettings),
     onMutate: async (nextSettings: SettingsPayload) => {
       await queryClient.cancelQueries({ queryKey: ['settings'] })
       const previousSettings = queryClient.getQueryData<SettingsPayload>(['settings'])
@@ -144,6 +177,7 @@ export function SettingsPage() {
     onSuccess: (settings) => {
       queryClient.setQueryData(['settings'], settings)
       syncFromSettings(settings)
+      setDraft(null)
       toast.success(t('settings.saved'))
     },
     onError: (_error, _nextSettings, context) => {
@@ -164,40 +198,43 @@ export function SettingsPage() {
     },
   })
 
-  const currentSettings = settingsQuery.data
-  const profile = profileQuery.data
-
-  useLayoutEffect(() => {
-    if (currentSettings && !hydratedFromServerRef.current) {
-      hydratedFromServerRef.current = true
-      syncFromSettings(currentSettings)
-    }
-  }, [currentSettings, syncFromSettings])
-
-  const localeOptions = useMemo(
-    () =>
-      [
-        { value: 'en', label: t('common.languages.en') },
-        { value: 'zh-CN', label: t('common.languages.zhCn') },
-        { value: 'zh-HK', label: t('common.languages.zhHk') },
-      ] satisfies Array<{ value: LanguageCode; label: string }>,
-    [t],
-  )
-
-  const applyServerSettings = (patch: Partial<SettingsPayload>) => {
-    const cachedSettings = queryClient.getQueryData<SettingsPayload>(['settings']) ?? currentSettings
-    if (!cachedSettings) {
+  useEffect(() => {
+    if (!currentSettings || hydratedFromServerRef.current) {
       return
     }
+    hydratedFromServerRef.current = true
+    syncFromSettings(currentSettings)
+  }, [currentSettings, syncFromSettings])
+
+  const updateDraft = <K extends keyof WorkspaceSettingsDraft>(
+    key: K,
+    value: WorkspaceSettingsDraft[K],
+  ) => {
+    setDraft((current) => ({
+      ...(current ?? (baseDraft as WorkspaceSettingsDraft)),
+      [key]: value,
+    }))
+  }
+
+  const saveDraft = () => {
+    if (!currentSettings || !effectiveDraft) {
+      return
+    }
+
+    persistLocalPreferences(effectiveDraft)
     updateMutation.mutate({
-      ...cachedSettings,
-      ...patch,
+      ...currentSettings,
+      language: effectiveDraft.language,
+      themeMode: effectiveDraft.themeMode,
+      notificationsEmail: effectiveDraft.notificationsEmail,
+      notificationsPush: effectiveDraft.notificationsPush,
+      autoExportPdf: effectiveDraft.exportPreference === 'autoPdf',
     })
   }
 
   if (settingsQuery.isError || profileQuery.isError) {
     return (
-      <ErrorState
+      <SectionCard
         title={t('settings.title')}
         description={
           (settingsQuery.error as Error | undefined)?.message ??
@@ -215,11 +252,14 @@ export function SettingsPage() {
             {t('common.retry')}
           </Button>
         }
-      />
+        state="danger"
+      >
+        <p className="text-sm text-text-secondary">{t('common.retry')}</p>
+      </SectionCard>
     )
   }
 
-  if (!currentSettings || !profile) {
+  if (!currentSettings || !profile || !effectiveDraft) {
     return (
       <Card className="space-y-4 p-6">
         <p className="text-base font-semibold text-text-primary">{t('common.loading')}</p>
@@ -238,28 +278,31 @@ export function SettingsPage() {
 
       <PageSection className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          title={t('settings.groups.appearance')}
-          value={localeOptions.find((item) => item.value === locale)?.label ?? locale}
-          detail={t('settings.groupDescriptions.appearance')}
-          tone="brand"
+          label={t('settings.groups.appearance')}
+          value={
+            localeOptions.find((item) => item.value === effectiveDraft.language)?.label ??
+            effectiveDraft.language
+          }
+          helperText={t('settings.groupDescriptions.appearance')}
+          status="info"
         />
         <MetricCard
-          title={t('settings.groups.defaults')}
-          value={t(`settings.options.risk.${riskDefault}`)}
-          detail={t('settings.groupDescriptions.defaults')}
-          tone="success"
+          label={t('settings.groups.defaults')}
+          value={t(`settings.options.risk.${effectiveDraft.riskDefault}`)}
+          helperText={t('settings.groupDescriptions.defaults')}
+          status="success"
         />
         <MetricCard
-          title={t('settings.groups.notifications')}
-          value={t(`settings.options.export.${exportPreference}`)}
-          detail={t('settings.groupDescriptions.notifications')}
-          tone="warning"
+          label={t('settings.groups.notifications')}
+          value={t(`settings.options.export.${effectiveDraft.exportPreference}`)}
+          helperText={t('settings.groupDescriptions.notifications')}
+          status="warning"
         />
         <MetricCard
-          title={t('settings.groups.account')}
-          value={walletAddress ? t('settings.notificationsEnabled') : t('settings.notificationsDisabled')}
-          detail={walletAddress ? shortAddress(walletAddress) : t('actions.disconnectWallet')}
-          tone="brand"
+          label={t('settings.groups.account')}
+          value={walletAddress ? shortAddress(walletAddress) : t('settings.noWalletConnected')}
+          helperText={t('settings.groupDescriptions.account')}
+          status={walletAddress ? 'success' : 'neutral'}
         />
       </PageSection>
 
@@ -269,30 +312,28 @@ export function SettingsPage() {
           description={t('settings.groupDescriptions.appearance')}
         >
           <div className="grid gap-4 xl:grid-cols-2">
+            <FormField label={t('settings.fields.language')}>
+              {(fieldProps) => (
+                <Select
+                  {...fieldProps}
+                  value={effectiveDraft.language}
+                  onChange={(event) =>
+                    updateDraft('language', event.target.value as LanguageCode)
+                  }
+                >
+                  {localeOptions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </FormField>
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-text-primary">
-                {t('settings.fields.language')}
-              </label>
-              <Select
-                value={locale}
-                onChange={(event) =>
-                  void applyServerSettings({ language: event.target.value as LanguageCode })
-                }
-              >
-                {localeOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-text-primary">
-                {t('settings.fields.theme')}
-              </label>
+              <p className="text-sm font-semibold text-text-primary">{t('settings.fields.theme')}</p>
               <div className="grid gap-2 sm:grid-cols-3">
                 {(['system', 'dark', 'light'] as const).map((optionThemeMode) => {
-                  const active = themeMode === optionThemeMode
+                  const active = effectiveDraft.themeMode === optionThemeMode
                   return (
                     <button
                       key={optionThemeMode}
@@ -300,10 +341,10 @@ export function SettingsPage() {
                       aria-pressed={active}
                       className={
                         active
-                          ? 'flex items-center justify-center gap-2 rounded-[18px] border border-primary bg-primary-soft px-4 py-3 text-sm font-semibold text-text-primary'
-                          : 'flex items-center justify-center gap-2 rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary'
+                          ? 'flex min-h-11 items-center justify-center gap-2 rounded-[18px] border border-primary bg-primary-soft px-4 py-3 text-sm font-semibold text-text-primary'
+                          : 'flex min-h-11 items-center justify-center gap-2 rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3 text-sm text-text-secondary hover:border-border-strong hover:text-text-primary'
                       }
-                      onClick={() => void applyServerSettings({ themeMode: optionThemeMode })}
+                      onClick={() => updateDraft('themeMode', optionThemeMode)}
                     >
                       {themeIcon(optionThemeMode)}
                       {t(`common.themes.${optionThemeMode}`)}
@@ -320,67 +361,59 @@ export function SettingsPage() {
           description={t('settings.groupDescriptions.defaults')}
         >
           <div className="grid gap-4 xl:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-text-primary">{t('settings.fields.risk')}</label>
-              <Select
-                value={riskDefault}
-                onChange={(event) => {
-                  const next = event.target.value
-                  setRiskDefault(next)
-                  saveLocalPreferences(next)
-                }}
-              >
-                <option value="conservative">{t('settings.options.risk.conservative')}</option>
-                <option value="balanced">{t('settings.options.risk.balanced')}</option>
-                <option value="aggressive">{t('settings.options.risk.aggressive')}</option>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-text-primary">{t('settings.fields.currency')}</label>
-              <Select
-                value={preferredCurrency}
-                onChange={(event) => {
-                  const next = event.target.value
-                  setPreferredCurrency(next)
-                  saveLocalPreferences(riskDefault, dataRetention, next)
-                }}
-              >
-                <option value="USD">{t('settings.options.currency.usd')}</option>
-                <option value="USDC">{t('settings.options.currency.usdc')}</option>
-                <option value="USDT">{t('settings.options.currency.usdt')}</option>
-                <option value="HKD">{t('settings.options.currency.hkd')}</option>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-text-primary">{t('settings.fields.network')}</label>
-              <Select
-                value={preferredNetwork}
-                onChange={(event) => {
-                  const next = event.target.value
-                  setPreferredNetwork(next)
-                  saveLocalPreferences(riskDefault, dataRetention, preferredCurrency, next)
-                }}
-              >
-                <option value="hashkey">{t('settings.options.network.hashkey')}</option>
-                <option value="evm">{t('settings.options.network.evm')}</option>
-                <option value="general">{t('settings.options.network.general')}</option>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-text-primary">{t('settings.fields.chartUnit')}</label>
-              <Select
-                value={chartUnit}
-                onChange={(event) => {
-                  const next = event.target.value
-                  setChartUnit(next)
-                  saveLocalPreferences(riskDefault, dataRetention, preferredCurrency, preferredNetwork, next)
-                }}
-              >
-                <option value="native">{t('settings.options.chartUnit.native')}</option>
-                <option value="usd">{t('settings.options.chartUnit.usd')}</option>
-                <option value="percent">{t('settings.options.chartUnit.percent')}</option>
-              </Select>
-            </div>
+            <FormField label={t('settings.fields.risk')}>
+              {(fieldProps) => (
+                <Select
+                  {...fieldProps}
+                  value={effectiveDraft.riskDefault}
+                  onChange={(event) => updateDraft('riskDefault', event.target.value)}
+                >
+                  <option value="conservative">{t('settings.options.risk.conservative')}</option>
+                  <option value="balanced">{t('settings.options.risk.balanced')}</option>
+                  <option value="aggressive">{t('settings.options.risk.aggressive')}</option>
+                </Select>
+              )}
+            </FormField>
+            <FormField label={t('settings.fields.currency')}>
+              {(fieldProps) => (
+                <Select
+                  {...fieldProps}
+                  value={effectiveDraft.preferredCurrency}
+                  onChange={(event) => updateDraft('preferredCurrency', event.target.value)}
+                >
+                  <option value="USD">{t('settings.options.currency.usd')}</option>
+                  <option value="USDC">{t('settings.options.currency.usdc')}</option>
+                  <option value="USDT">{t('settings.options.currency.usdt')}</option>
+                  <option value="HKD">{t('settings.options.currency.hkd')}</option>
+                </Select>
+              )}
+            </FormField>
+            <FormField label={t('settings.fields.network')}>
+              {(fieldProps) => (
+                <Select
+                  {...fieldProps}
+                  value={effectiveDraft.preferredNetwork}
+                  onChange={(event) => updateDraft('preferredNetwork', event.target.value)}
+                >
+                  <option value="hashkey">{t('settings.options.network.hashkey')}</option>
+                  <option value="evm">{t('settings.options.network.evm')}</option>
+                  <option value="general">{t('settings.options.network.general')}</option>
+                </Select>
+              )}
+            </FormField>
+            <FormField label={t('settings.fields.chartUnit')}>
+              {(fieldProps) => (
+                <Select
+                  {...fieldProps}
+                  value={effectiveDraft.chartUnit}
+                  onChange={(event) => updateDraft('chartUnit', event.target.value)}
+                >
+                  <option value="native">{t('settings.options.chartUnit.native')}</option>
+                  <option value="usd">{t('settings.options.chartUnit.usd')}</option>
+                  <option value="percent">{t('settings.options.chartUnit.percent')}</option>
+                </Select>
+              )}
+            </FormField>
           </div>
         </SectionCard>
 
@@ -390,57 +423,52 @@ export function SettingsPage() {
         >
           <div className="grid gap-4 xl:grid-cols-2">
             <Button
-              variant={currentSettings.notificationsEmail ? 'primary' : 'secondary'}
+              variant={effectiveDraft.notificationsEmail ? 'primary' : 'secondary'}
               onClick={() =>
-                void applyServerSettings({
-                  notificationsEmail: !currentSettings.notificationsEmail,
-                })
+                updateDraft('notificationsEmail', !effectiveDraft.notificationsEmail)
               }
             >
               {t('settings.fields.emailNotifications')} ·{' '}
-              {currentSettings.notificationsEmail
+              {effectiveDraft.notificationsEmail
                 ? t('settings.notificationsEnabled')
                 : t('settings.notificationsDisabled')}
             </Button>
             <Button
-              variant={currentSettings.notificationsPush ? 'primary' : 'secondary'}
+              variant={effectiveDraft.notificationsPush ? 'primary' : 'secondary'}
               onClick={() =>
-                void applyServerSettings({
-                  notificationsPush: !currentSettings.notificationsPush,
-                })
+                updateDraft('notificationsPush', !effectiveDraft.notificationsPush)
               }
             >
               {t('settings.fields.pushNotifications')} ·{' '}
-              {currentSettings.notificationsPush
+              {effectiveDraft.notificationsPush
                 ? t('settings.notificationsEnabled')
                 : t('settings.notificationsDisabled')}
             </Button>
-            <div className="space-y-2 xl:col-span-2">
-              <label className="text-sm font-semibold text-text-primary">
-                {t('settings.fields.exportPreference')}
-              </label>
-              <Select
-                value={exportPreference}
-                onChange={(event) => {
-                  const next = event.target.value
-                  setExportPreference(next)
-                  saveLocalPreferences(
-                    riskDefault,
-                    dataRetention,
-                    preferredCurrency,
-                    preferredNetwork,
-                    chartUnit,
-                    next,
-                  )
-                  void applyServerSettings({
-                    autoExportPdf: next === 'autoPdf',
-                  })
-                }}
-              >
-                <option value="manual">{t('settings.options.export.manual')}</option>
-                <option value="autoPdf">{t('settings.options.export.autoPdf')}</option>
-              </Select>
-            </div>
+            <FormField label={t('settings.fields.exportPreference')}>
+              {(fieldProps) => (
+                <Select
+                  {...fieldProps}
+                  value={effectiveDraft.exportPreference}
+                  onChange={(event) => updateDraft('exportPreference', event.target.value)}
+                >
+                  <option value="manual">{t('settings.options.export.manual')}</option>
+                  <option value="autoPdf">{t('settings.options.export.autoPdf')}</option>
+                </Select>
+              )}
+            </FormField>
+            <FormField label={t('settings.fields.retention')}>
+              {(fieldProps) => (
+                <Select
+                  {...fieldProps}
+                  value={effectiveDraft.dataRetention}
+                  onChange={(event) => updateDraft('dataRetention', event.target.value)}
+                >
+                  <option value="30">{t('settings.options.retention.days30')}</option>
+                  <option value="90">{t('settings.options.retention.days90')}</option>
+                  <option value="365">{t('settings.options.retention.days365')}</option>
+                </Select>
+              )}
+            </FormField>
           </div>
         </SectionCard>
 
@@ -450,22 +478,18 @@ export function SettingsPage() {
         >
           <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">{t('settings.fields.name')}</label>
-                <Input value={profile.name} readOnly />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">{t('settings.fields.email')}</label>
-                <Input value={profile.email} readOnly />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">{t('settings.fields.timezone')}</label>
-                <Input value={profile.timezone} readOnly />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">{t('settings.fields.bio')}</label>
-                <Input value={profile.bio} readOnly />
-              </div>
+              <FormField label={t('settings.fields.name')}>
+                {(fieldProps) => <Input {...fieldProps} value={profile.name} readOnly />}
+              </FormField>
+              <FormField label={t('settings.fields.email')}>
+                {(fieldProps) => <Input {...fieldProps} value={profile.email} readOnly />}
+              </FormField>
+              <FormField label={t('settings.fields.timezone')}>
+                {(fieldProps) => <Input {...fieldProps} value={profile.timezone} readOnly />}
+              </FormField>
+              <FormField label={t('settings.fields.bio')}>
+                {(fieldProps) => <Input {...fieldProps} value={profile.bio} readOnly />}
+              </FormField>
             </div>
 
             <div className="space-y-4">
@@ -476,50 +500,86 @@ export function SettingsPage() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-text-primary">
-                      {walletAddress ? shortAddress(walletAddress) : t('actions.disconnectWallet')}
+                      {walletAddress
+                        ? t('settings.connectedWallet')
+                        : t('settings.noWalletConnected')}
                     </p>
                     <p className="text-sm text-text-secondary">
                       {walletAddress
-                        ? t('actions.disconnectWallet')
+                        ? shortAddress(walletAddress)
                         : t('settings.groupDescriptions.account')}
                     </p>
                   </div>
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-text-primary">{t('settings.fields.retention')}</label>
-                <Select
-                  value={dataRetention}
-                  onChange={(event) => {
-                    const next = event.target.value
-                    setDataRetention(next)
-                    saveLocalPreferences(riskDefault, next)
-                  }}
-                >
-                  <option value="30">{t('settings.options.retention.days30')}</option>
-                  <option value="90">{t('settings.options.retention.days90')}</option>
-                  <option value="365">{t('settings.options.retention.days365')}</option>
-                </Select>
-              </div>
-
-              <div className="rounded-[24px] border border-border-subtle bg-app-bg-elevated p-4">
-                <p className="text-sm font-semibold text-text-primary">{t('settings.deleteData')}</p>
-                <p className="mt-2 text-sm leading-6 text-text-secondary">
-                  {t('settings.deleteDescription')}
-                </p>
-                <Button
-                  className="mt-4 w-full"
-                  variant="danger"
-                  disabled={deleteMutation.isPending}
-                  onClick={() => void deleteMutation.mutateAsync()}
-                >
-                  {deleteMutation.isPending ? t('settings.deletingData') : t('settings.deleteData')}
-                </Button>
-              </div>
             </div>
           </div>
         </SectionCard>
+
+        <SectionCard
+          title={t('settings.groups.danger')}
+          description={t('settings.groupDescriptions.danger')}
+          state="danger"
+        >
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="rounded-[24px] border border-border-subtle bg-app-bg-elevated p-4">
+              <p className="text-sm font-semibold text-text-primary">{t('actions.disconnectWallet')}</p>
+              <p className="mt-2 text-sm leading-6 text-text-secondary">
+                {t('settings.disconnectDescription')}
+              </p>
+              <Button
+                className="mt-4"
+                variant="secondary"
+                onClick={() => {
+                  clearWalletState()
+                  toast.success(t('settings.disconnectSuccess'))
+                }}
+                disabled={!walletAddress}
+              >
+                {t('actions.disconnectWallet')}
+              </Button>
+            </div>
+            <div className="rounded-[24px] border border-border-subtle bg-app-bg-elevated p-4">
+              <p className="text-sm font-semibold text-text-primary">{t('settings.deleteData')}</p>
+              <p className="mt-2 text-sm leading-6 text-text-secondary">
+                {t('settings.deleteDescription')}
+              </p>
+              <Button
+                className="mt-4"
+                variant="danger"
+                disabled={deleteMutation.isPending}
+                onClick={() => void deleteMutation.mutateAsync()}
+              >
+                {deleteMutation.isPending ? t('settings.deletingData') : t('settings.deleteData')}
+              </Button>
+            </div>
+          </div>
+        </SectionCard>
+
+        <StickyFooter>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-text-primary">
+                {isDirty ? t('settings.dirty') : t('settings.clean')}
+              </p>
+              <p className="text-sm text-text-secondary">
+                Review changes here before they sync into the shared workspace header and defaults.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setDraft(null)}
+                disabled={!isDirty}
+              >
+                {t('settings.resetAction')}
+              </Button>
+              <Button onClick={saveDraft} disabled={updateMutation.isPending || !isDirty}>
+                {t('settings.saveAction')}
+              </Button>
+            </div>
+          </div>
+        </StickyFooter>
       </PageSection>
     </PageContainer>
   )

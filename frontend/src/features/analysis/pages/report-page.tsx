@@ -25,12 +25,13 @@ import {
   SourceCard,
   StatusBadge,
 } from '@/components/product/decision-ui'
+import { StatusSummaryCard } from '@/components/product/workspace-ui'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Select } from '@/components/ui/field'
+import { getAnalysisStatusDescriptor, toAnalysisStatus, type StatusSeverity } from '@/domain/status'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
-import { exportToPdf } from '@/lib/export/pdf'
 import { useAppStore } from '@/lib/store/app-store'
 import { formatDate } from '@/lib/utils/format'
 import {
@@ -119,6 +120,7 @@ export function ReportPage() {
 
   const handleExport = async () => {
     if (!sessionQuery.data || !reportQuery.data) return
+    const { exportToPdf } = await import('@/lib/export/pdf')
     await exportToPdf({
       title: `genius-actuary-report-${resolvedId}`,
       headers: [
@@ -187,12 +189,40 @@ export function ReportPage() {
   const evidenceStale = report.evidence.some(
     (item) => item.freshness?.bucket === 'stale',
   )
-  const executiveSummary = extractExecutiveSummary(report.markdown, locale)
+  const analysisDescriptor = getAnalysisStatusDescriptor(
+    toAnalysisStatus(session.status),
+    session.updatedAt,
+  )
   const primaryAssetId =
     report.executionPlan?.targetAsset ||
     report.recommendedAllocations[0]?.assetId ||
     report.assetCards[0]?.assetId ||
     ''
+  const toneToSeverity = (tone: string): StatusSeverity =>
+    tone === 'success'
+      ? 'success'
+      : tone === 'warning'
+        ? 'warning'
+        : tone === 'danger'
+          ? 'danger'
+          : 'info'
+  const reportStatusDescriptor = {
+    ...analysisDescriptor,
+    label: state.label,
+    severity: toneToSeverity(state.tone),
+    reason: evidenceStale
+      ? t('analysis.reportPage.staleEvidenceWarning')
+      : report.unknowns?.[0] ?? analysisDescriptor.reason,
+    nextAction: primaryAssetId
+      ? t('analysis.reportPage.openExecutionPackage')
+      : analysisDescriptor.nextAction,
+    requiredChecks: ['Evidence freshness', 'Calculation coverage', 'Execution package'],
+    blockingChecks: [
+      ...(evidenceStale ? [t('analysis.reportPage.staleEvidenceWarning')] : []),
+      ...(report.unknowns ?? []).slice(0, 3),
+    ],
+  }
+  const executiveSummary = extractExecutiveSummary(report.markdown, locale)
   const recommendationLine =
     report.highlights[0]?.detail ?? session.lastInsight ?? executiveSummary
 
@@ -240,38 +270,28 @@ export function ReportPage() {
           eyebrow={t('analysis.reportPage.eyebrow')}
           title={report.summaryTitle}
           description={t('analysis.reportPage.description')}
-          actions={
+          primaryAction={
+            <Button onClick={() => void navigate(`/sessions/${resolvedId}/execute`)}>
+              {t('analysis.reportPage.openExecutionPackage')}
+            </Button>
+          }
+          secondaryActions={
             <>
               {primaryAssetId ? (
-                <Button onClick={() => void navigate(`/assets/${primaryAssetId}/proof`)}>
+                <Button
+                  variant="secondary"
+                  onClick={() => void navigate(`/assets/${primaryAssetId}/proof`)}
+                >
                   <ExternalLink className="size-4" />
-                  {t('analysis.reportPage.openProofCenter')}
+                  {t('analysis.reportPage.reviewProof')}
                 </Button>
               ) : null}
-              <Button variant="secondary" onClick={() => void navigate(`/sessions/${resolvedId}/execute`)}>
-                {t('analysis.reportPage.reviewExecutionPlan')}
-              </Button>
-              <Button variant="secondary" onClick={() => void navigate(`/sessions/${resolvedId}/execute`)}>
-                {t('analysis.reportPage.executeOnHashKeyChain')}
-              </Button>
               <Button variant="secondary" onClick={() => void navigate(`/sessions/${resolvedId}`)}>
                 {t('analysis.reportPage.openSession')}
-              </Button>
-              <Button variant="secondary" onClick={() => void reanalyzeMutation.mutateAsync()}>
-                <RefreshCw className="size-4" />
-                {t('analysis.reportPage.reopenClarification')}
               </Button>
               <Button variant="secondary" onClick={() => void handleExport()}>
                 <FileDown className="size-4" />
                 {t('analysis.reportPage.export')}
-              </Button>
-              <Button variant="secondary" onClick={() => void handleCopyLink()}>
-                <Copy className="size-4" />
-                {t('analysis.reportPage.copyLink')}
-              </Button>
-              <Button variant="secondary" onClick={() => void handleShare()}>
-                <Share2 className="size-4" />
-                {t('analysis.reportPage.shareReport')}
               </Button>
             </>
           }
@@ -845,28 +865,96 @@ export function ReportPage() {
       </div>
 
       <aside className="hidden xl:block">
-        <div className="panel-card sticky top-6 space-y-4 p-4">
-          <p className="text-sm font-semibold text-text-primary">{t('analysis.reportPage.outline')}</p>
-          <nav className="space-y-1">
-            {reportSections.map((item) => (
-              <a
-                key={item.id}
-                href={`#${item.id}`}
-                className="interactive-lift block rounded-2xl px-3 py-2 text-sm text-text-secondary hover:bg-app-bg-elevated hover:text-text-primary"
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-          <a
-            href={report.evidence[0]?.sourceUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-gold-primary"
-          >
-            {t('analysis.reportPage.openFirstSource')}
-            <ExternalLink className="size-4" />
-          </a>
+        <div className="sticky top-6 space-y-4">
+          <StatusSummaryCard
+            title={t('analysis.reportPage.statusRailTitle')}
+            descriptor={reportStatusDescriptor}
+          />
+          <Card className="panel-card space-y-4 p-4">
+            <p className="text-sm font-semibold text-text-primary">
+              {t('analysis.reportPage.actionsTitle')}
+            </p>
+            <div className="space-y-2">
+              <Button className="w-full" onClick={() => void navigate(`/sessions/${resolvedId}/execute`)}>
+                {t('analysis.reportPage.openExecutionPackage')}
+              </Button>
+              {primaryAssetId ? (
+                <Button
+                  className="w-full"
+                  variant="secondary"
+                  onClick={() => void navigate(`/assets/${primaryAssetId}/proof`)}
+                >
+                  <ExternalLink className="size-4" />
+                  {t('analysis.reportPage.reviewProof')}
+                </Button>
+              ) : null}
+              <Button className="w-full" variant="secondary" onClick={() => void handleExport()}>
+                <FileDown className="size-4" />
+                {t('analysis.reportPage.export')}
+              </Button>
+              <Button className="w-full" variant="secondary" onClick={() => void handleCopyLink()}>
+                <Copy className="size-4" />
+                {t('analysis.reportPage.copyLink')}
+              </Button>
+              <Button className="w-full" variant="secondary" onClick={() => void handleShare()}>
+                <Share2 className="size-4" />
+                {t('analysis.reportPage.shareReport')}
+              </Button>
+              <Button className="w-full" variant="secondary" onClick={() => void reanalyzeMutation.mutateAsync()}>
+                <RefreshCw className="size-4" />
+                {t('analysis.reportPage.reopenClarification')}
+              </Button>
+            </div>
+          </Card>
+          <div className="panel-card space-y-4 p-4">
+            <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                {t('analysis.reportPage.evidenceFreshness')}
+              </p>
+              <p className="mt-2 text-sm text-text-primary">
+                {evidenceStale ? t('analysis.reportPage.staleEvidenceWarning') : report.evidence[0]?.freshness?.label ?? t('common.notAvailable')}
+              </p>
+            </div>
+            <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                {t('analysis.reportPage.unresolvedRisks')}
+              </p>
+              <p className="mt-2 text-sm text-text-primary">
+                {report.unknowns?.[0] ?? t('analysis.reportsPage.noUnresolved')}
+              </p>
+            </div>
+            <div className="rounded-[18px] border border-border-subtle bg-app-bg-elevated px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                {t('analysis.reportPage.nextSafeAction')}
+              </p>
+              <p className="mt-2 text-sm text-text-primary">
+                {reportStatusDescriptor.nextAction ?? t('common.notAvailable')}
+              </p>
+            </div>
+          </div>
+          <div className="panel-card space-y-4 p-4">
+            <p className="text-sm font-semibold text-text-primary">{t('analysis.reportPage.outline')}</p>
+            <nav className="space-y-1">
+              {reportSections.map((item) => (
+                <a
+                  key={item.id}
+                  href={`#${item.id}`}
+                  className="interactive-lift block rounded-2xl px-3 py-2 text-sm text-text-secondary hover:bg-app-bg-elevated hover:text-text-primary"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+            <a
+              href={report.evidence[0]?.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-gold-primary"
+            >
+              {t('analysis.reportPage.openFirstSource')}
+              <ExternalLink className="size-4" />
+            </a>
+          </div>
         </div>
       </aside>
     </div>

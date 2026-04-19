@@ -5,6 +5,7 @@ import {
   Calculator,
   FileSearch,
   FolderKanban,
+  LayoutGrid,
   Layers3,
   PlusSquare,
   ScrollText,
@@ -16,20 +17,33 @@ import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { useApiAdapter } from '@/lib/api/use-api-adapter'
+import { workspaceNavigationItems } from '@/components/layout/route-metadata'
 import { useAppStore } from '@/lib/store/app-store'
 import { cn } from '@/lib/utils/cn'
 import { formatRelativeTime } from '@/features/analysis/lib/view-models'
 
-const navItems = [
-  { to: '/new-analysis', labelKey: 'nav.newAnalysis', icon: PlusSquare },
-  { to: '/assets', labelKey: 'nav.assets', icon: BadgeCheck },
-  { to: '/portfolio', labelKey: 'nav.portfolio', icon: BarChart3 },
-  { to: '/stocks', labelKey: 'nav.stocks', icon: TrendingUp },
-  { to: '/sessions', labelKey: 'nav.sessions', icon: Layers3 },
-  { to: '/reports', labelKey: 'nav.reports', icon: ScrollText },
-  { to: '/evidence', labelKey: 'nav.evidence', icon: FileSearch },
-  { to: '/calculations', labelKey: 'nav.calculations', icon: Calculator },
-  { to: '/settings', labelKey: 'nav.settings', icon: Settings2 },
+const iconByItemId = {
+  workspace: LayoutGrid,
+  'new-analysis': PlusSquare,
+  sessions: Layers3,
+  assets: BadgeCheck,
+  reports: ScrollText,
+  calculations: Calculator,
+  evidence: FileSearch,
+  stocks: TrendingUp,
+  'stocks-candidates': TrendingUp,
+  'stocks-orders': TrendingUp,
+  'stocks-settings': TrendingUp,
+  portfolio: BarChart3,
+  settings: Settings2,
+} as const
+
+const navGroups = [
+  { id: 'workspace', titleKey: 'layout.navigation.workspace' },
+  { id: 'rwa', titleKey: 'layout.navigation.rwaDesk' },
+  { id: 'stocks', titleKey: 'layout.navigation.stocks' },
+  { id: 'portfolio', titleKey: 'layout.navigation.portfolio' },
+  { id: 'settings', titleKey: 'layout.navigation.settings' },
 ] as const
 
 interface SidebarProps {
@@ -94,42 +108,59 @@ export function Sidebar({ collapsed }: SidebarProps) {
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto pr-1">
-          <div className="space-y-1.5">
-            {navItems.map((item) => {
-              const Icon = item.icon
+          <div className="space-y-4">
+            {navGroups.map((group) => {
+              const items = workspaceNavigationItems.filter(
+                (item) => item.group === group.id,
+              )
+
+              if (!items.length) {
+                return null
+              }
+
               return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  onClick={() => setSidebarOpen(false)}
-                  title={t(item.labelKey)}
-                >
-                  {({ isActive }) => (
-                    <div
-                      className={cn(
-                        'interactive-lift group flex items-center gap-3 rounded-[20px] px-3 py-3 text-sm font-medium transition',
-                        isActive
-                          ? 'bg-primary-soft text-text-primary shadow-[0_0_0_1px_rgba(79,124,255,0.18)]'
-                          : 'text-text-secondary hover:bg-app-bg-elevated hover:text-text-primary',
-                        'min-[1024px]:max-[1535px]:justify-center min-[1024px]:max-[1535px]:px-0',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'flex size-10 shrink-0 items-center justify-center rounded-[16px] transition',
-                          isActive
-                            ? 'bg-primary text-white'
-                            : 'bg-bg-surface text-text-secondary group-hover:bg-bg-surface-3 group-hover:text-text-primary',
-                        )}
+                <div key={group.id} className="space-y-1.5">
+                  <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted min-[1024px]:max-[1535px]:hidden">
+                    {t(group.titleKey)}
+                  </p>
+                  {items.map((item) => {
+                    const Icon = iconByItemId[item.id as keyof typeof iconByItemId] ?? FolderKanban
+                    return (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        onClick={() => setSidebarOpen(false)}
+                        title={t(item.labelKey)}
                       >
-                        <Icon className="size-5" />
-                      </span>
-                      <span className="truncate min-[1024px]:max-[1535px]:hidden">
-                        {t(item.labelKey)}
-                      </span>
-                    </div>
-                  )}
-                </NavLink>
+                        {({ isActive }) => (
+                          <div
+                            className={cn(
+                              'interactive-lift group flex items-center gap-3 rounded-[20px] px-3 py-3 text-sm font-medium transition',
+                              isActive
+                                ? 'bg-primary-soft text-text-primary shadow-[0_0_0_1px_rgba(79,124,255,0.18)]'
+                                : 'text-text-secondary hover:bg-app-bg-elevated hover:text-text-primary',
+                              'min-[1024px]:max-[1535px]:justify-center min-[1024px]:max-[1535px]:px-0',
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                'flex size-10 shrink-0 items-center justify-center rounded-[16px] transition',
+                                isActive
+                                  ? 'bg-primary text-white'
+                                  : 'bg-bg-surface text-text-secondary group-hover:bg-bg-surface-3 group-hover:text-text-primary',
+                              )}
+                            >
+                              <Icon className="size-5" />
+                            </span>
+                            <span className="truncate min-[1024px]:max-[1535px]:hidden">
+                              {t(item.labelKey)}
+                            </span>
+                          </div>
+                        )}
+                      </NavLink>
+                    )
+                  })}
+                </div>
               )
             })}
           </div>
